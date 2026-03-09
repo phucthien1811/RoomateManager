@@ -1,0 +1,14 @@
+{
+  "name": "roommatemanager",
+  "version": "1.0.0",
+  "description": "Roommate Manager - Full Stack App",
+  "scripts": {
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
