@@ -1,36 +1,24 @@
-/**
- * @file bill.constant.js
- * @description Định nghĩa các hằng số dùng trong toàn bộ module Bill.
- * Tập trung tại đây để tránh "magic string" rải rác trong codebase.
- */
+// Các hằng số dùng chung cho module Bill
+// Tập trung ở đây để tránh gõ tay string rải rác khắp nơi
 
-// ============================================================
-// LOẠI HÓA ĐƠN (Bill Types)
-// ============================================================
 const BILL_TYPES = {
-  ELECTRICITY: "electricity", // Tiền điện
-  WATER: "water",             // Tiền nước
-  RENT: "rent",               // Tiền nhà
-  INTERNET: "internet",       // Tiền mạng
+  ELECTRICITY: "electricity",
+  WATER: "water",
+  RENT: "rent",
+  INTERNET: "internet",
 };
 
-// ============================================================
-// TRẠNG THÁI HÓA ĐƠN TỔNG (Bill Status)
-// Trạng thái của toàn bộ hóa đơn phòng
-// ============================================================
+// Trạng thái của cả hóa đơn phòng
 const BILL_STATUS = {
-  PENDING: "pending",   // Chưa ai thanh toán hoặc đang thanh toán dở
-  PARTIAL: "partial",   // Một số thành viên đã trả
-  COMPLETED: "completed", // Tất cả thành viên đã trả đủ
+  PENDING: "pending",     // chưa ai trả
+  PARTIAL: "partial",     // có người trả rồi, chưa đủ
+  COMPLETED: "completed", // tất cả đã trả
 };
 
-// ============================================================
-// TRẠNG THÁI CHI TIẾT HÓA ĐƠN (Bill Detail Status)
-// Trạng thái của từng thành viên trong hóa đơn
-// ============================================================
+// Trạng thái của từng người trong hóa đơn
 const BILL_DETAIL_STATUS = {
-  PENDING: "pending", // Chưa thanh toán
-  PAID: "paid",       // Đã thanh toán
+  PENDING: "pending",
+  PAID: "paid",
 };
 
 module.exports = {
