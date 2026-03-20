@@ -1,0 +1,157 @@
+╔══════════════════════════════════════════════════════════════════╗
+║     📝 GIT COMMITS - AUTHENTICATION & PERSONAL DASHBOARD         ║
+║              Author: phuchthien1811                              ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│  CÁCH 1: CHẠY SCRIPT (KHUYẾN NGHỊ)                              │
+└─────────────────────────────────────────────────────────────────┘
+
+# PowerShell:
+.\commit-auth-dashboard.ps1
+
+# Git Bash:
+bash commit-auth-dashboard.sh
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  CÁCH 2: CHẠY THỦ CÔNG                                           │
+└─────────────────────────────────────────────────────────────────┘
+
+# 1. Tạo/chuyển sang feature branch
+git checkout develop
+git checkout -b feature/authentication-personal-dashboard
+
+# ==================== COMMIT 1: AUTHENTICATION ====================
+
+# 2. Add files cho commit 1
+git add client/src/login.jsx client/src/register.jsx
+
+# 3. Commit 1
+git commit -m "feat: thêm giao diện đăng nhập và đăng ký
+
+- Tạo component Login với Material-UI
+  → Gradient purple background hiện đại
+  → Form validation đầy đủ
+  → Show/hide password
+  → Demo account sẵn có
+  
+- Tạo component Register
+  → Gradient pink background
+  → Form đăng ký: Họ tên, username, email, phone, password
+  → Validation: email format, password min 6 chars, confirm password
+  → Success notification và auto redirect
+  
+- Design features:
+  → Glass morphism effects
+  → Smooth animations
+  → Responsive design
+  → Material-UI icons
+
+Files:
+- client/src/login.jsx
+- client/src/register.jsx"
+
+# ============== COMMIT 2: PERSONAL DASHBOARD ==============
+
+# 4. Add files cho commit 2
+git add client/src/personal.dashboard.jsx client/src/app.jsx
+
+# 5. Commit 2
+git commit -m "feat: thêm dashboard cá nhân cho thành viên
+
+- Tạo Personal Dashboard component
+  → Hiển thị chi tiêu cá nhân từng thành viên
+  → Avatar + greeting personalized
+  
+- Tính năng dashboard cá nhân:
+  → 3 Summary cards: Đã đóng, Còn nợ, Ngân sách tháng
+  → Progress bar tiến độ thanh toán
+  → Lịch sử chi tiêu table: Loại, Số tiền, Ngày/Giờ, Trạng thái
+  → Phân bổ chi phí breakdown theo category (%)
+  → Logout button
+  
+- Cập nhật App.jsx:
+  → State management cho navigation
+  → Kết nối Login → Register → Personal Dashboard
+  → Theme customization với color palette mới
+  
+- Design:
+  → Gradient blue background (#4facfe → #00f2fe)
+  → Transaction history với icons color-coded
+  → Category breakdown với progress bars
+  → Responsive table layout
+
+Files:
+- client/src/personal.dashboard.jsx
+- client/src/app.jsx"
+
+# 6. Push
+git push -u origin feature/authentication-personal-dashboard
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  📦 2 COMMITS ĐÃ TẠO                                             │
+└─────────────────────────────────────────────────────────────────┘
+
+✅ Commit 1: feat: thêm giao diện đăng nhập và đăng ký
+   Files: login.jsx, register.jsx
+
+✅ Commit 2: feat: thêm dashboard cá nhân cho thành viên
+   Files: personal.dashboard.jsx, app.jsx
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  🎯 BRANCH INFO                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+Branch: feature/authentication-personal-dashboard
+Author: phuchthien1811
+Base: develop
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  📌 BƯỚC TIẾP THEO                                               │
+└─────────────────────────────────────────────────────────────────┘
+
+1. Vào GitHub/GitLab
+2. Tạo Pull Request
+   From: feature/authentication-personal-dashboard
+   To: develop
+3. Title: [Feature] Authentication & Personal Dashboard
+4. Description:
+   """
+   ## Tính năng mới
+   
+   ### 1. Authentication System
+   - ✅ Login page với validation
+   - ✅ Register page với full form
+   - ✅ Demo account
+   
+   ### 2. Personal Dashboard
+   - ✅ User personal spending tracking
+   - ✅ Transaction history với timestamp
+   - ✅ Category breakdown
+   - ✅ Payment progress
+   
+   ### Screenshots
+   (Đính kèm ảnh)
+   """
+5. Assign reviewer
+6. Đợi approve
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  🔍 KIỂM TRA COMMITS                                             │
+└─────────────────────────────────────────────────────────────────┘
+
+# Xem 2 commits vừa tạo
+git log -2 --oneline
+
+# Xem chi tiết commit cuối
+git log -1 --pretty=full
+
+
+═══════════════════════════════════════════════════════════════════
+          ✨ 2 Commits Ready for Pull Request! ✨
+═══════════════════════════════════════════════════════════════════
