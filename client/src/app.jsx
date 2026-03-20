@@ -1,21 +1,36 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import FinancialDashboard from './financial.dashboard';
 import './app.css';
 
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+  },
+  typography: {
+    fontFamily: [
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
+      'sans-serif',
+    ].join(','),
+  },
+});
+
 function App() {
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    axios.get('/api/hello')
-      .then((res) => setMessage(res.data.message))
-      .catch(() => setMessage('Cannot connect to server'));
-  }, []);
-
   return (
-    <div className="app">
-      <h1>Roommate Manager</h1>
-      <p>Server says: {message || 'Loading...'}</p>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <FinancialDashboard />
+    </ThemeProvider>
   );
 }
 

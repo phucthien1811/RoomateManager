@@ -1,0 +1,91 @@
+╔══════════════════════════════════════════════════════════════════╗
+║          🚀 PUSH CODE RM-10 - QUICK COMMANDS                      ║
+║              Author: Huỳnh Gia Bảo (huynhbao1909)                ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│  CÁCH 1: CHẠY SCRIPT TẰM (KHUYẾN NGHỊ)                          │
+└─────────────────────────────────────────────────────────────────┘
+
+# Windows PowerShell:
+.\push-rm10.ps1
+
+# Git Bash:
+bash push-rm10.sh
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  CÁCH 2: COPY-PASTE TỪNG LỆNH                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+# 1. Xóa file tên cũ
+git rm client/src/FinancialDashboard.jsx
+
+# 2. Checkout develop
+git checkout develop
+
+# 3. Tạo feature branch
+git checkout -b feature/rm-10-financial-dashboard
+
+# 4. Add files
+git add client/src/financial.dashboard.jsx client/src/app.jsx client/package.json RM10-README.md QUICKSTART-RM10.md
+
+# 5. Commit (COPY TOÀN BỘ - bao gồm cả dấu nháy)
+git commit --author="huynhbao1909 <huynhgiabaogold09@gmail.com>" -m "feat: tạo giao diện dashboard tài chính RM-10
+
+- Thêm component financial.dashboard.jsx với Material-UI
+- Gradient background hiện đại và glass morphism effects
+- 4 summary cards: Tổng chi phí, Đã thu, Còn thiếu, Thành viên
+- Tiến độ thu tiền với progress bar
+- Chi tiết hóa đơn: Điện, Nước, Mạng, Tiền nhà
+- Trạng thái thanh toán từng thành viên
+- Responsive design và hover animations
+- Format currency theo chuẩn VNĐ
+
+Task: RM-10
+Author: Huỳnh Gia Bảo (huynhbao1909)"
+
+# 6. Push
+git push -u origin feature/rm-10-financial-dashboard
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  SAU KHI PUSH                                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+✅ Vào GitHub/GitLab
+✅ Tạo Pull Request: feature/rm-10-financial-dashboard → develop
+✅ Title: [RM-10] Giao diện Dashboard Tài Chính
+✅ Assign reviewer
+✅ Đợi approve
+
+⛔ KHÔNG merge trực tiếp vào main!
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  KIỂM TRA                                                         │
+└─────────────────────────────────────────────────────────────────┘
+
+# Xem commit author
+git log -1 --pretty=full
+
+# Kết quả mong đợi:
+# Author: huynhbao1909 <huynhgiabaogold09@gmail.com>
+# Commit: thientiy1811 <your-email>
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│  QUY CHUẨN ĐÃ TUÂN THỦ                                           │
+└─────────────────────────────────────────────────────────────────┘
+
+✅ File name: financial.dashboard.jsx (lowercase + dots)
+✅ Variables: camelCase
+✅ Branch: feature/rm-10-financial-dashboard
+✅ Commit: feat: prefix
+✅ Author: Huỳnh Gia Bảo
+✅ Workflow: feature → develop (NOT main)
+
+
+═══════════════════════════════════════════════════════════════════
+             Prepared for Scrum Master Review ✨
+═══════════════════════════════════════════════════════════════════
