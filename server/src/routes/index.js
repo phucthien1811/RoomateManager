@@ -10,7 +10,6 @@ router.get('/hello', (req, res) => {
 });
 
 // TODO: Add more routes here
-// router.use('/users', require('./users'));
-// router.use('/rooms', require('./rooms'));
+// router.use('/rooms', require('./room.route'));
 
 module.exports = router;
