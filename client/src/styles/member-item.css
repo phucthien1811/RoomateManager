@@ -1,0 +1,80 @@
+/* Member Item Styles - Premium Design */
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.member-item:hover {
+  border: 1px solid var(--color-accent);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
+  transform: scale(1.01);
+}
+
+.member-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-accent-lighter);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.member-info {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.member-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.member-email {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-action {
+  flex-shrink: 0;
+}
+
+.action-btn {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-accent-lighter);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+}
+
+.action-btn:hover {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}

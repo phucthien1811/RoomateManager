@@ -1,0 +1,78 @@
+/* Stat Card Styles - Premium Design */
+.stat-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 32px;
+  border-radius: 16px;
+  background: var(--color-bg-white);
+  border: none;
+  border-top: 3px solid transparent;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--color-accent-lighter);
+  border-top-width: 3px;
+  transform: scale(1.02);
+}
+
+.stat-card-blue {
+  border-top-color: var(--color-accent);
+}
+
+.stat-card-pink {
+  border-top-color: var(--color-success);
+}
+
+.stat-card-orange {
+  border-top-color: var(--color-warning);
+}
+
+.stat-card-cyan {
+  border-top-color: var(--color-secondary);
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.stat-change {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.stat-change.positive {
+  color: var(--color-success);
+}
+
+.stat-change.negative {
+  color: var(--color-error);
+}
+
+.stat-icon {
+  font-size: 32px;
+  margin-left: 32px;
+  color: var(--color-text-lighter);
+  opacity: 0.4;
+}

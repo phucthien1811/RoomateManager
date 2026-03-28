@@ -1,0 +1,102 @@
+/* Room Card Styles - Premium Design */
+.room-card {
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--color-bg-white);
+  border: none;
+  border-top: 4px solid transparent;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.room-card:hover {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--color-accent-lighter);
+  border-top-width: 4px;
+  transform: scale(1.02);
+}
+
+.room-card-purple {
+  border-top-color: var(--color-accent);
+}
+
+.room-card-pink {
+  border-top-color: var(--color-success);
+}
+
+.room-card-cyan {
+  border-top-color: var(--color-secondary);
+}
+
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.room-icon {
+  font-size: 28px;
+  color: var(--color-accent);
+}
+
+.room-status {
+  background: var(--color-bg-alt);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.room-body {
+  padding-top: 0;
+}
+
+.room-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0 0 8px 0;
+}
+
+.room-location {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0 0 18px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.room-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.room-stat-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.room-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary);
+}

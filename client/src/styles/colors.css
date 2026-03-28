@@ -1,0 +1,42 @@
+/* Professional Color System */
+:root {
+  /* Primary Colors - Deep & Professional */
+  --color-primary: #1E293B;
+  --color-primary-light: #334155;
+  --color-primary-lighter: #64748B;
+
+  /* Accent Color - Royal Blue */
+  --color-accent: #2563EB;
+  --color-accent-light: #3B82F6;
+  --color-accent-lighter: #DBEAFE;
+
+  /* Secondary Accent - Gold/Bronze (subtle) */
+  --color-secondary: #9333EA;
+  --color-secondary-light: #A855F7;
+
+  /* Success Color - Teal/Green */
+  --color-success: #0D9488;
+  --color-success-light: #14B8A6;
+  --color-success-lighter: #CCFBF1;
+
+  /* Background - Clean & Minimal */
+  --color-bg: #F8F9FA;
+  --color-bg-white: #FFFFFF;
+  --color-bg-alt: #F1F5F9;
+
+  /* Text Colors */
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #475569;
+  --color-text-light: #64748B;
+  --color-text-lighter: #94A3B8;
+  --color-text-inverse: #FFFFFF;
+
+  /* Border Colors */
+  --color-border: #E2E8F0;
+  --color-border-light: #F1F5F9;
+
+  /* Utility Colors */
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-info: #0EA5E9;
+}
