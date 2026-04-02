@@ -104,9 +104,47 @@ const getBillDetail = async (req, res) => {
   }
 };
 
+// GET /api/bills/history/:roomId — Lấy lịch sử hóa đơn của phòng
+const getBillHistory = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { page, limit, bill_type, from_month, to_month, sort_by, sort_order } = req.query;
+
+    if (!roomId || !/^[a-fA-F0-9]{24}$/.test(roomId)) {
+      return sendResponse(res, 400, false, "roomId không hợp lệ");
+    }
+
+    // Validate month format if provided (YYYY-MM)
+    const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+    if (from_month && !monthRegex.test(from_month)) {
+      return sendResponse(res, 400, false, "from_month phải theo định dạng YYYY-MM");
+    }
+    if (to_month && !monthRegex.test(to_month)) {
+      return sendResponse(res, 400, false, "to_month phải theo định dạng YYYY-MM");
+    }
+
+    const options = {
+      page: page || 1,
+      limit: limit || 10,
+      billType: bill_type || null,
+      fromMonth: from_month || null,
+      toMonth: to_month || null,
+      sortBy: sort_by || "billing_month",
+      sortOrder: sort_order || "desc",
+    };
+
+    const result = await billService.getBillHistory(roomId, options);
+
+    return sendResponse(res, 200, true, "Lấy lịch sử hóa đơn thành công", result);
+  } catch (error) {
+    console.error("[BillController] getBillHistory error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi lấy lịch sử hóa đơn");
+  }
+};
+
 module.exports = {
   createBill,
   confirmPayment,
   getBillDetail,
+  getBillHistory,
 };
-feat: refactor comments bill.controller
