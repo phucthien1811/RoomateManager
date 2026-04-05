@@ -17,11 +17,41 @@ const billDetailSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "member_id là bắt buộc"],
     },
-    // Số tiền đã được tính theo Largest Remainder Method (số nguyên, không xu lẻ)
+    member: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Member",
+      required: false,
+    },
+    // Số tiền gốc tính theo Largest Remainder Method
     amount_due: {
       type: Number,
       required: [true, "amount_due là bắt buộc"],
       min: [0, "amount_due không được âm"],
+    },
+    // Alias cho amount_due để dễ sử dụng
+    original_amount: {
+      type: Number,
+      required: false,
+      min: [0, "original_amount không được âm"],
+    },
+    // Số tiền thực tế phải trả (sau khi trừ vắng mặt)
+    actual_amount: {
+      type: Number,
+      required: false,
+      min: [0, "actual_amount không được âm"],
+    },
+    // Số tiền giảm do vắng mặt
+    absence_discount: {
+      type: Number,
+      default: 0,
+      min: [0, "absence_discount không được âm"],
+    },
+    // Tỷ lệ chi phí phải trả (0-1). Ví dụ: 0.71 = 71% phải trả
+    cost_ratio: {
+      type: Number,
+      default: 1,
+      min: [0, "cost_ratio phải >= 0"],
+      max: [1, "cost_ratio phải <= 1"],
     },
     status: {
       type: String,
@@ -57,4 +87,4 @@ billDetailSchema.virtual("is_paid").get(function () {
 const BillDetail = mongoose.model("BillDetail", billDetailSchema);
 
 module.exports = BillDetail;
-feat: refactor comments bill.detail.model
+
