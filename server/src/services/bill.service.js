@@ -103,10 +103,101 @@ const getBillWithDetails = async (billId) => {
   return { bill, details };
 };
 
+// RM-6: Lấy lịch sử hóa đơn của một phòng trong khoảng tháng
+const getBillHistory = async (roomId, options = {}) => {
+  const {
+    page = 1,
+    limit = 10,
+    billType = null,
+    fromMonth = null,
+    toMonth = null,
+    sortBy = "billing_month",
+    sortOrder = "desc",
+  } = options;
+
+  // Validate pagination
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+  const skip = (pageNum - 1) * limitNum;
+
+  // Build filter query
+  const filter = { room_id: roomId };
+  if (billType) {
+    filter.bill_type = billType;
+  }
+  if (fromMonth || toMonth) {
+    filter.billing_month = {};
+    if (fromMonth) {
+      filter.billing_month.$gte = fromMonth;
+    }
+    if (toMonth) {
+      filter.billing_month.$lte = toMonth;
+    }
+  }
+
+  // Build sort object
+  const sortObj = {};
+  const validSortFields = ["billing_month", "total_amount", "created_at", "status"];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : "billing_month";
+  const sortValue = sortOrder.toLowerCase() === "asc" ? 1 : -1;
+  sortObj[sortField] = sortValue;
+
+  try {
+    // Get total count
+    const total = await RoomBill.countDocuments(filter);
+
+    // Get bills with pagination and sorting
+    const bills = await RoomBill.find(filter)
+      .populate("room_id", "room_name room_number")
+      .populate("created_by", "full_name email")
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Get bill details for each bill
+    const billsWithDetails = await Promise.all(
+      bills.map(async (bill) => {
+        const details = await BillDetail.find({ bill_id: bill._id })
+          .populate("member_id", "full_name email")
+          .populate("confirmed_by", "full_name email")
+          .lean();
+
+        // Calculate summary stats
+        const paidCount = details.filter((d) => d.status === BILL_DETAIL_STATUS.PAID).length;
+        const pendingCount = details.length - paidCount;
+
+        return {
+          ...bill,
+          details,
+          summary: {
+            total_members: details.length,
+            paid_members: paidCount,
+            pending_members: pendingCount,
+          },
+        };
+      })
+    );
+
+    return {
+      bills: billsWithDetails,
+      pagination: {
+        current_page: pageNum,
+        per_page: limitNum,
+        total: total,
+        total_pages: Math.ceil(total / limitNum),
+      },
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createBillWithSplit,
   confirmPayment,
   getBillWithDetails,
+  getBillHistory,
   splitAmountByLargestRemainder, // export riêng để tiện viết unit test
 };
 
