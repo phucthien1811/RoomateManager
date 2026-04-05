@@ -57,4 +57,3 @@ roomBillSchema.index(
 const RoomBill = mongoose.model("RoomBill", roomBillSchema);
 
 module.exports = RoomBill;
-feat: refactor comments room.bill.model

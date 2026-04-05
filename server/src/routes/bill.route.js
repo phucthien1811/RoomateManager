@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const billController = require("../controllers/bill.controller");
+const billAbsenceController = require("../controllers/bill.absence.controller");
 
 // TODO: thay bằng middleware auth thật khi có
 const authenticate = (req, res, next) => next();
@@ -15,6 +16,7 @@ const authorizeAdmin = (req, res, next) => next();
 router.post("/", authenticate, authorizeAdmin, billController.createBill);
 router.get("/history/:roomId", authenticate, billController.getBillHistory);
 router.patch("/details/:detailId/confirm", authenticate, billController.confirmPayment);
+router.post("/:bill_id/apply-absence", authenticate, billAbsenceController.applyAbsenceToBill);
 router.get("/:billId", authenticate, billController.getBillDetail);
 
 module.exports = router;
