@@ -4,20 +4,24 @@ import {
   faChartLine,
   faHome,
   faUsers,
-  faDollarSign,
   faFileAlt,
-  faStickyNote,
+  faTasks,
+  faBell,
+  faChartBar,
+  faPiggyBank,
 } from '@fortawesome/free-solid-svg-icons';
 import '../styles/sidebar.css';
 
 const Sidebar = ({ activeMenu, setActiveMenu }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
-    { id: 'rooms', label: 'Phòng', icon: faHome },
-    { id: 'members', label: 'Thành viên', icon: faUsers },
-    { id: 'expenses', label: 'Chi tiêu', icon: faDollarSign },
-    { id: 'bills', label: 'Hóa đơn', icon: faFileAlt },
-    { id: 'notes', label: 'Ghi chú', icon: faStickyNote },
+    { id: 'rooms', label: 'Quản Lý Phòng', icon: faHome },
+    { id: 'members', label: 'Quản Lý Thành Viên', icon: faUsers },
+    { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
+    { id: 'tasks', label: 'Công Việc Chung', icon: faTasks },
+    { id: 'expenses', label: 'Chi Phí & Quỹ', icon: faPiggyBank },
+    { id: 'notifications', label: 'Thông Báo', icon: faBell },
+    { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 
   return (

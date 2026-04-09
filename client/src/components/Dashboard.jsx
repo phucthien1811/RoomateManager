@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHome,
@@ -10,9 +10,9 @@ import {
   faPlus,
   faMapMarkerAlt,
 } from '@fortawesome/free-solid-svg-icons';
-import StatCard from './StatCard';
-import RoomCard from './RoomCard';
-import MemberItem from './MemberItem';
+import StatCard from './StatCard.jsx';
+import RoomCard from './RoomCard.jsx';
+import MemberItem from './MemberItem.jsx';
 import '../styles/dashboard.css';
 
 const Dashboard = () => {
@@ -105,81 +105,38 @@ const Dashboard = () => {
           <button className="btn-settings">
             <FontAwesomeIcon icon={faCog} />
           </button>
-          <div className="user-avatar">DN</div>
         </div>
       </div>
 
-      {/* Statistics Section */}
-      <div className="stats-section">
-        <StatCard
-          title="Phòng quản lý"
-          value={stats.roomCount}
-          change={stats.roomChange}
-          icon={faHome}
-          color="blue"
-        />
-        <StatCard
-          title="Tổng thành viên"
-          value={stats.memberCount}
-          change={stats.memberChange}
-          icon={faUsers}
-          color="pink"
-        />
-        <StatCard
-          title="Chi tiêu tháng này"
-          value={stats.expense}
-          change={stats.expenseChange}
-          icon={faDollarSign}
-          color="orange"
-        />
-        <StatCard
-          title="Chờ xác nhận"
-          value={stats.pendingCount}
-          change={stats.pendingChange}
-          icon={faStar}
-          color="cyan"
-        />
+      <div className="stats-grid">
+        {stats.roomCount && <StatCard title="Phòng Đang Quản Lý" value={stats.roomCount} change={stats.roomChange} icon={faHome} color="purple" />}
+        {stats.memberCount && <StatCard title="Tổng Thành Viên" value={stats.memberCount} change={stats.memberChange} icon={faUsers} color="pink" />}
+        {stats.expense && <StatCard title="Chi Phí Tháng Này" value={stats.expense} change={stats.expenseChange} icon={faDollarSign} color="cyan" />}
+        {stats.pendingCount && <StatCard title="Chưa Thanh Toán" value={stats.pendingCount} change={stats.pendingChange} icon={faStar} color="orange" />}
       </div>
 
-      {/* Rooms and Members Section */}
-      <div className="content-section">
-        {/* Left Column - Rooms */}
-        <div className="left-column">
-          <h2 className="section-title">Phòng của bạn</h2>
-          <button className="btn-add-room">
-            <FontAwesomeIcon icon={faPlus} /> Phòng mới
-          </button>
-          
-          <div className="rooms-list">
+      <div className="dashboard-content">
+        <div className="section">
+          <div className="section-header">
+            <h2>Phòng Đang Có</h2>
+            <button className="btn-add">
+              <FontAwesomeIcon icon={faPlus} /> Thêm Phòng Mới
+            </button>
+          </div>
+          <div className="rooms-grid">
             {rooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                name={room.name}
-                location={room.location}
-                members={room.members}
-                cost={room.cost}
-                status={room.status}
-                icon={room.icon}
-                color={room.color}
-              />
+              <RoomCard key={room.id} {...room} />
             ))}
           </div>
         </div>
 
-        {/* Right Column - Members */}
-        <div className="right-column">
-          <h2 className="section-title">Thành viên gần đây</h2>
-          
+        <div className="section">
+          <div className="section-header">
+            <h2>Thành Viên Gần Đây</h2>
+          </div>
           <div className="members-list">
             {members.map((member) => (
-              <MemberItem
-                key={member.id}
-                name={member.name}
-                email={member.email}
-                avatar={member.avatar}
-                role={member.role}
-                action={member.action}
-              />
+              <MemberItem key={member.id} {...member} />
             ))}
           </div>
         </div>
