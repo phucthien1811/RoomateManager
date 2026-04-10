@@ -1,5 +1,5 @@
 /* ============================================
-   TASK TRACKING STYLES
+   ABSENCE REPORT COMPONENT STYLES
    ============================================ */
 
 :root {
@@ -17,7 +17,7 @@
   --color-border: #e5e7eb;
 }
 
-.task-tracking-page {
+.absence-report-page {
   background: var(--color-bg);
   padding: 40px 24px;
   min-height: 100%;
@@ -29,7 +29,7 @@
    HEADER SECTION
    ============================================ */
 
-.task-header {
+.absence-report-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -53,7 +53,7 @@
   line-height: 1.5;
 }
 
-.btn-add-task {
+.btn-create-report {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -70,16 +70,17 @@
   white-space: nowrap;
 }
 
-.btn-add-task:hover:not(:disabled) {
+.btn-create-report:hover:not(:disabled) {
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
 }
 
-.btn-add-task:disabled {
+.btn-create-report:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 
 /* ============================================
    ALERTS
@@ -179,11 +180,37 @@
   cursor: not-allowed;
 }
 
+.btn-filter {
+  padding: 10px 20px;
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  background: white;
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn-filter:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: white;
+}
+
+.btn-filter:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ============================================
-   TASKS SECTION
+   REPORTS SECTION
    ============================================ */
 
-.tasks-section {
+.reports-section {
   margin-bottom: 40px;
 }
 
@@ -235,21 +262,22 @@
   }
 }
 
-/* Tasks Grid */
-.tasks-grid {
+/* Reports Grid */
+.reports-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 24px;
+  margin-top: 24px;
 }
 
 /* ============================================
-   TASK CARD
+   ABSENCE CARD (Like Bill Card)
    ============================================ */
 
-.task-card {
+.absence-card {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -257,22 +285,25 @@
   border-bottom: 3px solid var(--color-warning);
 }
 
-.task-card:hover {
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+.absence-card:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
   transform: translateY(-4px);
 }
 
-.task-card.status-pending {
+.absence-card.status-pending {
   border-bottom-color: var(--color-warning);
 }
 
-.task-card.status-completed {
+.absence-card.status-approved {
   border-bottom-color: var(--color-success);
-  opacity: 0.85;
 }
 
-/* Card Header */
-.task-card-header {
+.absence-card.status-rejected {
+  border-bottom-color: var(--color-danger);
+}
+
+/* Absence Card Header - Like Bill Title */
+.absence-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -282,7 +313,7 @@
   background: linear-gradient(to right, rgba(249, 250, 251, 0.8), transparent);
 }
 
-.task-title {
+.absence-card-title {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -290,7 +321,7 @@
   min-width: 0;
 }
 
-.task-icon-badge {
+.absence-icon-badge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -304,24 +335,23 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.task-title-content h3 {
+.absence-title-content h3 {
   font-size: 16px;
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
   line-height: 1.3;
-  word-break: break-word;
 }
 
-.task-title-content .assigned-to {
+.absence-title-content .member-name {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin: 4px 0 0 0;
   font-weight: 500;
 }
 
-/* Status Badge */
-.status-badge {
+/* Absence Status Badge */
+.absence-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -336,24 +366,30 @@
   transition: all 0.2s ease;
 }
 
-.status-badge.pending {
+.absence-status-badge.status-pending {
   background: #fef3c7;
   color: #92400e;
   border: 1px solid #fcd34d;
 }
 
-.status-badge.completed {
+.absence-status-badge.status-approved {
   background: #d1fae5;
   color: #065f46;
   border: 1px solid #6ee7b7;
 }
 
-.status-badge svg {
+.absence-status-badge.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.absence-status-badge svg {
   font-size: 11px;
 }
 
-/* Card Body */
-.task-card-body {
+/* Absence Card Body */
+.absence-card-body {
   padding: 20px;
   flex: 1;
   display: flex;
@@ -387,8 +423,8 @@
   word-break: break-word;
 }
 
-/* Card Footer */
-.task-card-footer {
+/* Absence Card Footer */
+.absence-card-footer {
   display: flex;
   gap: 8px;
   padding: 12px 20px;
@@ -398,8 +434,10 @@
   justify-content: flex-end;
 }
 
-.btn-action {
-  padding: 8px 16px;
+.btn-approve-action,
+.btn-reject-action,
+.btn-delete-action {
+  padding: 6px 14px;
   border: none;
   border-radius: 6px;
   font-size: 12px;
@@ -413,34 +451,40 @@
   text-transform: uppercase;
   letter-spacing: 0.4px;
   white-space: nowrap;
-  flex: 1;
-  min-width: fit-content;
 }
 
-.btn-complete {
+.btn-approve-action {
   background: #d1fae5;
   color: #065f46;
   border: 1px solid #6ee7b7;
 }
 
-.btn-complete:hover {
+.btn-approve-action:hover {
   background: #6ee7b7;
   color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.btn-delete {
+.btn-reject-action {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.btn-reject-action:hover {
+  background: #fca5a5;
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-action {
   background: #f3f4f6;
   color: #6b7280;
   border: 1px solid var(--color-border);
-  padding: 8px;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 auto;
-  gap: 0;
+  padding: 6px 12px;
 }
 
-.btn-delete:hover {
+.btn-delete-action:hover {
   background: var(--color-danger);
   color: white;
   border-color: var(--color-danger);
@@ -464,6 +508,15 @@
   z-index: 1000;
   padding: 20px;
   animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-container {
@@ -577,6 +630,13 @@
   color: var(--color-text-light);
 }
 
+.form-input[type="textarea"],
+textarea.form-input {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+}
+
 .modal-footer {
   display: flex;
   gap: 12px;
@@ -637,17 +697,17 @@
    ============================================ */
 
 @media (max-width: 1024px) {
-  .tasks-grid {
+  .reports-grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 }
 
 @media (max-width: 768px) {
-  .task-tracking-page {
+  .absence-report-page {
     padding: 24px 16px;
   }
 
-  .task-header {
+  .absence-report-header {
     flex-direction: column;
     align-items: stretch;
     margin-bottom: 24px;
@@ -657,7 +717,7 @@
     font-size: 24px;
   }
 
-  .btn-add-task {
+  .btn-create-report {
     width: 100%;
     justify-content: center;
   }
@@ -665,7 +725,6 @@
   .filter-section {
     flex-direction: column;
     gap: 12px;
-    padding: 16px;
   }
 
   .filter-group {
@@ -673,24 +732,29 @@
     min-width: auto;
   }
 
-  .tasks-grid {
+  .btn-filter {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .reports-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .task-card-header {
+  .absence-card-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
 
-  .task-icon-badge {
+  .absence-icon-badge {
     width: 40px;
     height: 40px;
     font-size: 20px;
   }
 
-  .status-badge {
+  .absence-status-badge {
     align-self: flex-start;
     width: 100%;
     justify-content: space-between;
@@ -706,22 +770,17 @@
     text-align: left;
   }
 
-  .task-card-footer {
+  .absence-card-footer {
     gap: 6px;
     padding: 12px;
   }
 
-  .btn-action {
+  .btn-approve-action,
+  .btn-reject-action,
+  .btn-delete-action {
     flex: 1;
-    padding: 10px 12px;
-    font-size: 12px;
-  }
-
-  .btn-delete {
-    width: 40px;
-    height: 40px;
-    padding: 8px;
-    flex: 0 0 auto;
+    padding: 8px 10px;
+    font-size: 11px;
   }
 
   .modal-container {
@@ -742,7 +801,7 @@
 }
 
 @media (max-width: 480px) {
-  .task-tracking-page {
+  .absence-report-page {
     padding: 16px 12px;
   }
 
@@ -764,35 +823,40 @@
     padding: 8px 10px;
   }
 
-  .tasks-grid {
+  .btn-filter {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .reports-grid {
     gap: 12px;
   }
 
-  .task-card {
+  .absence-card {
     border-radius: 8px;
   }
 
-  .task-card-header,
-  .task-card-body,
-  .task-card-footer {
+  .absence-card-header,
+  .absence-card-body,
+  .absence-card-footer {
     padding: 16px;
   }
 
-  .task-icon-badge {
+  .absence-icon-badge {
     width: 36px;
     height: 36px;
     font-size: 18px;
   }
 
-  .task-title-content h3 {
+  .absence-title-content h3 {
     font-size: 14px;
   }
 
-  .task-title-content .assigned-to {
+  .absence-title-content .member-name {
     font-size: 12px;
   }
 
-  .status-badge {
+  .absence-status-badge {
     padding: 6px 12px;
     font-size: 11px;
   }
@@ -806,16 +870,16 @@
     font-size: 13px;
   }
 
-  .btn-action {
+  .btn-approve-action,
+  .btn-reject-action,
+  .btn-delete-action {
     padding: 6px 8px;
     font-size: 10px;
     gap: 4px;
   }
 
-  .btn-delete {
+  .btn-delete-action {
     padding: 6px;
-    width: 36px;
-    height: 36px;
   }
 
   .empty-state {
@@ -831,3 +895,29 @@
   }
 }
 
+
+.btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .btn-create-report {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .absence-report {
+    padding: 24px;
+  }
+}

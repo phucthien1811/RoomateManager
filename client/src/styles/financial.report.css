@@ -355,13 +355,172 @@
   line-height: 1.4;
 }
 
+/* Export Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.export-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 500px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.export-modal .modal-header {
+  padding: 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.export-modal .modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #a0aec0;
+  transition: color 0.3s ease;
+}
+
+.btn-close-modal:hover {
+  color: var(--color-primary);
+}
+
+.modal-content {
+  padding: 24px;
+}
+
+.modal-content > p {
+  color: var(--color-text);
+  font-size: 14px;
+  margin: 0 0 24px 0;
+}
+
+.export-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.export-option:hover {
+  border-color: var(--color-primary);
+  background: #f0f4ff;
+}
+
+.pdf-option:hover {
+  border-color: #d84040;
+  background: #fff5f5;
+}
+
+.image-option:hover {
+  border-color: #3182ce;
+  background: #ebf4ff;
+}
+
+.option-icon {
+  font-size: 32px;
+  color: var(--color-primary);
+}
+
+.pdf-option .option-icon {
+  color: #d84040;
+}
+
+.image-option .option-icon {
+  color: #3182ce;
+}
+
+.option-title {
+  font-weight: 600;
+  color: var(--color-primary);
+  font-size: 14px;
+}
+
+.option-desc {
+  font-size: 12px;
+  color: var(--color-text-light);
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel-modal {
+  padding: 10px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel-modal:hover {
+  background: #f9fafb;
+  border-color: #cbd5e0;
+}
+
 /* Print Styles */
 @media print {
   .report-header,
   .report-filters,
   .header-actions,
   .btn-print,
-  .btn-export {
+  .btn-export,
+  .modal-overlay {
     display: none;
   }
 

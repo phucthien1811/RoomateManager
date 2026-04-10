@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
@@ -9,20 +10,36 @@ import {
   faBell,
   faChartBar,
   faPiggyBank,
+  faDoorOpen,
+  faCalendarAlt,
+  faCalendarCheck,
+  faSignOutAlt,
 } from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/sidebar.css';
 
 const Sidebar = ({ activeMenu, setActiveMenu }) => {
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
     { id: 'rooms', label: 'Quản Lý Phòng', icon: faHome },
+    { id: 'joinRoom', label: 'Tham Gia Phòng', icon: faDoorOpen },
     { id: 'members', label: 'Quản Lý Thành Viên', icon: faUsers },
     { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
+    { id: 'absence', label: 'Báo Cáo Vắng Mặt', icon: faCalendarAlt },
+    { id: 'duties', label: 'Phân Công Trực Nhật', icon: faCalendarCheck },
     { id: 'tasks', label: 'Công Việc Chung', icon: faTasks },
     { id: 'expenses', label: 'Chi Phí & Quỹ', icon: faPiggyBank },
     { id: 'notifications', label: 'Thông Báo', icon: faBell },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <div className="sidebar">
@@ -62,6 +79,20 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
           <div className="summary-label">Chưa thanh toán</div>
           <div className="summary-value">2.5M</div>
         </div>
+      </div>
+
+      <div className="sidebar-footer">
+        <div className="user-info">
+          <div className="user-avatar">{user?.name?.charAt(0) || 'U'}</div>
+          <div className="user-details">
+            <div className="user-name">{user?.name || 'Guest'}</div>
+            <div className="user-email">{user?.email || 'guest@email.com'}</div>
+          </div>
+        </div>
+        <button className="logout-button" onClick={handleLogout}>
+          <FontAwesomeIcon icon={faSignOutAlt} className="logout-icon" />
+          Đăng Xuất
+        </button>
       </div>
     </div>
   );

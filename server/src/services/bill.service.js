@@ -25,36 +25,36 @@ const createBillWithSplit = async (billData, createdBy) => {
     throw new Error("Phải có ít nhất 1 thành viên để chia tiền");
   }
 
-  // Dùng transaction để đảm bảo: nếu insert bill_details lỗi thì room_bill cũng rollback
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const [newBill] = await RoomBill.create(
-      [{ room_id, bill_type, total_amount, billing_month, note: note || null, status: BILL_STATUS.PENDING, created_by: createdBy }],
-      { session }
-    );
+    // Tạo hóa đơn
+    const newBill = await RoomBill.create({
+      room_id,
+      bill_type,
+      total_amount,
+      billing_month,
+      note: note || null,
+      status: BILL_STATUS.PENDING,
+      created_by: createdBy,
+    });
 
+    // Tính toán chia tiền
     const splitAmounts = splitAmountByLargestRemainder(total_amount, member_ids.length);
 
+    // Tạo chi tiết hóa đơn cho từng thành viên
     const billDetailDocs = member_ids.map((memberId, index) => ({
       bill_id: newBill._id,
       member_id: memberId,
-      amount_due: splitAmounts[index], // người đầu nhận phần dư nếu có
+      amount_due: splitAmounts[index],
       status: BILL_DETAIL_STATUS.PENDING,
       paid_at: null,
       confirmed_by: null,
     }));
 
-    const details = await BillDetail.insertMany(billDetailDocs, { session });
+    const details = await BillDetail.insertMany(billDetailDocs);
 
-    await session.commitTransaction();
     return { bill: newBill, details };
   } catch (error) {
-    await session.abortTransaction();
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
@@ -90,14 +90,14 @@ const confirmPayment = async (billDetailId, confirmedBy) => {
 // Lấy hóa đơn kèm danh sách chi tiết từng thành viên
 const getBillWithDetails = async (billId) => {
   const bill = await RoomBill.findById(billId)
-    .populate("room_id", "room_name room_number")
-    .populate("created_by", "full_name email");
+    .populate("room_id", "name address")
+    .populate("created_by", "name email");
 
   if (!bill) throw new Error("Không tìm thấy hóa đơn");
 
   const details = await BillDetail.find({ bill_id: billId })
-    .populate("member_id", "full_name email")
-    .populate("confirmed_by", "full_name email")
+    .populate("member_id", "name email")
+    .populate("confirmed_by", "name email")
     .sort({ created_at: 1 });
 
   return { bill, details };
@@ -148,8 +148,8 @@ const getBillHistory = async (roomId, options = {}) => {
 
     // Get bills with pagination and sorting
     const bills = await RoomBill.find(filter)
-      .populate("room_id", "room_name room_number")
-      .populate("created_by", "full_name email")
+      .populate("room_id", "name address")
+      .populate("created_by", "name email")
       .sort(sortObj)
       .skip(skip)
       .limit(limitNum)
@@ -159,8 +159,8 @@ const getBillHistory = async (roomId, options = {}) => {
     const billsWithDetails = await Promise.all(
       bills.map(async (bill) => {
         const details = await BillDetail.find({ bill_id: bill._id })
-          .populate("member_id", "full_name email")
-          .populate("confirmed_by", "full_name email")
+          .populate("member_id", "name email")
+          .populate("confirmed_by", "name email")
           .lean();
 
         // Calculate summary stats

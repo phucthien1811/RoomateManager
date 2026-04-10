@@ -51,11 +51,10 @@ const userSchema = new mongoose.Schema(
 );
 
 // Hash password trước khi lưu
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // So sánh password khi đăng nhập
