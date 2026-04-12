@@ -1,5 +1,4 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
@@ -13,14 +12,15 @@ import {
   faDoorOpen,
   faCalendarAlt,
   faCalendarCheck,
-  faSignOutAlt,
 } from '@fortawesome/free-solid-svg-icons';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useNotifications } from '../context/NotificationContext.jsx';
+import roomService from '../services/room.service.js';
 import '../styles/sidebar.css';
 
 const Sidebar = ({ activeMenu, setActiveMenu }) => {
-  const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { unreadCount } = useNotifications();
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
@@ -36,17 +36,51 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const roomList = await roomService.getRooms();
+        setRooms(roomList);
+        if (roomList.length === 0) return;
+
+        const savedRoomId = localStorage.getItem('currentRoomId');
+        const validSavedRoom = roomList.find((room) => room._id === savedRoomId);
+        const roomId = validSavedRoom ? validSavedRoom._id : roomList[0]._id;
+        setSelectedRoomId(roomId);
+        localStorage.setItem('currentRoomId', roomId);
+      } catch (error) {
+        console.error('Error fetching rooms in sidebar:', error);
+      }
+    };
+
+    fetchRooms();
+  }, []);
+
+  const handleRoomChange = (roomId) => {
+    setSelectedRoomId(roomId);
+    localStorage.setItem('currentRoomId', roomId);
+    window.dispatchEvent(new CustomEvent('room-selected', { detail: { roomId } }));
   };
 
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <div className="logo">
-          <FontAwesomeIcon icon={faHome} className="logo-icon" /> Roommate Manager
-        </div>
+        {rooms.length > 0 && (
+          <div className="sidebar-room-switch">
+            <label htmlFor="sidebar-room-selector">Phòng hiện tại</label>
+            <select
+              id="sidebar-room-selector"
+              value={selectedRoomId}
+              onChange={(e) => handleRoomChange(e.target.value)}
+            >
+              {rooms.map((room) => (
+                <option key={room._id} value={room._id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       
       <nav className="sidebar-menu">
@@ -60,6 +94,9 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
             >
               <FontAwesomeIcon icon={item.icon} className="menu-icon" />
               <span className="menu-label">{item.label}</span>
+              {item.id === 'notifications' && unreadCount > 0 && (
+                <span className="menu-badge">{unreadCount}</span>
+              )}
             </button>
           );
         })}
@@ -81,19 +118,6 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
         </div>
       </div>
 
-      <div className="sidebar-footer">
-        <div className="user-info">
-          <div className="user-avatar">{user?.name?.charAt(0) || 'U'}</div>
-          <div className="user-details">
-            <div className="user-name">{user?.name || 'Guest'}</div>
-            <div className="user-email">{user?.email || 'guest@email.com'}</div>
-          </div>
-        </div>
-        <button className="logout-button" onClick={handleLogout}>
-          <FontAwesomeIcon icon={faSignOutAlt} className="logout-icon" />
-          Đăng Xuất
-        </button>
-      </div>
     </div>
   );
 };
