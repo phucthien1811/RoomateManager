@@ -1,0 +1,440 @@
+@import './colors.css';
+
+.member-management {
+  background: var(--color-bg);
+  padding: 40px;
+  min-height: 100%;
+}
+
+.member-management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 40px;
+}
+
+.header-content h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0;
+  margin-bottom: 8px;
+}
+
+.header-content p {
+  color: var(--color-text-light);
+  font-size: 14px;
+  margin: 0;
+}
+
+.btn-add-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-add-member:hover {
+  background: var(--color-accent-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+}
+
+/* Table Container */
+.members-table-container {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+}
+
+.members-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.members-table thead {
+  background: var(--color-bg-alt);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.members-table th {
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.members-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+}
+
+.members-table tbody tr:hover {
+  background: var(--color-bg-alt);
+}
+
+.members-table td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+/* Member Name Cell */
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.member-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent), var(--color-secondary));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.member-full-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Email and Phone Cells */
+.email-cell,
+.phone-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+}
+
+.email-cell svg,
+.phone-cell svg {
+  color: var(--color-accent);
+  font-size: 12px;
+}
+
+/* Role Cell */
+.role-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.role-icon {
+  color: var(--color-warning);
+  font-size: 14px;
+}
+
+/* Debt Cell */
+.debt-cell {
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.debt-cell.no-debt {
+  background: var(--color-success-lighter);
+  color: var(--color-success);
+}
+
+.debt-cell.has-debt {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--color-error);
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-active {
+  background: var(--color-success-lighter);
+  color: var(--color-success);
+}
+
+.status-inactive {
+  background: rgba(107, 114, 128, 0.1);
+  color: var(--color-text-light);
+}
+
+/* Date Cell */
+.date-cell {
+  white-space: nowrap;
+  color: var(--color-text-light);
+  font-size: 13px;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-table-action {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-table-action.edit {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-table-action.edit:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+}
+
+.btn-table-action.edit:active {
+  transform: scale(0.96);
+}
+
+.btn-table-action.delete {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-table-action.delete:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+}
+
+.btn-table-action.delete:active {
+  transform: scale(0.96);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-container {
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.btn-close-modal:hover {
+  color: var(--color-primary);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background: var(--color-accent-lighter);
+}
+
+.form-group select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563EB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 20px;
+  padding-right: 32px;
+}
+
+.modal-footer {
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel,
+.btn-submit {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-cancel:hover {
+  background: var(--color-bg-alt);
+}
+
+.btn-submit {
+  background: var(--color-accent);
+  color: white;
+}
+
+.btn-submit:hover {
+  background: var(--color-accent-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+}
+
+@media (max-width: 968px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .member-management {
+    padding: 20px;
+  }
+
+  .member-management-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .members-table {
+    font-size: 12px;
+  }
+
+  .members-table th,
+  .members-table td {
+    padding: 12px 10px;
+  }
+
+  .modal-container {
+    width: 95%;
+    max-width: 100%;
+  }
+}

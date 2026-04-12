@@ -1,4 +1,4 @@
-@import './styles/colors.css';
+@import './colors.css';
 
 * {
   box-sizing: border-box;
@@ -22,6 +22,12 @@ body {
   overflow: hidden;
 }
 
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  height: 100%;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .app {
@@ -35,7 +41,9 @@ body {
     border-bottom: 1px solid var(--color-border);
   }
 
-  .dashboard {
+  .main-content {
     height: calc(100vh - 220px);
+    overflow-y: auto;
   }
 }
+

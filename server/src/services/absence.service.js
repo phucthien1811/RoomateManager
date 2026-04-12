@@ -2,7 +2,7 @@ const AbsenceReport = require("../models/absence.report.model");
 const Member = require("../models/member.model");
 
 // Tạo báo cáo vắng mặt
-const createAbsenceReport = async (memberId, roomId, reportData) => {
+const createAbsenceReport = async (userId, roomId, reportData) => {
   const { startDate, endDate, reason, note } = reportData;
 
   // Kiểm tra ngày kết thúc phải sau ngày bắt đầu
@@ -13,15 +13,19 @@ const createAbsenceReport = async (memberId, roomId, reportData) => {
     throw new Error("Ngày kết thúc phải sau ngày bắt đầu");
   }
 
-  // Kiểm tra xem thành viên có tồn tại không
-  const member = await Member.findById(memberId);
+  // Kiểm tra xem thành viên có tồn tại trong phòng không
+  const member = await Member.findOne({
+    user: userId,
+    room: roomId,
+  });
+  
   if (!member) {
     throw new Error("Thành viên không tồn tại");
   }
 
   // Kiểm tra xem có báo cáo trùng lặp không (cùng khoảng thời gian)
   const existingReport = await AbsenceReport.findOne({
-    member: memberId,
+    member: member._id,
     room: roomId,
     status: 'Chờ duyệt',
     $or: [
@@ -38,7 +42,7 @@ const createAbsenceReport = async (memberId, roomId, reportData) => {
 
   // Tạo báo cáo vắng mặt
   const absenceReport = new AbsenceReport({
-    member: memberId,
+    member: member._id,
     room: roomId,
     startDate: start,
     endDate: end,
@@ -66,9 +70,8 @@ const getAbsenceReports = async (roomId, filters = {}) => {
   }
 
   const reports = await AbsenceReport.find(query)
-    .populate('member', 'nickname user')
-    .populate('user', 'name email')
-    .populate('approvedBy', 'nickname user')
+    .populate('member', 'nickname')
+    .populate('approvedBy', 'nickname')
     .sort({ createdAt: -1 });
 
   return reports;
@@ -77,9 +80,8 @@ const getAbsenceReports = async (roomId, filters = {}) => {
 // Lấy chi tiết báo cáo vắng mặt
 const getAbsenceReportById = async (reportId) => {
   const report = await AbsenceReport.findById(reportId)
-    .populate('member', 'nickname user')
-    .populate('user', 'name email')
-    .populate('approvedBy', 'nickname user');
+    .populate('member', 'nickname')
+    .populate('approvedBy', 'nickname');
 
   if (!report) {
     throw new Error("Báo cáo vắng mặt không tồn tại");

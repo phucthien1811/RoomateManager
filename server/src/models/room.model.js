@@ -20,6 +20,19 @@ const roomSchema = new mongoose.Schema(
       default: '',
     },
 
+    // Vị trí (alias cho address)
+    location: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    // Tiền thuê hàng tháng
+    monthlyRent: {
+      type: Number,
+      default: 0,
+    },
+
     // Người tạo phòng (chủ phòng)
     owner: {
       type: mongoose.Schema.Types.ObjectId,
@@ -27,8 +40,20 @@ const roomSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Danh sách thành viên trong phòng
+    members: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }],
+
     // Mã mời để tham gia phòng (unique, random)
     inviteCode: {
+      type: String,
+      unique: true,
+    },
+
+    // Mã phòng (code)
+    code: {
       type: String,
       unique: true,
     },
@@ -39,6 +64,13 @@ const roomSchema = new mongoose.Schema(
       default: 10,
       min: [2, 'Phòng phải có ít nhất 2 người'],
     },
+
+    // Trạng thái phòng
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
   },
   {
     timestamps: true,
@@ -47,11 +79,13 @@ const roomSchema = new mongoose.Schema(
 );
 
 // Tự động tạo invite code trước khi lưu
-roomSchema.pre('save', function (next) {
+roomSchema.pre('save', function () {
   if (!this.inviteCode) {
     this.inviteCode = generateInviteCode();
   }
-  next();
+  if (!this.code) {
+    this.code = generateInviteCode();
+  }
 });
 
 // Hàm tạo mã mời ngẫu nhiên

@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const choreController = require("../controllers/chore.controller");
+const { authenticate } = require("../middleware/auth.middleware");
 
-// TODO: thay bằng middleware auth thật khi có
-const authenticate = (req, res, next) => next();
 const authorizeAdmin = (req, res, next) => next();
 
 // POST   /api/chores                      — Tạo lịch trực nhật (admin)

@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const fundController = require("../controllers/fund.controller");
+const { authenticate } = require("../middleware/auth.middleware");
 
-// TODO: thay bằng middleware auth thật khi có
-const authenticate = (req, res, next) => next();
 const authorizeAdmin = (req, res, next) => next();
 
 // GET  /api/funds?room_id=...  — RM-22: Xem số dư + lịch sử giao dịch

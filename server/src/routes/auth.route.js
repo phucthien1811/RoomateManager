@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { register, login, getMe } = require('../controllers/auth.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middleware/auth.middleware');
 
 // POST /api/auth/register
 router.post('/register', register);
@@ -10,6 +10,6 @@ router.post('/register', register);
 router.post('/login', login);
 
 // GET /api/auth/me  (cần đăng nhập)
-router.get('/me', protect, getMe);
+router.get('/me', authenticate, getMe);
 
 module.exports = router;
