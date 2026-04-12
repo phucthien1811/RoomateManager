@@ -1,246 +1,166 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faPlus,
-  faCalendarAlt,
-  faTrash,
-  faTimes,
-  faClock,
-  faCheckCircle,
-  faExclamationCircle,
-  faFilter,
-  faBriefcase,
-  faHome,
-  faHeartPulse,
-} from '@fortawesome/free-solid-svg-icons';
+import { faCalendarAlt, faEdit, faExclamationCircle, faPlus, faTimes } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import absenceService from '../services/absence.service.js';
 import roomService from '../services/room.service.js';
 import '../styles/absence.report.css';
 
+const formatDate = (date) => (date ? new Date(date).toLocaleDateString('vi-VN') : '-');
+
 const AbsenceReport = () => {
   const { user, loading: authLoading } = useAuth();
   const [reports, setReports] = useState([]);
   const [rooms, setRooms] = useState([]);
-  const [selectedRoomId, setSelectedRoomId] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
-
+  const [editingReport, setEditingReport] = useState(null);
   const [formData, setFormData] = useState({
-    room_id: '',
     startDate: '',
     endDate: '',
-    reason: '',
     note: '',
   });
 
-  // Fetch rooms on mount
   useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const data = await roomService.getRooms();
+        setRooms(data);
+      } catch (err) {
+        setError(err?.message || 'Không thể tải danh sách phòng');
+      }
+    };
     fetchRooms();
   }, []);
 
-  // Fetch reports when room is selected
   useEffect(() => {
-    if (selectedRoomId) {
-      fetchReports();
-    }
-  }, [selectedRoomId]);
+    const syncRoom = () => {
+      const current = localStorage.getItem('currentRoomId') || '';
+      setSelectedRoomId(current);
+    };
 
-  const fetchRooms = async () => {
-    try {
-      setLoading(true);
-      const data = await roomService.getRooms();
-      setRooms(data);
-      if (data.length > 0) {
-        setSelectedRoomId(data[0]._id);
-      }
-    } catch (err) {
-      console.error('Error fetching rooms:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    syncRoom();
+    window.addEventListener('room-selected', syncRoom);
+    return () => window.removeEventListener('room-selected', syncRoom);
+  }, []);
 
-  const fetchReports = async () => {
+  const fetchReports = async (roomId) => {
+    if (!roomId) {
+      setReports([]);
+      return;
+    }
     try {
       setLoading(true);
       setError('');
-      const data = await absenceService.getAbsenceReports(selectedRoomId);
-      // Ensure data is always an array
-      const reportsArray = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
-      setReports(reportsArray);
+      const data = await absenceService.getAbsenceReports(roomId);
+      setReports(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Error fetching reports:', err);
-      setError('Lỗi khi tải danh sách báo cáo');
+      setError(err?.message || 'Lỗi khi tải danh sách báo cáo');
       setReports([]);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchReports(selectedRoomId);
+  }, [selectedRoomId]);
+
   const handleOpenModal = () => {
-    setFormData({
-      room_id: selectedRoomId,
-      startDate: '',
-      endDate: '',
-      reason: '',
-      note: '',
-    });
+    if (!selectedRoomId) {
+      setError('Vui lòng chọn phòng ở sidebar trước');
+      return;
+    }
+    setFormData({ startDate: '', endDate: '', note: '' });
+    setEditingReport(null);
     setError('');
     setShowModal(true);
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
+  const handleOpenEditModal = (row) => {
+    setFormData({
+      startDate: row.startDate ? new Date(row.startDate).toISOString().slice(0, 10) : '',
+      endDate: row.endDate ? new Date(row.endDate).toISOString().slice(0, 10) : '',
+      note: row.note === '-' ? '' : row.note,
+    });
+    setEditingReport(row);
     setError('');
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setShowModal(true);
   };
 
   const handleSubmitReport = async () => {
-    if (!formData.room_id || !formData.startDate || !formData.endDate || !formData.reason) {
-      setError('Vui lòng điền tất cả các trường bắt buộc');
+    if (!formData.startDate || !formData.endDate) {
+      setError('Vui lòng nhập đầy đủ ngày vắng và ngày có mặt');
       return;
     }
-
-    // Wait for auth to load
-    if (authLoading) {
-      setError('Đang xác thực, vui lòng chờ...');
-      return;
-    }
-
-    // Check user exists
-    if (!user) {
+    if (authLoading || !user) {
       setError('Vui lòng đăng nhập lại');
       return;
     }
 
-    // Get user ID (try both field names)
-    const userId = user.id || user._id;
-    if (!userId) {
-      console.error('User object invalid:', user);
-      setError('Không thể xác định người dùng (ID missing)');
-      return;
-    }
-
-    setSubmitting(true);
     try {
+      setSubmitting(true);
       setError('');
-      await absenceService.createAbsenceReport({
-        room_id: formData.room_id,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        reason: formData.reason,
-        note: formData.note,
-        member_id: userId,
-      });
-      await fetchReports();
-      handleCloseModal();
+      if (editingReport) {
+        await absenceService.updateAbsenceReport(editingReport.id, {
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          note: formData.note,
+          member_id: user.id || user._id,
+        });
+      } else {
+        await absenceService.createAbsenceReport({
+          room_id: selectedRoomId,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          reason: 'Khác',
+          note: formData.note,
+          member_id: user.id || user._id,
+        });
+      }
+      await fetchReports(selectedRoomId);
+      setShowModal(false);
     } catch (err) {
-      console.error('Error submitting report:', err);
-      setError(err.message || 'Lỗi khi gửi báo cáo');
+      setError(err?.message || 'Lỗi khi gửi báo cáo');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteReport = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) {
-      try {
-        await absenceService.deleteAbsenceReport(id);
-        await fetchReports();
-      } catch (err) {
-        console.error('Error deleting report:', err);
-        alert('Lỗi khi xóa báo cáo');
-      }
-    }
-  };
+  const selectedRoomName = rooms.find((room) => room._id === selectedRoomId)?.name || 'Chưa chọn phòng';
+  const currentUserId = user?.id || user?._id || '';
 
-  const handleApproveReport = async (id) => {
-    try {
-      await absenceService.approveAbsenceReport(id);
-      await fetchReports();
-    } catch (err) {
-      console.error('Error approving report:', err);
-      alert('Lỗi khi phê duyệt báo cáo');
-    }
-  };
-
-  const handleRejectReport = async (id) => {
-    try {
-      await absenceService.rejectAbsenceReport(id);
-      await fetchReports();
-    } catch (err) {
-      console.error('Error rejecting report:', err);
-      alert('Lỗi khi từ chối báo cáo');
-    }
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('vi-VN');
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      'Chờ duyệt': 'Chờ duyệt',
-      'Đã duyệt': 'Đã duyệt',
-      'Từ chối': 'Từ chối',
-      pending: 'Chờ duyệt',
-      approved: 'Đã duyệt',
-      rejected: 'Từ chối',
-    };
-    return labels[status] || status;
-  };
-
-  const getStatusIcon = (status) => {
-    if (status === 'Đã duyệt' || status === 'approved') return faCheckCircle;
-    if (status === 'Từ chối' || status === 'rejected') return faExclamationCircle;
-    return faClock;
-  };
-
-  // Filter reports based on selected status
-  const filteredReports = selectedStatus === 'all' 
-    ? reports 
-    : reports.filter(report => getStatusLabel(report.status) === getStatusLabel(selectedStatus));
-
-  const getStatusClass = (status) => {
-    const normalizedStatus = getStatusLabel(status).toLowerCase();
-    if (normalizedStatus.includes('duyệt') && !normalizedStatus.includes('từ')) return 'status-approved';
-    if (normalizedStatus.includes('từ')) return 'status-rejected';
-    return 'status-pending';
-  };
-
-  const getReasonIcon = (reason) => {
-    const normalizedReason = reason?.toLowerCase() || '';
-    if (normalizedReason.includes('công tác')) return faBriefcase;
-    if (normalizedReason.includes('quê') || normalizedReason.includes('nhà')) return faHome;
-    if (normalizedReason.includes('ốm') || normalizedReason.includes('bệnh') || normalizedReason.includes('khám')) return faHeartPulse;
-    return faCalendarAlt;
-  };
+  const tableRows = useMemo(
+    () =>
+      reports.map((report) => ({
+        id: report._id,
+        createdAt: report.createdAt || report.created_at,
+        userId: report.member?.user?._id || report.member?.user || '',
+        userName:
+          report.member?.user?.name ||
+          report.member?.user?.full_name ||
+          report.member?.user?.email ||
+          report.member?.nickname ||
+          'Thành viên',
+        note: report.note || '-',
+        startDate: report.startDate,
+        endDate: report.endDate,
+        updatedAt: report.updatedAt || report.updated_at,
+      })),
+    [reports]
+  );
 
   return (
     <div className="absence-report-page">
-      {/* Header Section */}
       <div className="absence-report-header">
         <div className="header-content">
           <h1>Báo Cáo Vắng Mặt</h1>
-          <p>Báo cáo kỳ vắng mặt và theo dõi trạng thái duyệt/phê</p>
+          <p>Phòng hiện tại: {selectedRoomName}</p>
         </div>
-        <button
-          className="btn-create-report"
-          onClick={handleOpenModal}
-          disabled={submitting}
-          title="Thêm báo cáo vắng mặt mới"
-        >
+        <button className="btn-create-report" onClick={handleOpenModal} disabled={submitting}>
           <FontAwesomeIcon icon={faPlus} /> Báo Cáo Vắng Mặt
         </button>
       </div>
@@ -251,244 +171,117 @@ const AbsenceReport = () => {
         </div>
       )}
 
-      {/* Filter Section */}
-      <div className="filter-section">
-        <div className="filter-group">
-          <label htmlFor="room-select">Chọn phòng:</label>
-          <select
-            id="room-select"
-            className="filter-select"
-            value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">-- Chọn phòng --</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="filter-group">
-          <label htmlFor="status-select">Chọn trạng thái:</label>
-          <select
-            id="status-select"
-            className="filter-select"
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-          >
-            <option value="all">Tất cả</option>
-            <option value="Chờ duyệt">Chờ duyệt</option>
-            <option value="Đã duyệt">Đã duyệt</option>
-            <option value="Từ chối">Từ chối</option>
-          </select>
-        </div>
-
-        <button className="btn-filter" disabled={loading}>
-          <FontAwesomeIcon icon={faFilter} /> Lọc
-        </button>
-      </div>
-
-      {/* Reports List */}
       <div className="reports-section">
         {loading ? (
           <div className="empty-state">
             <div className="spinner"></div>
             <p>Đang tải dữ liệu...</p>
           </div>
-        ) : filteredReports.length === 0 ? (
+        ) : !selectedRoomId ? (
+          <div className="empty-state">
+            <FontAwesomeIcon icon={faCalendarAlt} className="empty-icon" />
+            <h3>Chưa chọn phòng</h3>
+            <p>Vui lòng chọn phòng ở sidebar để xem báo cáo vắng mặt</p>
+          </div>
+        ) : tableRows.length === 0 ? (
           <div className="empty-state">
             <FontAwesomeIcon icon={faCalendarAlt} className="empty-icon" />
             <h3>Không có báo cáo vắng mặt</h3>
-            <p>{selectedRoomId ? 'Hãy tạo báo cáo đầu tiên' : 'Vui lòng chọn phòng'}</p>
+            <p>Hãy tạo báo cáo đầu tiên</p>
           </div>
         ) : (
-          <div className="reports-grid">
-            {filteredReports.map((report) => (
-              <div key={report._id} className={`absence-card ${getStatusClass(report.status)}`}>
-                {/* Card Header - Like Bill Card */}
-                <div className="absence-card-header">
-                  <div className="absence-card-title">
-                    <div className="absence-icon-badge">
-                      <FontAwesomeIcon icon={getReasonIcon(report.reason)} />
-                    </div>
-                    <div className="absence-title-content">
-                      <h3>{report.reason}</h3>
-                      <p className="member-name">{report.member?.name || 'Thành viên'}</p>
-                    </div>
-                  </div>
-                  <span className={`absence-status-badge ${getStatusClass(report.status)}`}>
-                    <FontAwesomeIcon icon={getStatusIcon(report.status)} />
-                    {getStatusLabel(report.status)}
-                  </span>
-                </div>
-
-                {/* Card Body - Details */}
-                <div className="absence-card-body">
-                  <div className="detail-row">
-                    <span className="detail-label">Thời gian:</span>
-                    <span className="detail-value">
-                      {formatDate(report.startDate)} → {formatDate(report.endDate)}
-                    </span>
-                  </div>
-
-                  {report.note && (
-                    <div className="detail-row">
-                      <span className="detail-label">Ghi chú:</span>
-                      <span className="detail-value">{report.note}</span>
-                    </div>
-                  )}
-
-                  <div className="detail-row">
-                    <span className="detail-label">Ngày báo cáo:</span>
-                    <span className="detail-value">{formatDate(report.createdAt)}</span>
-                  </div>
-                </div>
-
-                {/* Card Footer - Actions */}
-                <div className="absence-card-footer">
-                  {report.status === 'Chờ duyệt' && (
-                    <>
-                      <button
-                        className="btn-approve-action"
-                        onClick={() => handleApproveReport(report._id)}
-                        title="Phê duyệt"
-                      >
-                        <FontAwesomeIcon icon={faCheckCircle} /> Duyệt
-                      </button>
-                      <button
-                        className="btn-reject-action"
-                        onClick={() => handleRejectReport(report._id)}
-                        title="Từ chối"
-                      >
-                        <FontAwesomeIcon icon={faExclamationCircle} /> Từ chối
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="btn-delete-action"
-                    onClick={() => handleDeleteReport(report._id)}
-                    title="Xóa"
-                  >
-                    <FontAwesomeIcon icon={faTrash} />
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="absence-table-wrap">
+            <table className="absence-table">
+              <thead>
+                <tr>
+                  <th>Ngày báo cáo</th>
+                  <th>User vắng</th>
+                  <th>Ghi chú vắng</th>
+                  <th>Ngày có mặt</th>
+                  <th>Khác</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDate(row.createdAt)}</td>
+                    <td>{row.userName}</td>
+                    <td>{row.note}</td>
+                    <td>{formatDate(row.endDate)}</td>
+                    <td>
+                      {row.updatedAt &&
+                      new Date(row.updatedAt).getTime() > new Date(row.createdAt).getTime()
+                        ? 'Đã chỉnh sửa'
+                        : '-'}
+                    </td>
+                    <td>
+                      {String(row.userId) === String(currentUserId) ? (
+                        <button className="btn-edit-action" onClick={() => handleOpenEditModal(row)} title="Chỉnh sửa">
+                          <FontAwesomeIcon icon={faEdit} /> Chỉnh sửa
+                        </button>
+                      ) : (
+                        <span className="action-disabled-text">không được</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Báo Cáo Vắng Mặt</h2>
-              <button
-                className="btn-close-modal"
-                onClick={handleCloseModal}
-                aria-label="Đóng"
-              >
+              <h2>{editingReport ? 'Chỉnh Sửa Báo Cáo Vắng Mặt' : 'Báo Cáo Vắng Mặt'}</h2>
+              <button className="btn-close-modal" onClick={() => setShowModal(false)} aria-label="Đóng">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
-
             <div className="modal-body">
-              {error && (
-                <div className="alert alert-error">
-                  {error}
-                </div>
-              )}
-
-              <div className="form-group">
-                <label htmlFor="room-modal">Chọn phòng <span className="required">*</span></label>
-                <select
-                  id="room-modal"
-                  name="room_id"
-                  value={formData.room_id}
-                  onChange={handleInputChange}
-                  className="form-input"
-                >
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map((room) => (
-                    <option key={room._id} value={room._id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="form-group">
                 <label htmlFor="startDate">Ngày bắt đầu vắng <span className="required">*</span></label>
                 <input
                   id="startDate"
                   type="date"
-                  name="startDate"
                   value={formData.startDate}
-                  onChange={handleInputChange}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
                   className="form-input"
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="endDate">Ngày kết thúc vắng <span className="required">*</span></label>
+                <label htmlFor="endDate">Ngày có mặt <span className="required">*</span></label>
                 <input
                   id="endDate"
                   type="date"
-                  name="endDate"
                   value={formData.endDate}
-                  onChange={handleInputChange}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
                   className="form-input"
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="reason">Lý do vắng mặt <span className="required">*</span></label>
-                <select
-                  id="reason"
-                  name="reason"
-                  value={formData.reason}
-                  onChange={handleInputChange}
-                  className="form-input"
-                >
-                  <option value="">-- Chọn lý do --</option>
-                  <option value="Về quê">Về quê</option>
-                  <option value="Công tác">Công tác</option>
-                  <option value="Khác">Khác</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="note">Ghi chú thêm</label>
+                <label htmlFor="note">Ghi chú vắng</label>
                 <textarea
                   id="note"
-                  name="note"
                   value={formData.note}
-                  onChange={handleInputChange}
-                  placeholder="Nhập ghi chú (tuỳ chọn)"
+                  onChange={(e) => setFormData((prev) => ({ ...prev, note: e.target.value }))}
+                  placeholder="Nhập ghi chú"
                   rows="3"
                   className="form-input"
                 />
               </div>
             </div>
-
             <div className="modal-footer">
-              <button
-                className="btn-cancel"
-                onClick={handleCloseModal}
-                disabled={submitting}
-              >
+              <button className="btn-cancel" onClick={() => setShowModal(false)} disabled={submitting}>
                 Hủy
               </button>
-              <button
-                className="btn-save"
-                onClick={handleSubmitReport}
-                disabled={submitting}
-              >
-                {submitting ? 'Đang gửi...' : 'Gửi Báo Cáo'}
+              <button className="btn-save" onClick={handleSubmitReport} disabled={submitting}>
+                {submitting ? 'Đang lưu...' : editingReport ? 'Lưu chỉnh sửa' : 'Gửi Báo Cáo'}
               </button>
             </div>
           </div>

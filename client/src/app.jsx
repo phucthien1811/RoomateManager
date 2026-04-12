@@ -47,8 +47,7 @@ const AppLayout = () => {
     absence: 'Báo Cáo Vắng Mặt',
     duties: 'Phân Công Trực Nhật',
     tasks: 'Công Việc Chung',
-    expenses: 'Chi Phí & Quỹ',
-    notifications: 'Thông Báo',
+    expenses: 'Quỹ Tiền Chung',
     reports: 'Báo Cáo Tài Chính',
   };
 
@@ -75,8 +74,6 @@ const AppLayout = () => {
         return <TaskTracking />;
       case 'expenses':
         return <ExpenseSharing />;
-      case 'notifications':
-        return <NotificationBoard />;
       case 'reports':
         return <FinancialReport />;
       case 'joinRoom':

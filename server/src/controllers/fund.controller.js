@@ -13,10 +13,12 @@ const getFundDetail = async (req, res) => {
 
     if (!room_id) return sendResponse(res, 400, false, "Thiếu room_id");
 
-    const { fund, transactions } = await fundService.getFundDetail(room_id);
+    const { fund, transactions, categories, category_allocations } = await fundService.getFundDetail(room_id);
     return sendResponse(res, 200, true, "Lấy thông tin quỹ thành công", {
       balance: fund.balance,
       transactions,
+      categories,
+      category_allocations,
     });
   } catch (error) {
     console.error("[FundController] getFundDetail error:", error.message);
@@ -27,7 +29,7 @@ const getFundDetail = async (req, res) => {
 // POST /api/funds/deposit — RM-22: Nạp tiền vào quỹ
 const deposit = async (req, res) => {
   try {
-    const { room_id, amount, description } = req.body;
+    const { room_id, amount, description, category } = req.body;
 
     if (!room_id || !amount) {
       return sendResponse(res, 400, false, "Thiếu room_id hoặc amount");
@@ -38,7 +40,13 @@ const deposit = async (req, res) => {
     }
 
     const performedBy = req.user?._id || req.body.performed_by;
-    const { fund, transaction } = await fundService.deposit({ roomId: room_id, amount, performedBy, description });
+    const { fund, transaction } = await fundService.deposit({
+      roomId: room_id,
+      amount,
+      performedBy,
+      description,
+      category,
+    });
 
     return sendResponse(res, 200, true, "Nạp tiền vào quỹ thành công", {
       new_balance: fund.balance,
@@ -53,7 +61,7 @@ const deposit = async (req, res) => {
 // POST /api/funds/withdraw — Rút tiền từ quỹ
 const withdraw = async (req, res) => {
   try {
-    const { room_id, amount, description } = req.body;
+    const { room_id, amount, description, category } = req.body;
 
     if (!room_id || !amount) {
       return sendResponse(res, 400, false, "Thiếu room_id hoặc amount");
@@ -64,7 +72,13 @@ const withdraw = async (req, res) => {
     }
 
     const performedBy = req.user?._id || req.body.performed_by;
-    const { fund, transaction } = await fundService.withdraw({ roomId: room_id, amount, performedBy, description });
+    const { fund, transaction } = await fundService.withdraw({
+      roomId: room_id,
+      amount,
+      performedBy,
+      description,
+      category,
+    });
 
     return sendResponse(res, 200, true, "Rút tiền từ quỹ thành công", {
       new_balance: fund.balance,
@@ -80,8 +94,37 @@ const withdraw = async (req, res) => {
   }
 };
 
+const createCategory = async (req, res) => {
+  try {
+    const { room_id, name, amount } = req.body;
+
+    if (!room_id || !name) {
+      return sendResponse(res, 400, false, "Thiếu room_id hoặc tên danh mục");
+    }
+
+    const allocation = Number(amount) || 0;
+    if (!Number.isFinite(allocation) || allocation < 0) {
+      return sendResponse(res, 400, false, "amount phải là số không âm");
+    }
+
+    const fund = await fundService.createCategory({ roomId: room_id, name, amount: allocation });
+    return sendResponse(res, 200, true, "Tạo danh mục quỹ thành công", {
+      categories: fund.categories || [],
+      category_allocations: fund.category_allocations || [],
+      balance: fund.balance,
+    });
+  } catch (error) {
+    if (error.message.includes("vượt quá số dư quỹ")) {
+      return sendResponse(res, 400, false, error.message);
+    }
+    console.error("[FundController] createCategory error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi tạo danh mục quỹ");
+  }
+};
+
 module.exports = {
   getFundDetail,
   deposit,
   withdraw,
+  createCategory,
 };

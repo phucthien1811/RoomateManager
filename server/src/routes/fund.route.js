@@ -12,5 +12,6 @@ const authorizeAdmin = (req, res, next) => next();
 router.get("/", authenticate, fundController.getFundDetail);
 router.post("/deposit", authenticate, fundController.deposit);
 router.post("/withdraw", authenticate, authorizeAdmin, fundController.withdraw);
+router.post("/categories", authenticate, fundController.createCategory);
 
 module.exports = router;

@@ -31,7 +31,6 @@ import choreService from '../services/chore.service.js';
 import absenceService from '../services/absence.service.js';
 import api from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import NotificationBoard from './notification.board.jsx';
 import '../styles/dashboard.css';
 
 const PIE_COLORS = ['#f6b74f', '#54c7a1', '#74b7ff', '#f7d26a', '#9ad8ff', '#c9ced6'];
@@ -593,50 +592,6 @@ const Dashboard = () => {
           <div className="dashboard-content">
             <div className="section">
               <div className="section-header">
-                <h2>Việc cần xử lý ngay</h2>
-              </div>
-              <div className="list-wrap">
-                {computed.pendingPayments.length === 0 ? (
-                  <div className="empty-inline">Không có khoản thanh toán đang chờ</div>
-                ) : (
-                  computed.pendingPayments.map((item) => (
-                    <div key={item.id} className="list-item">
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p>{item.date}</p>
-                      </div>
-                      <span>{formatCurrency(item.amount)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="section">
-              <div className="section-header">
-                <h2>Trực nhật sắp tới</h2>
-              </div>
-              <div className="list-wrap">
-                {computed.upcomingChores.length === 0 ? (
-                  <div className="empty-inline">Không có lịch trực nhật pending</div>
-                ) : (
-                  computed.upcomingChores.map((chore) => (
-                    <div key={chore._id} className="list-item">
-                      <div>
-                        <strong>{chore.note || 'Công việc phòng'}</strong>
-                        <p>{new Date(chore.chore_date).toLocaleDateString('vi-VN')}</p>
-                      </div>
-                      <span>{getMemberName(chore.assigned_to)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="dashboard-content">
-            <div className="section">
-              <div className="section-header">
                 <h2>Lịch sử gần đây</h2>
               </div>
               <div className="list-wrap">
@@ -753,55 +708,9 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="dashboard-content">
-            <div className="section">
-              <div className="section-header">
-                <h2>Khoản bạn cần xử lý</h2>
-              </div>
-              <div className="list-wrap">
-                {personalComputed.pendingPayments.length === 0 ? (
-                  <div className="empty-inline">Bạn không có khoản pending</div>
-                ) : (
-                  personalComputed.pendingPayments.map((item) => (
-                    <div key={item.id} className="list-item">
-                      <div>
-                        <strong>{item.billType}</strong>
-                        <p>{item.month}</p>
-                      </div>
-                      <span>{formatCurrency(item.amount)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="section">
-              <div className="section-header">
-                <h2>Lịch trực nhật của bạn</h2>
-              </div>
-              <div className="list-wrap">
-                {personalComputed.upcomingChores.length === 0 ? (
-                  <div className="empty-inline">Bạn không có lịch trực nhật pending</div>
-                ) : (
-                  personalComputed.upcomingChores.map((chore) => (
-                    <div key={chore._id} className="list-item">
-                      <div>
-                        <strong>{chore.note || 'Công việc phòng'}</strong>
-                        <p>{new Date(chore.chore_date).toLocaleDateString('vi-VN')}</p>
-                      </div>
-                      <span>Pending</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
         </>
       )}
 
-      <div className="dashboard-notification-section">
-        <NotificationBoard compact />
-      </div>
     </div>
   );
 };

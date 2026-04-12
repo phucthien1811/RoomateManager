@@ -6,19 +6,16 @@ import {
   faUsers,
   faFileAlt,
   faTasks,
-  faBell,
   faChartBar,
   faPiggyBank,
   faDoorOpen,
   faCalendarAlt,
   faCalendarCheck,
 } from '@fortawesome/free-solid-svg-icons';
-import { useNotifications } from '../context/NotificationContext.jsx';
 import roomService from '../services/room.service.js';
 import '../styles/sidebar.css';
 
 const Sidebar = ({ activeMenu, setActiveMenu }) => {
-  const { unreadCount } = useNotifications();
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
 
@@ -31,8 +28,7 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
     { id: 'absence', label: 'Báo Cáo Vắng Mặt', icon: faCalendarAlt },
     { id: 'duties', label: 'Phân Công Trực Nhật', icon: faCalendarCheck },
     { id: 'tasks', label: 'Công Việc Chung', icon: faTasks },
-    { id: 'expenses', label: 'Chi Phí & Quỹ', icon: faPiggyBank },
-    { id: 'notifications', label: 'Thông Báo', icon: faBell },
+    { id: 'expenses', label: 'Quỹ Tiền Chung', icon: faPiggyBank },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 
@@ -94,30 +90,10 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
             >
               <FontAwesomeIcon icon={item.icon} className="menu-icon" />
               <span className="menu-label">{item.label}</span>
-              {item.id === 'notifications' && unreadCount > 0 && (
-                <span className="menu-badge">{unreadCount}</span>
-              )}
             </button>
           );
         })}
       </nav>
-
-      <div className="sidebar-summary">
-        <div className="summary-title">THỐNG KÊ NHANH</div>
-        <div className="summary-card">
-          <div className="summary-label">Phòng đang quản lý</div>
-          <div className="summary-value">5</div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-label">Tổng thành viên</div>
-          <div className="summary-value">18</div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-label">Chưa thanh toán</div>
-          <div className="summary-value">2.5M</div>
-        </div>
-      </div>
-
     </div>
   );
 };

@@ -9,6 +9,9 @@ router.post('/', authenticate, absenceController.createAbsenceReport);
 // GET /api/absence-reports/detail/:report_id — Lấy chi tiết báo cáo vắng mặt (MUST come before /:room_id)
 router.get('/detail/:report_id', authenticate, absenceController.getAbsenceReportById);
 
+// PATCH /api/absence-reports/:report_id — Chỉnh sửa báo cáo vắng mặt
+router.patch('/:report_id', authenticate, absenceController.updateAbsenceReport);
+
 // POST /api/absence-reports/:report_id/approve — Phê duyệt báo cáo vắng mặt
 router.post('/:report_id/approve', authenticate, absenceController.approveAbsenceReport);
 

@@ -15,6 +15,27 @@ const fundSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Số dư không được âm"],
     },
+    categories: {
+      type: [String],
+      default: ["Chưa phân loại"],
+    },
+    category_allocations: {
+      type: [
+        {
+          name: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          amount: {
+            type: Number,
+            default: 0,
+            min: 0,
+          },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

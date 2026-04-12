@@ -2,12 +2,14 @@ import api from './api';
 
 const fundService = {
   /**
-   * Lấy thông tin quỹ của phòng
+   * Lấy thông tin quỹ + lịch sử giao dịch theo phòng
    */
-  getFund: async (roomId) => {
+  getFundDetail: async (roomId) => {
     try {
-      const response = await api.get(`/rooms/${roomId}/fund`);
-      return response.data.fund || {};
+      const response = await api.get(`/fund`, {
+        params: { room_id: roomId },
+      });
+      return response.data?.data || { balance: 0, transactions: [], categories: [], category_allocations: [] };
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -16,12 +18,15 @@ const fundService = {
   /**
    * Đóng góp vào quỹ
    */
-  contributeFund: async (roomId, amount) => {
+  contributeFund: async (roomId, amount, description = '', category = 'Chưa phân loại') => {
     try {
-      const response = await api.post(`/rooms/${roomId}/fund/contribute`, {
-        amount,
+      const response = await api.post(`/fund/deposit`, {
+        room_id: roomId,
+        amount: Number(amount),
+        description,
+        category,
       });
-      return response.data.transaction;
+      return response.data?.data?.transaction;
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -30,13 +35,15 @@ const fundService = {
   /**
    * Rút tiền từ quỹ
    */
-  withdrawFund: async (roomId, amount, reason) => {
+  withdrawFund: async (roomId, amount, reason, category = 'Chưa phân loại') => {
     try {
-      const response = await api.post(`/rooms/${roomId}/fund/withdraw`, {
-        amount,
-        reason,
+      const response = await api.post(`/fund/withdraw`, {
+        room_id: roomId,
+        amount: Number(amount),
+        description: reason,
+        category,
       });
-      return response.data.transaction;
+      return response.data?.data?.transaction;
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -47,8 +54,8 @@ const fundService = {
    */
   getFundHistory: async (roomId) => {
     try {
-      const response = await api.get(`/rooms/${roomId}/fund/history`);
-      return response.data.transactions || [];
+      const data = await fundService.getFundDetail(roomId);
+      return data.transactions || [];
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -59,8 +66,25 @@ const fundService = {
    */
   getMemberContributions: async (roomId) => {
     try {
-      const response = await api.get(`/rooms/${roomId}/fund/contributions`);
-      return response.data.contributions || [];
+      const data = await fundService.getFundDetail(roomId);
+      const transactions = data.transactions || [];
+      const map = new Map();
+
+      transactions
+        .filter((item) => item.type === 'deposit')
+        .forEach((item) => {
+          const user = item.performed_by || {};
+          const key = user._id || 'unknown';
+          const current = map.get(key) || {
+            userId: key,
+            full_name: user.full_name || user.name || user.email || 'Thành viên',
+            amount: 0,
+          };
+          current.amount += Number(item.amount) || 0;
+          map.set(key, current);
+        });
+
+      return Array.from(map.values());
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -97,11 +121,32 @@ const fundService = {
    */
   updateFund: async (roomId, fundData) => {
     try {
-      const response = await api.put(`/rooms/${roomId}/fund`, fundData);
-      return response.data.fund;
+      const response = await api.put(`/fund`, {
+        room_id: roomId,
+        ...fundData,
+      });
+      return response.data?.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
     }
+  },
+
+  createCategory: async (roomId, name, amount = 0) => {
+    try {
+      const response = await api.post(`/fund/categories`, {
+        room_id: roomId,
+        name,
+        amount: Number(amount) || 0,
+      });
+      return response.data?.data || {};
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  getFund: async (roomId) => {
+    const data = await fundService.getFundDetail(roomId);
+    return { balance: data.balance || 0 };
   },
 };
 

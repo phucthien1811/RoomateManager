@@ -30,6 +30,7 @@ const BillManagement = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
 
   const [formData, setFormData] = useState({
     room_id: '',
@@ -44,10 +45,29 @@ const BillManagement = () => {
     fetchRooms();
   }, []);
 
+  // Sync selected room with sidebar selection
+  useEffect(() => {
+    const applySelectedRoom = (roomId) => {
+      if (!roomId) return;
+      setSelectedRoomId(roomId);
+    };
+
+    applySelectedRoom(localStorage.getItem('currentRoomId'));
+
+    const handleRoomSelected = (event) => {
+      applySelectedRoom(event.detail?.roomId || localStorage.getItem('currentRoomId'));
+    };
+
+    window.addEventListener('room-selected', handleRoomSelected);
+    return () => window.removeEventListener('room-selected', handleRoomSelected);
+  }, []);
+
   // Fetch bills when room is selected
   useEffect(() => {
     if (selectedRoomId) {
       fetchBills();
+    } else {
+      setBills([]);
     }
   }, [selectedRoomId]);
 
@@ -56,7 +76,7 @@ const BillManagement = () => {
       setLoading(true);
       const data = await roomService.getRooms();
       setRooms(data);
-      if (data.length > 0) {
+      if (!localStorage.getItem('currentRoomId') && data.length > 0) {
         setSelectedRoomId(data[0]._id);
       }
     } catch (err) {
@@ -71,16 +91,10 @@ const BillManagement = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching bills for room:', selectedRoomId);
       const data = await billService.getBillsByRoom(selectedRoomId);
-      console.log('Bills data received:', data);
       
       // Ensure data is always an array
       const billsArray = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
-      
-      console.log('Bills array:', billsArray);
-      console.log('Total bills:', billsArray.length);
-      
       setBills(billsArray);
     } catch (err) {
       console.error('Error fetching bills:', err);
@@ -92,6 +106,11 @@ const BillManagement = () => {
   };
 
   const handleOpenModal = () => {
+    if (!selectedRoomId) {
+      setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn');
+      return;
+    }
+
     setFormData({
       room_id: selectedRoomId,
       bill_type: 'electricity',
@@ -280,12 +299,21 @@ const BillManagement = () => {
     return labels[status] || status;
   };
 
+  const selectedRoomName = rooms.find((room) => room._id === selectedRoomId)?.name || 'Chưa chọn phòng';
+  const visibleBills = bills.filter((bill) => {
+    if (paymentStatusFilter === 'all') return true;
+    if (!bill.details || bill.details.length === 0) return false;
+    return bill.details.some((detail) =>
+      paymentStatusFilter === 'paid' ? detail.status === 'paid' : detail.status !== 'paid'
+    );
+  });
+
   return (
     <div className="bill-management">
       <div className="bill-management-header">
         <div className="header-content">
           <h1>Quản Lý Hóa Đơn</h1>
-          <p>Quản lý, theo dõi và xác nhận thanh toán hóa đơn từng tháng</p>
+          <p>Quản lý, theo dõi và xác nhận thanh toán hóa đơn từng tháng · {selectedRoomName}</p>
         </div>
         <button
           className="btn-create-bill"
@@ -302,23 +330,18 @@ const BillManagement = () => {
         </div>
       )}
 
-      {/* Filter Section */}
       <div className="filter-section">
         <div className="filter-group">
-          <label htmlFor="room-select-bills">Chọn phòng:</label>
+          <label htmlFor="payment-status-filter">Lọc theo trạng thái thanh toán user</label>
           <select
-            id="room-select-bills"
+            id="payment-status-filter"
             className="filter-select"
-            value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
-            disabled={loading}
+            value={paymentStatusFilter}
+            onChange={(e) => setPaymentStatusFilter(e.target.value)}
           >
-            <option value="">-- Chọn phòng --</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name}
-              </option>
-            ))}
+            <option value="all">Tất cả</option>
+            <option value="paid">Đã thanh toán</option>
+            <option value="unpaid">Chưa thanh toán</option>
           </select>
         </div>
       </div>
@@ -326,11 +349,24 @@ const BillManagement = () => {
       <div className="bills-container">
         {loading ? (
           <div className="loading-message">Đang tải dữ liệu...</div>
+        ) : !selectedRoomId ? (
+          <div className="empty-message">Vui lòng chọn phòng ở sidebar để xem hóa đơn.</div>
         ) : bills.length === 0 ? (
           <div className="empty-message">Chưa có hóa đơn nào cho phòng này.</div>
+        ) : visibleBills.length === 0 ? (
+          <div className="empty-message">Không có user phù hợp với bộ lọc thanh toán.</div>
         ) : (
           <div className="bills-grid">
-            {bills.map((bill) => (
+            {visibleBills.map((bill) => {
+              const visibleDetails = (bill.details || []).filter((detail) =>
+                paymentStatusFilter === 'all'
+                  ? true
+                  : paymentStatusFilter === 'paid'
+                    ? detail.status === 'paid'
+                    : detail.status !== 'paid'
+              );
+
+              return (
               <div key={bill._id} className="bill-card">
                 {/* HEADER */}
                 <div className="bill-card-header">
@@ -433,7 +469,10 @@ const BillManagement = () => {
                           <div className="col-action">Trạng thái</div>
                         </div>
 
-                        {bill.details.map((detail, index) => (
+                        {visibleDetails.length === 0 ? (
+                          <div className="details-empty">Không có user phù hợp bộ lọc trong hóa đơn này.</div>
+                        ) : (
+                          visibleDetails.map((detail, index) => (
                           <div
                             key={detail._id || index}
                             className={`table-row status-${detail.status}`}
@@ -462,14 +501,19 @@ const BillManagement = () => {
                               )}
                             </div>
                           </div>
-                        ))}
+                          ))
+                        )}
 
                         <div className="table-footer">
                           <div className="col-member">
                             <strong>Cộng:</strong>
                           </div>
                           <div className="col-amount">
-                            <strong>{formatCurrency(bill.total_amount)}</strong>
+                            <strong>
+                              {formatCurrency(
+                                visibleDetails.reduce((sum, detail) => sum + (Number(detail.amount_due) || 0), 0)
+                              )}
+                            </strong>
                           </div>
                           <div className="col-action"></div>
                         </div>
@@ -505,7 +549,7 @@ const BillManagement = () => {
                   </button>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
@@ -535,19 +579,7 @@ const BillManagement = () => {
 
               <div className="form-group">
                 <label>Phòng *</label>
-                <select
-                  name="room_id"
-                  value={formData.room_id}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map((room) => (
-                    <option key={room._id} value={room._id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
+                <input type="text" value={selectedRoomName} disabled />
               </div>
 
               <div className="form-row">

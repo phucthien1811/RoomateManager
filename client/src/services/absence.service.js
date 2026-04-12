@@ -40,6 +40,18 @@ const absenceService = {
   },
 
   /**
+   * Chỉnh sửa báo cáo vắng mặt
+   */
+  updateAbsenceReport: async (reportId, payload) => {
+    try {
+      const response = await api.patch(`/absence-reports/${reportId}`, payload);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
    * Phê duyệt báo cáo vắng mặt
    */
   approveAbsenceReport: async (reportId) => {

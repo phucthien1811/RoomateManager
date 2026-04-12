@@ -70,11 +70,53 @@ const getAbsenceReports = async (roomId, filters = {}) => {
   }
 
   const reports = await AbsenceReport.find(query)
-    .populate('member', 'nickname')
+    .populate({
+      path: 'member',
+      select: 'nickname user',
+      populate: {
+        path: 'user',
+        select: 'name full_name email',
+      },
+    })
     .populate('approvedBy', 'nickname')
     .sort({ createdAt: -1 });
 
   return reports;
+};
+
+// Chỉnh sửa báo cáo vắng mặt (chỉ chính chủ)
+const updateAbsenceReport = async (reportId, userId, updateData) => {
+  const report = await AbsenceReport.findById(reportId).populate('member', 'user');
+
+  if (!report) {
+    throw new Error("Báo cáo vắng mặt không tồn tại");
+  }
+
+  const ownerUserId = report.member?.user?.toString();
+  if (!ownerUserId || ownerUserId !== userId.toString()) {
+    throw new Error("Bạn không có quyền chỉnh sửa báo cáo này");
+  }
+
+  const startDate = updateData.startDate ? new Date(updateData.startDate) : report.startDate;
+  const endDate = updateData.endDate ? new Date(updateData.endDate) : report.endDate;
+
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new Error("Định dạng ngày không hợp lệ");
+  }
+
+  if (endDate <= startDate) {
+    throw new Error("Ngày có mặt phải sau ngày bắt đầu vắng");
+  }
+
+  report.startDate = startDate;
+  report.endDate = endDate;
+  report.note = updateData.note ?? report.note;
+  if (updateData.reason) {
+    report.reason = updateData.reason;
+  }
+
+  await report.save();
+  return report;
 };
 
 // Lấy chi tiết báo cáo vắng mặt
@@ -167,6 +209,7 @@ module.exports = {
   createAbsenceReport,
   getAbsenceReports,
   getAbsenceReportById,
+  updateAbsenceReport,
   approveAbsenceReport,
   rejectAbsenceReport,
   deleteAbsenceReport,

@@ -84,6 +84,29 @@ const getAbsenceReportById = async (req, res) => {
   }
 };
 
+// PATCH /api/absence-reports/:report_id — Chỉnh sửa báo cáo vắng mặt
+const updateAbsenceReport = async (req, res) => {
+  try {
+    const { report_id } = req.params;
+    const memberId = req.user?._id || req.body.member_id;
+    const { startDate, endDate, note } = req.body;
+
+    if (!memberId) {
+      return sendResponse(res, 400, false, "Không thể xác định thành viên");
+    }
+
+    const report = await absenceService.updateAbsenceReport(report_id, memberId, {
+      startDate,
+      endDate,
+      note,
+    });
+
+    return sendResponse(res, 200, true, "Cập nhật báo cáo thành công", report);
+  } catch (error) {
+    return sendResponse(res, 400, false, error.message);
+  }
+};
+
 // POST /api/absence-reports/:report_id/approve — Phê duyệt báo cáo vắng mặt
 const approveAbsenceReport = async (req, res) => {
   try {
@@ -147,6 +170,7 @@ module.exports = {
   createAbsenceReport,
   getAbsenceReports,
   getAbsenceReportById,
+  updateAbsenceReport,
   approveAbsenceReport,
   rejectAbsenceReport,
   deleteAbsenceReport,
