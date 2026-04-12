@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node seed/seedDatabase.js",
-    "add-bills": "node seed/addBills.js"
+    "add-bills": "node seed/addBills.js",
+    "seed:aduongvuong": "node seed/seedAnDuongVuongDashboard.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

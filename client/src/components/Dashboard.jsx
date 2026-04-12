@@ -1,388 +1,807 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faHome,
-  faUsers,
-  faDollarSign,
-  faStar,
-  faBell,
-  faCog,
-  faPlus,
+  faCalendarCheck,
+  faCircleExclamation,
+  faCoins,
+  faHouse,
   faMapMarkerAlt,
-  faTimes,
+  faMoneyBillWave,
+  faChartLine,
+  faChartPie,
+  faUser,
+  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
-import StatCard from './StatCard.jsx';
-import RoomCard from './RoomCard.jsx';
-import MemberItem from './MemberItem.jsx';
-import reportService from '../services/report.service.js';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import roomService from '../services/room.service.js';
-import memberService from '../services/member.service.js';
+import billService from '../services/bill.service.js';
+import choreService from '../services/chore.service.js';
+import absenceService from '../services/absence.service.js';
+import api from '../services/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import NotificationBoard from './notification.board.jsx';
 import '../styles/dashboard.css';
 
+const PIE_COLORS = ['#f6b74f', '#54c7a1', '#74b7ff', '#f7d26a', '#9ad8ff', '#c9ced6'];
+const BILL_TYPE_LABELS = {
+  electricity: 'Điện',
+  water: 'Nước',
+  rent: 'Tiền thuê',
+  internet: 'Internet',
+};
+
+const formatCurrency = (amount = 0) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
+    Number(amount) || 0
+  );
+
+const getMemberName = (member) => member?.full_name || member?.name || member?.email || 'Thành viên';
+const getEntityId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'object') return value._id || value.id || '';
+  return value;
+};
+
+const getCurrentMonthKey = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${month}`;
+};
+
+const formatMonthLabel = (monthKey) => {
+  if (!monthKey) return '';
+  const [year, month] = monthKey.split('-');
+  return `Tháng ${month}/${year}`;
+};
+
 const Dashboard = () => {
-  const [stats, setStats] = useState({});
+  const { user } = useAuth();
   const [rooms, setRooms] = useState([]);
-  const [members, setMembers] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const [dashboardMode, setDashboardMode] = useState('room');
+  const [selectedBillingMonth, setSelectedBillingMonth] = useState(getCurrentMonthKey());
+  const [chartView, setChartView] = useState('distribution');
+  const [memberChartMode, setMemberChartMode] = useState('chi');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    owner: '',
-    monthlyRent: '',
+  const [data, setData] = useState({
+    room: null,
+    members: [],
+    bills: [],
+    chores: [],
+    absences: [],
+    transactions: [],
+    fundBalance: 0,
   });
-  const [memberRows, setMemberRows] = useState([{ email: '', name: '' }]);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchRooms = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const roomList = await roomService.getRooms();
+        setRooms(roomList);
+
+        if (roomList.length > 0) {
+          const savedRoomId = localStorage.getItem('currentRoomId');
+          const validSavedRoom = roomList.find((room) => room._id === savedRoomId);
+          const roomId = validSavedRoom ? validSavedRoom._id : roomList[0]._id;
+          setSelectedRoomId(roomId);
+          localStorage.setItem('currentRoomId', roomId);
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Error fetching rooms:', err);
+        setError(err.message || 'Không thể tải danh sách phòng');
+        setLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, []);
+
+  useEffect(() => {
+    const handleRoomSelected = (event) => {
+      const roomId = event.detail?.roomId;
+      if (roomId) setSelectedRoomId(roomId);
+    };
+
+    window.addEventListener('room-selected', handleRoomSelected);
+    return () => window.removeEventListener('room-selected', handleRoomSelected);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRoomId) return;
+
+    const fetchRoomDashboard = async () => {
       try {
         setLoading(true);
         setError('');
 
-        // Fetch rooms
-        const roomsData = await roomService.getRooms();
-        const formattedRooms = roomsData.map((room, index) => {
-          const colors = ['purple', 'pink', 'cyan', 'blue', 'green'];
-          return {
-            id: room._id,
-            name: room.name,
-            location: room.location || room.address || '',
-            members: room.members?.length || 0,
-            cost: room.monthlyRent || room.cost || '',
-            status: room.status || 'Active',
-            icon: faHome,
-            color: colors[index % colors.length],
-          };
-        });
-        setRooms(formattedRooms);
+        const [room, members, billHistory, chores, absences, fundResponse] = await Promise.all([
+          roomService.getRoomById(selectedRoomId),
+          roomService.getRoomMembers(selectedRoomId),
+          billService.getBillHistory(selectedRoomId),
+          choreService.getChoresByRoom(selectedRoomId),
+          absenceService.getAbsenceReports(selectedRoomId),
+          api.get(`/fund?room_id=${selectedRoomId}`),
+        ]);
 
-        // Calculate stats from rooms data
-        setStats({
-          roomCount: roomsData.length,
-          roomChange: roomsData.length > 0 ? '+' + roomsData.length : '0',
-          memberCount: roomsData.reduce((sum, room) => sum + (room.members?.length || 0), 0),
-          memberChange: 'Thành viên',
-          expense: '0',
-          expenseChange: 'Tháng này',
-          pendingCount: 0,
-          pendingChange: 'Chờ xác nhận',
+        const billsData = Array.isArray(billHistory) ? billHistory : billHistory?.bills || [];
+        const fundData = fundResponse?.data?.data || {};
+
+        setData({
+          room,
+          members: Array.isArray(members) ? members : [],
+          bills: billsData,
+          chores: Array.isArray(chores) ? chores : [],
+          absences: Array.isArray(absences) ? absences : [],
+          transactions: Array.isArray(fundData.transactions) ? fundData.transactions : [],
+          fundBalance: Number(fundData.balance) || 0,
         });
 
-        // Fetch members from first room if available
-        if (roomsData.length > 0) {
-          const currentRoom = roomsData[0];
-          try {
-            const membersData = await roomService.getRoomMembers(currentRoom._id);
-            const formattedMembers = membersData.slice(0, 3).map((member) => ({
-              id: member._id,
-              name: member.name,
-              email: member.email,
-              avatar: member.name?.substring(0, 2).toUpperCase() || 'U',
-              role: member.role || 'Thành viên',
-              action: member.role || 'Thành viên',
-            }));
-            setMembers(formattedMembers);
-            localStorage.setItem('currentRoomId', currentRoom._id);
-          } catch (err) {
-            console.error('Error fetching members:', err);
-          }
+        const billMonths = [...new Set(billsData.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse();
+        if (billMonths.length > 0) {
+          const currentMonth = getCurrentMonthKey();
+          setSelectedBillingMonth(billMonths.includes(currentMonth) ? currentMonth : billMonths[0]);
         }
       } catch (err) {
-        console.error('Error fetching dashboard:', err);
-        setError(err.message || 'Lỗi khi tải dữ liệu dashboard');
+        console.error('Error loading dashboard:', err);
+        setError(err.message || 'Không thể tải dữ liệu dashboard');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    fetchRoomDashboard();
+  }, [selectedRoomId]);
 
-  const handleOpenModal = () => {
-    setFormData({ name: '', address: '', owner: '', monthlyRent: '' });
-    setMemberRows([{ email: '', name: '' }]);
-    setError('');
-    setShowModal(true);
-  };
+  const computed = useMemo(() => {
+    const monthToUse = selectedBillingMonth || getCurrentMonthKey();
+    const monthlyBills = data.bills.filter((bill) => bill.billing_month === monthToUse);
+    const monthlyExpense = monthlyBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormData({ name: '', address: '', owner: '', monthlyRent: '' });
-    setMemberRows([{ email: '', name: '' }]);
-    setError('');
-  };
+    const pendingAmount = monthlyBills.reduce((sum, bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      const pendingDetails = details.filter((detail) => detail.status === 'pending');
+      return (
+        sum +
+        pendingDetails.reduce(
+          (detailSum, detail) => detailSum + (Number(detail.actual_amount) || Number(detail.amount_due) || 0),
+          0
+        )
+      );
+    }, 0);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
+    const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
+    const pendingAbsences = data.absences.filter((report) => report.status === 'pending');
+
+    const expenseByTypeMap = monthlyBills.reduce((acc, bill) => {
+      const key = bill.bill_type || 'Khác';
+      acc[key] = (acc[key] || 0) + (Number(bill.total_amount) || 0);
+      return acc;
+    }, {});
+
+    const expensePieData = Object.entries(expenseByTypeMap).map(([name, value]) => ({
+      name: BILL_TYPE_LABELS[name] || name,
+      value,
     }));
-  };
 
-  const handleMemberRowChange = (index, field, value) => {
-    const newRows = [...memberRows];
-    newRows[index][field] = value;
-    setMemberRows(newRows);
-  };
+    const monthlyExpenseMap = data.bills.reduce((acc, bill) => {
+      const month = bill.billing_month;
+      if (!month) return acc;
+      acc[month] = (acc[month] || 0) + (Number(bill.total_amount) || 0);
+      return acc;
+    }, {});
+    const expenseTrendData = Object.entries(monthlyExpenseMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-6)
+      .map(([month, value]) => ({
+        month,
+        label: formatMonthLabel(month),
+        chiTieu: value,
+      }));
 
-  const handleAddMemberRow = () => {
-    setMemberRows([...memberRows, { email: '', name: '' }]);
-  };
+    const memberExpenseMap = {};
+    const memberIncomeMap = {};
+    data.members.forEach((member) => {
+      const name = getMemberName(member);
+      memberExpenseMap[name] = 0;
+      memberIncomeMap[name] = 0;
+    });
 
-  const handleRemoveMemberRow = (index) => {
-    if (memberRows.length > 1) {
-      setMemberRows(memberRows.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleSaveRoom = async () => {
-    if (!formData.name.trim() || !formData.address.trim()) {
-      setError('Vui lòng điền tất cả các trường bắt buộc');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      setError('');
-      const newRoom = {
-        name: formData.name,
-        address: formData.address,
-        location: formData.address,
-        owner: formData.owner,
-        monthlyRent: parseInt(formData.monthlyRent) || 0,
-      };
-      const createdRoom = await roomService.createRoom(newRoom);
-
-      if (createdRoom && (createdRoom._id || createdRoom.id)) {
-        localStorage.setItem('currentRoomId', createdRoom._id || createdRoom.id);
-
-        // Thêm các thành viên mới 
-        const validMembers = memberRows.filter(m => m.email.trim());
-        if (validMembers.length > 0) {
-          for (const member of validMembers) {
-            try {
-              await memberService.addMember(createdRoom._id || createdRoom.id, member);
-            } catch (err) {
-              console.error('Error adding member:', err);
-            }
-          }
+    monthlyBills.forEach((bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      details.forEach((detail) => {
+        const memberName = getMemberName(detail.member_id);
+        const amount = Number(detail.actual_amount) || Number(detail.amount_due) || 0;
+        memberExpenseMap[memberName] = (memberExpenseMap[memberName] || 0) + amount;
+        if (detail.status === 'paid') {
+          memberIncomeMap[memberName] = (memberIncomeMap[memberName] || 0) + amount;
         }
-      }
+      });
+    });
 
-      // Reload dashboard
-      window.location.reload();
-      handleCloseModal();
-    } catch (err) {
-      console.error('Error saving room:', err);
-      setError(err.message || 'Lỗi khi tạo phòng');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const memberFinanceData = Object.keys({ ...memberExpenseMap, ...memberIncomeMap }).map((name) => ({
+      name,
+      chi: memberExpenseMap[name] || 0,
+      thu: memberIncomeMap[name] || 0,
+    }));
+
+    const pendingPayments = monthlyBills
+      .flatMap((bill) => {
+        const details = Array.isArray(bill.details) ? bill.details : [];
+        return details
+          .filter((detail) => detail.status === 'pending')
+          .map((detail) => ({
+            id: `${bill._id}-${detail._id}`,
+            title: `${getMemberName(detail.member_id)} chưa đóng ${bill.bill_type}`,
+            amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
+            date: formatMonthLabel(bill.billing_month),
+          }));
+      })
+      .slice(0, 5);
+
+    const upcomingChores = pendingChores
+      .slice()
+      .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
+      .slice(0, 5);
+
+    const recentHistory = [
+      ...data.transactions.map((transaction) => ({
+        id: `txn-${transaction._id}`,
+        label: transaction.type === 'deposit' ? 'Đóng quỹ' : 'Rút quỹ',
+        amount: Number(transaction.amount) || 0,
+        createdAt: transaction.created_at,
+      })),
+      ...data.bills.map((bill) => ({
+        id: `bill-${bill._id}`,
+        label: `Tạo hóa đơn ${bill.bill_type}`,
+        amount: Number(bill.total_amount) || 0,
+        createdAt: bill.created_at,
+      })),
+    ]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 6);
+
+    return {
+      memberCount: data.members.length,
+      fundBalance: data.fundBalance,
+      monthlyExpense,
+      pendingAmount,
+      pendingChoreCount: pendingChores.length,
+      pendingAbsenceCount: pendingAbsences.length,
+      expensePieData,
+      expenseTrendData,
+      memberFinanceData,
+      availableMonths: [...new Set(data.bills.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse(),
+      selectedMonthLabel: formatMonthLabel(monthToUse),
+      pendingPayments,
+      upcomingChores,
+      recentHistory,
+    };
+  }, [data, selectedBillingMonth]);
+
+  const personalComputed = useMemo(() => {
+    const userId = user?.id;
+    const monthToUse = selectedBillingMonth || getCurrentMonthKey();
+    const monthlyBills = data.bills.filter((bill) => bill.billing_month === monthToUse);
+
+    const myPendingPayments = monthlyBills.flatMap((bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      return details
+        .filter((detail) => getEntityId(detail.member_id) === userId && detail.status === 'pending')
+        .map((detail) => ({
+          id: `${bill._id}-${detail._id}`,
+          billType: bill.bill_type,
+          amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
+          month: bill.billing_month,
+        }));
+    });
+
+    const myPaidPayments = monthlyBills.flatMap((bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      return details
+        .filter((detail) => getEntityId(detail.member_id) === userId && detail.status === 'paid')
+        .map((detail) => Number(detail.actual_amount) || Number(detail.amount_due) || 0);
+    });
+
+    const myUpcomingChores = data.chores
+      .filter((chore) => getEntityId(chore.assigned_to) === userId && chore.status !== 'completed')
+      .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
+      .slice(0, 5);
+
+    const myCompletedChores = data.chores.filter(
+      (chore) => getEntityId(chore.assigned_to) === userId && chore.status === 'completed'
+    );
+
+    const myFundContribution = data.transactions
+      .filter((transaction) => transaction.type === 'deposit' && getEntityId(transaction.performed_by) === userId)
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+    const meInRoom = data.members.find((member) => getEntityId(member) === userId);
+
+    return {
+      myName: meInRoom ? getMemberName(meInRoom) : user?.name || 'Bạn',
+      pendingCount: myPendingPayments.length,
+      pendingAmount: myPendingPayments.reduce((sum, item) => sum + item.amount, 0),
+      paidAmount: myPaidPayments.reduce((sum, amount) => sum + amount, 0),
+      upcomingChores: myUpcomingChores,
+      completedChoreCount: myCompletedChores.length,
+      myFundContribution,
+      pendingPayments: myPendingPayments,
+      paymentPieData: [
+        { name: 'Đã thanh toán', value: myPaidPayments.reduce((sum, amount) => sum + amount, 0) },
+        { name: 'Còn phải đóng', value: myPendingPayments.reduce((sum, item) => sum + item.amount, 0) },
+      ].filter((item) => item.value > 0),
+      choreBarData: [
+        { name: 'Đã hoàn thành', value: myCompletedChores.length },
+        { name: 'Chưa hoàn thành', value: myUpcomingChores.length },
+      ],
+    };
+  }, [data, user, selectedBillingMonth]);
+
+  if (loading) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-empty">Đang tải dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-empty dashboard-error">{error}</div>
+      </div>
+    );
+  }
+
+  if (!rooms.length) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-empty">Bạn chưa có phòng nào. Hãy vào mục Phòng để tạo hoặc tham gia phòng.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>Dashboard</h1>
-        <div className="header-actions">
-          <button className="btn-notification">
-            <FontAwesomeIcon icon={faBell} />
-          </button>
-          <button className="btn-settings">
-            <FontAwesomeIcon icon={faCog} />
-          </button>
+        <div>
+          <h1>{dashboardMode === 'room' ? 'Dashboard phòng' : 'Dashboard cá nhân'}</h1>
+          <p className="room-subtitle">
+            {dashboardMode === 'room' ? (
+              <>
+                <FontAwesomeIcon icon={faHouse} /> {data.room?.name || 'Phòng của bạn'}
+                {data.room?.address && (
+                  <>
+                    {' '}
+                    • <FontAwesomeIcon icon={faMapMarkerAlt} /> {data.room.address}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faUser} /> {personalComputed.myName} • {data.room?.name || 'Phòng hiện tại'}
+              </>
+            )}
+          </p>
         </div>
-      </div>
-
-      <div className="stats-grid">
-        {stats.roomCount && <StatCard title="Phòng Đang Quản Lý" value={stats.roomCount} change={stats.roomChange} icon={faHome} color="purple" />}
-        {stats.memberCount && <StatCard title="Tổng Thành Viên" value={stats.memberCount} change={stats.memberChange} icon={faUsers} color="pink" />}
-        {stats.expense && <StatCard title="Chi Phí Tháng Này" value={stats.expense} change={stats.expenseChange} icon={faDollarSign} color="cyan" />}
-        {stats.pendingCount && <StatCard title="Chưa Thanh Toán" value={stats.pendingCount} change={stats.pendingChange} icon={faStar} color="orange" />}
-      </div>
-
-      <div className="dashboard-content">
-        <div className="section">
-          <div className="section-header">
-            <h2>Phòng Đang Có</h2>
-            <button className="btn-add" onClick={handleOpenModal}>
-              <FontAwesomeIcon icon={faPlus} /> Thêm Phòng Mới
+        <div className="header-actions">
+          <div className="dashboard-mode-switch">
+            <button
+              className={dashboardMode === 'room' ? 'active' : ''}
+              onClick={() => setDashboardMode('room')}
+              type="button"
+            >
+              Phòng
+            </button>
+            <button
+              className={dashboardMode === 'personal' ? 'active' : ''}
+              onClick={() => setDashboardMode('personal')}
+              type="button"
+            >
+              Cá nhân
             </button>
           </div>
-          <div className="rooms-grid">
-            {rooms.map((room) => (
-              <RoomCard key={room.id} {...room} />
-            ))}
-          </div>
-        </div>
-
-        <div className="section">
-          <div className="section-header">
-            <h2>Thành Viên Gần Đây</h2>
-          </div>
-          <div className="members-list">
-            {members.map((member) => (
-              <MemberItem key={member.id} {...member} />
-            ))}
-          </div>
         </div>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Tạo Phòng Mới</h2>
-              <button className="btn-close-modal" onClick={handleCloseModal}>
-                <FontAwesomeIcon icon={faTimes} />
-              </button>
+      {dashboardMode === 'room' ? (
+        <>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <span className="stat-label">Số dư quỹ phòng</span>
+              <strong className="stat-value">{formatCurrency(computed.fundBalance)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCoins} /> Quỹ hiện tại
+              </span>
             </div>
-
-            <div className="modal-body">
-              {error && (
-                <div className="error-message" style={{ marginBottom: '15px' }}>
-                  {error}
-                </div>
-              )}
-              <div className="form-group">
-                <label htmlFor="name">Tên Phòng</label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="VD: Trần Hùng Đạo"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="address">Địa Chỉ</label>
-                <input
-                  type="text"
-                  id="address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  placeholder="VD: 123 Trần Hùng Đạo, Q1, TP.HCM"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="owner">Chủ Phòng</label>
-                <input
-                  type="text"
-                  id="owner"
-                  name="owner"
-                  value={formData.owner}
-                  onChange={handleInputChange}
-                  placeholder="Tên chủ phòng"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="monthlyRent">Tiền Thuê / Tháng (VND)</label>
-                <input
-                  type="number"
-                  id="monthlyRent"
-                  name="monthlyRent"
-                  value={formData.monthlyRent}
-                  onChange={handleInputChange}
-                  placeholder="VD: 3400000"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Thêm Thành Viên Mới (Tùy Chọn)</label>
-                {memberRows.map((row, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr auto auto',
-                      gap: '8px',
-                      marginBottom: '10px'
-                    }}
-                  >
-                    <input
-                      type="email"
-                      value={row.email}
-                      onChange={(e) => handleMemberRowChange(index, 'email', e.target.value)}
-                      placeholder="Email thành viên"
-                      disabled={submitting}
-                    />
-                    <input
-                      type="text"
-                      value={row.name}
-                      onChange={(e) => handleMemberRowChange(index, 'name', e.target.value)}
-                      placeholder="Tên (tùy chọn)"
-                      disabled={submitting}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddMemberRow}
-                      disabled={submitting}
-                      style={{
-                        padding: '8px 12px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        minWidth: '70px'
-                      }}
-                    >
-                      + Thêm
-                    </button>
-                    {memberRows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMemberRow(index)}
-                        disabled={submitting}
-                        style={{
-                          padding: '8px 12px',
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          minWidth: '70px'
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="stat-card">
+              <span className="stat-label">Chi tiêu tháng này</span>
+              <strong className="stat-value">{formatCurrency(computed.monthlyExpense)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faMoneyBillWave} /> Theo hóa đơn tháng hiện tại
+              </span>
             </div>
-
-            <div className="modal-footer">
-              <button
-                className="btn-cancel"
-                onClick={handleCloseModal}
-                disabled={submitting}
-              >
-                Hủy
-              </button>
-              <button
-                className="btn-submit"
-                onClick={handleSaveRoom}
-                disabled={submitting}
-              >
-                {submitting ? 'Đang tạo...' : 'Tạo Phòng'}
-              </button>
+            <div className="stat-card">
+              <span className="stat-label">Khoản còn phải thu</span>
+              <strong className="stat-value">{formatCurrency(computed.pendingAmount)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCircleExclamation} /> Thành viên chưa thanh toán
+              </span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Việc nhà chưa hoàn thành</span>
+              <strong className="stat-value">{computed.pendingChoreCount}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCalendarCheck} /> {computed.memberCount} thành viên trong phòng
+              </span>
             </div>
           </div>
-        </div>
+
+          <div className="dashboard-charts">
+            <div className="section expense-overview-section">
+              <div className="section-header expense-header">
+                <div>
+                  <h2>Tình hình thu chi</h2>
+                  <p className="expense-subtitle">{computed.selectedMonthLabel || 'Tháng hiện tại'}</p>
+                </div>
+                <div className="expense-header-controls">
+                  <select
+                    className="expense-month-selector"
+                    value={selectedBillingMonth}
+                    onChange={(e) => setSelectedBillingMonth(e.target.value)}
+                  >
+                    {computed.availableMonths.length === 0 ? (
+                      <option value={getCurrentMonthKey()}>{formatMonthLabel(getCurrentMonthKey())}</option>
+                    ) : (
+                      computed.availableMonths.map((month) => (
+                        <option key={month} value={month}>
+                          {formatMonthLabel(month)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <div className="expense-view-switch">
+                    <button
+                      type="button"
+                      className={chartView === 'distribution' ? 'active' : ''}
+                      onClick={() => setChartView('distribution')}
+                    >
+                      <FontAwesomeIcon icon={faChartPie} /> Phân bổ
+                    </button>
+                    <button
+                      type="button"
+                      className={chartView === 'trend' ? 'active' : ''}
+                      onClick={() => setChartView('trend')}
+                    >
+                      <FontAwesomeIcon icon={faChartLine} /> Xu hướng
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="expense-charts-row">
+                <div className="chart-wrap expense-main-chart-card">
+                  {chartView === 'distribution' ? (
+                    computed.expensePieData.length === 0 ? (
+                      <div className="empty-inline">Chưa có dữ liệu chi tiêu tháng này</div>
+                    ) : (
+                      <div className="expense-distribution-layout">
+                        <ResponsiveContainer width="100%" height={240}>
+                          <PieChart>
+                            <Pie
+                              data={computed.expensePieData}
+                              dataKey="value"
+                              nameKey="name"
+                              innerRadius={70}
+                              outerRadius={112}
+                              paddingAngle={3}
+                            >
+                              {computed.expensePieData.map((entry, index) => (
+                                <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => formatCurrency(value)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="expense-legend-list">
+                          {computed.expensePieData.map((item, index) => (
+                            <div key={`${item.name}-${index}`} className="expense-legend-item">
+                              <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                              <div>
+                                <strong>{item.name}</strong>
+                                <p>{formatCurrency(item.value)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ) : computed.expenseTrendData.length === 0 ? (
+                    <div className="empty-inline">Chưa có dữ liệu xu hướng theo tháng</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={computed.expenseTrendData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <Bar dataKey="chiTieu" fill="#74b7ff" radius={[10, 10, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                <div className="member-chart-block">
+                  <div className="section-header member-chart-header">
+                    <h2>Thu chi từng thành viên</h2>
+                    <div className="member-mode-switch">
+                      <button
+                        type="button"
+                        className={memberChartMode === 'chi' ? 'active' : ''}
+                        onClick={() => setMemberChartMode('chi')}
+                      >
+                        Chi
+                      </button>
+                      <button
+                        type="button"
+                        className={memberChartMode === 'thu' ? 'active' : ''}
+                        onClick={() => setMemberChartMode('thu')}
+                      >
+                        Thu
+                      </button>
+                    </div>
+                  </div>
+                  {computed.memberFinanceData.length === 0 ? (
+                    <div className="empty-inline">Chưa có dữ liệu theo thành viên</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <Bar
+                          dataKey={memberChartMode}
+                          fill={memberChartMode === 'chi' ? '#74b7ff' : '#54c7a1'}
+                          radius={[8, 8, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-content">
+            <div className="section">
+              <div className="section-header">
+                <h2>Việc cần xử lý ngay</h2>
+              </div>
+              <div className="list-wrap">
+                {computed.pendingPayments.length === 0 ? (
+                  <div className="empty-inline">Không có khoản thanh toán đang chờ</div>
+                ) : (
+                  computed.pendingPayments.map((item) => (
+                    <div key={item.id} className="list-item">
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{item.date}</p>
+                      </div>
+                      <span>{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="section-header">
+                <h2>Trực nhật sắp tới</h2>
+              </div>
+              <div className="list-wrap">
+                {computed.upcomingChores.length === 0 ? (
+                  <div className="empty-inline">Không có lịch trực nhật pending</div>
+                ) : (
+                  computed.upcomingChores.map((chore) => (
+                    <div key={chore._id} className="list-item">
+                      <div>
+                        <strong>{chore.note || 'Công việc phòng'}</strong>
+                        <p>{new Date(chore.chore_date).toLocaleDateString('vi-VN')}</p>
+                      </div>
+                      <span>{getMemberName(chore.assigned_to)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-content">
+            <div className="section">
+              <div className="section-header">
+                <h2>Lịch sử gần đây</h2>
+              </div>
+              <div className="list-wrap">
+                {computed.recentHistory.length === 0 ? (
+                  <div className="empty-inline">Chưa có hoạt động gần đây</div>
+                ) : (
+                  computed.recentHistory.map((item) => (
+                    <div key={item.id} className="list-item">
+                      <div>
+                        <strong>{item.label}</strong>
+                        <p>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</p>
+                      </div>
+                      <span>{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="section-header">
+                <h2>Thành viên phòng</h2>
+              </div>
+              <div className="members-list">
+                {data.members.length === 0 ? (
+                  <div className="empty-inline">Chưa có thành viên</div>
+                ) : (
+                  data.members.map((member) => (
+                    <div key={member._id} className="member-item">
+                      <div className="member-avatar">{getMemberName(member).slice(0, 2).toUpperCase()}</div>
+                      <div>
+                        <strong>{getMemberName(member)}</strong>
+                        <p>{member.email || 'Không có email'}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <span className="stat-label">Khoản bạn còn phải đóng</span>
+              <strong className="stat-value">{formatCurrency(personalComputed.pendingAmount)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCircleExclamation} /> {personalComputed.pendingCount} khoản pending
+              </span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Bạn đã thanh toán tháng này</span>
+              <strong className="stat-value">{formatCurrency(personalComputed.paidAmount)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faMoneyBillWave} /> Theo bill tháng hiện tại
+              </span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Đóng góp quỹ của bạn</span>
+              <strong className="stat-value">{formatCurrency(personalComputed.myFundContribution)}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCoins} /> Tổng nạp quỹ
+              </span>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">Công việc của bạn</span>
+              <strong className="stat-value">{personalComputed.completedChoreCount}</strong>
+              <span className="stat-meta">
+                <FontAwesomeIcon icon={faCalendarCheck} /> Đã hoàn thành
+              </span>
+            </div>
+          </div>
+
+          <div className="dashboard-charts">
+            <div className="section">
+              <div className="section-header">
+                <h2>Tiến độ thanh toán cá nhân (Pie)</h2>
+              </div>
+              <div className="chart-wrap">
+                {personalComputed.paymentPieData.length === 0 ? (
+                  <div className="empty-inline">Bạn chưa có dữ liệu thanh toán tháng này</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie data={personalComputed.paymentPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
+                        {personalComputed.paymentPieData.map((entry, index) => (
+                          <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="section-header">
+                <h2>Trực nhật của bạn (Bar)</h2>
+              </div>
+              <div className="chart-wrap">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={personalComputed.choreBarData} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-content">
+            <div className="section">
+              <div className="section-header">
+                <h2>Khoản bạn cần xử lý</h2>
+              </div>
+              <div className="list-wrap">
+                {personalComputed.pendingPayments.length === 0 ? (
+                  <div className="empty-inline">Bạn không có khoản pending</div>
+                ) : (
+                  personalComputed.pendingPayments.map((item) => (
+                    <div key={item.id} className="list-item">
+                      <div>
+                        <strong>{item.billType}</strong>
+                        <p>{item.month}</p>
+                      </div>
+                      <span>{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="section">
+              <div className="section-header">
+                <h2>Lịch trực nhật của bạn</h2>
+              </div>
+              <div className="list-wrap">
+                {personalComputed.upcomingChores.length === 0 ? (
+                  <div className="empty-inline">Bạn không có lịch trực nhật pending</div>
+                ) : (
+                  personalComputed.upcomingChores.map((chore) => (
+                    <div key={chore._id} className="list-item">
+                      <div>
+                        <strong>{chore.note || 'Công việc phòng'}</strong>
+                        <p>{new Date(chore.chore_date).toLocaleDateString('vi-VN')}</p>
+                      </div>
+                      <span>Pending</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
+
+      <div className="dashboard-notification-section">
+        <NotificationBoard compact />
+      </div>
     </div>
   );
 };
