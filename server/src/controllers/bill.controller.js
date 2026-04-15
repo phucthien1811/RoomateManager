@@ -98,9 +98,15 @@ const confirmPayment = async (req, res) => {
       bill_id: bill._id,
     });
   } catch (error) {
-    const knownErrors = ["Không tìm thấy bill_detail", "Thành viên này đã thanh toán"];
+    const knownErrors = [
+      "Không tìm thấy bill_detail",
+      "Thành viên này đã thanh toán",
+      "Bạn không có quyền xác nhận",
+      "Không tìm thấy hóa đơn",
+    ];
     if (knownErrors.some((msg) => error.message.includes(msg))) {
-      return sendResponse(res, 400, false, error.message);
+      const statusCode = error.message.includes("Bạn không có quyền") ? 403 : 400;
+      return sendResponse(res, statusCode, false, error.message);
     }
     console.error("[BillController] confirmPayment error:", error.message);
     return sendResponse(res, 500, false, "Lỗi server khi xác nhận thanh toán");

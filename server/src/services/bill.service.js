@@ -153,6 +153,14 @@ const confirmPayment = async (billDetailId, confirmedBy) => {
   if (!detail) throw new Error("Không tìm thấy bill_detail với ID đã cung cấp");
   if (detail.status === BILL_DETAIL_STATUS.PAID) throw new Error("Thành viên này đã thanh toán trước đó rồi");
 
+  const bill = await RoomBill.findById(detail.bill_id).select("payer_id created_by");
+  if (!bill) throw new Error("Không tìm thấy hóa đơn");
+
+  const responsibleId = (bill.payer_id || bill.created_by)?.toString();
+  if (!responsibleId || responsibleId !== confirmedBy.toString()) {
+    throw new Error("Bạn không có quyền xác nhận thanh toán hóa đơn này");
+  }
+
   detail.status = BILL_DETAIL_STATUS.PAID;
   detail.paid_at = new Date();
   detail.confirmed_by = confirmedBy;
@@ -179,7 +187,8 @@ const confirmPayment = async (billDetailId, confirmedBy) => {
 const getBillWithDetails = async (billId) => {
   const bill = await RoomBill.findById(billId)
     .populate("room_id", "name address")
-    .populate("created_by", "name email");
+    .populate("created_by", "name email")
+    .populate("payer_id", "name email");
 
   if (!bill) throw new Error("Không tìm thấy hóa đơn");
 
@@ -238,6 +247,7 @@ const getBillHistory = async (roomId, options = {}) => {
     const bills = await RoomBill.find(filter)
       .populate("room_id", "name address")
       .populate("created_by", "name email")
+      .populate("payer_id", "name email")
       .sort(sortObj)
       .skip(skip)
       .limit(limitNum)

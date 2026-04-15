@@ -170,16 +170,41 @@ const BillManagement = () => {
       description: '',
     });
 
+    const availableMembers = roomMembers.filter((member) => !awayMemberIds.includes(String(member._id)));
+    const equalPercent = availableMembers.length > 0 ? Math.floor((100 / availableMembers.length) * 100) / 100 : 0;
+
     setSplitParticipants(
-      roomMembers.map((member) => ({
-        member_id: member._id,
-        name: member.name || member.email || 'Thành viên',
-        email: member.email || '',
-        selected: !awayMemberIds.includes(String(member._id)),
-        split_mode: 'percent',
-        split_value: '',
-        isAway: awayMemberIds.includes(String(member._id)),
-      }))
+      roomMembers.map((member) => {
+        const isAway = awayMemberIds.includes(String(member._id));
+        const selected = !isAway;
+        if (!selected) {
+          return {
+            member_id: member._id,
+            name: member.name || member.email || 'Thành viên',
+            email: member.email || '',
+            selected: false,
+            split_mode: 'percent',
+            split_value: '',
+            isAway: true,
+          };
+        }
+
+        const selectedIndex = availableMembers.findIndex((m) => String(m._id) === String(member._id));
+        const isLastSelected = selectedIndex === availableMembers.length - 1;
+        const percentValue = isLastSelected
+          ? Number((100 - equalPercent * (availableMembers.length - 1)).toFixed(2))
+          : equalPercent;
+
+        return {
+          member_id: member._id,
+          name: member.name || member.email || 'Thành viên',
+          email: member.email || '',
+          selected: true,
+          split_mode: 'percent',
+          split_value: String(percentValue),
+          isAway,
+        };
+      })
     );
 
     setError('');
@@ -229,12 +254,27 @@ const BillManagement = () => {
 
   const handleSelectAllParticipants = () => {
     setError('');
-    setSplitParticipants((prev) =>
-      prev.map((participant) => ({
-        ...participant,
-        selected: participant.isAway ? false : true,
-      }))
-    );
+    setSplitParticipants((prev) => {
+      const selectable = prev.filter((participant) => !participant.isAway);
+      const equalPercent = selectable.length > 0 ? Math.floor((100 / selectable.length) * 100) / 100 : 0;
+
+      return prev.map((participant) => {
+        if (participant.isAway) {
+          return { ...participant, selected: false };
+        }
+        const index = selectable.findIndex((item) => item.member_id === participant.member_id);
+        const isLast = index === selectable.length - 1;
+        const percentValue = isLast
+          ? Number((100 - equalPercent * (selectable.length - 1)).toFixed(2))
+          : equalPercent;
+        return {
+          ...participant,
+          selected: true,
+          split_mode: 'percent',
+          split_value: String(percentValue),
+        };
+      });
+    });
   };
 
   const handleParticipantSplitChange = (memberId, field, value) => {
@@ -416,6 +456,7 @@ const BillManagement = () => {
   };
 
   const selectedRoomName = rooms.find((room) => room._id === selectedRoomId)?.name || 'Chưa chọn phòng';
+  const currentUserId = String(user?.id || user?._id || '');
   const visibleBills = bills.filter((bill) => {
     if (paymentStatusFilter === 'all') return true;
     if (!bill.details || bill.details.length === 0) return false;
@@ -474,6 +515,10 @@ const BillManagement = () => {
         ) : (
           <div className="bills-grid">
             {visibleBills.map((bill) => {
+              const responsibleUserId = String(
+                bill.payer_id?._id || bill.payer_id || bill.created_by?._id || bill.created_by || ''
+              );
+              const canConfirmBill = Boolean(currentUserId && responsibleUserId && currentUserId === responsibleUserId);
               const visibleDetails = (bill.details || []).filter((detail) =>
                 paymentStatusFilter === 'all'
                   ? true
@@ -572,6 +617,12 @@ const BillManagement = () => {
                         {formatDate(bill.bill_date || bill.created_at || bill.createdAt || new Date())}
                       </span>
                     </div>
+                    <div className="summary-item">
+                      <span className="summary-label">Người chịu trách nhiệm:</span>
+                      <span className="summary-value">
+                        {bill.payer_id?.name || bill.created_by?.name || 'Chưa xác định'}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="divider-thick"></div>
@@ -610,15 +661,19 @@ const BillManagement = () => {
                                   <FontAwesomeIcon icon={faCheckCircle} /> Đã trả
                                 </span>
                               ) : (
-                                <button
-                                  className="btn-confirm-small"
-                                  onClick={() =>
-                                    handleConfirmPayment(bill._id, detail._id)
-                                  }
-                                  title="Xác nhận thanh toán"
-                                >
-                                  <FontAwesomeIcon icon={faCheck} /> Xác nhận
-                                </button>
+                                canConfirmBill ? (
+                                  <button
+                                    className="btn-confirm-small"
+                                    onClick={() =>
+                                      handleConfirmPayment(bill._id, detail._id)
+                                    }
+                                    title="Xác nhận thanh toán"
+                                  >
+                                    <FontAwesomeIcon icon={faCheck} /> Xác nhận
+                                  </button>
+                                ) : (
+                                  <span className="status-view-only">Chỉ xem</span>
+                                )
                               )}
                             </div>
                           </div>
@@ -645,7 +700,7 @@ const BillManagement = () => {
 
                 {/* FOOTER ACTIONS */}
                 <div className="bill-card-footer">
-                  {bill.status !== 'completed' && bill.details && bill.details.length > 0 && (
+                  {canConfirmBill && bill.status !== 'completed' && bill.details && bill.details.length > 0 && (
                     <button
                       className="btn-confirm-all"
                       onClick={() => {
@@ -660,6 +715,11 @@ const BillManagement = () => {
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> XÁC NHẬN TOÀN BỘ
                     </button>
+                  )}
+                  {!canConfirmBill && (
+                    <span className="confirm-note">
+                      Chỉ {bill.payer_id?.name || bill.created_by?.name || 'người chịu trách nhiệm'} được xác nhận
+                    </span>
                   )}
                   <button
                     className="btn-delete"
