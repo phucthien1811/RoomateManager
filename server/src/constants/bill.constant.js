@@ -6,6 +6,7 @@ const BILL_TYPES = {
   WATER: "water",
   RENT: "rent",
   INTERNET: "internet",
+  OTHER: "other",
 };
 
 // Trạng thái của cả hóa đơn phòng

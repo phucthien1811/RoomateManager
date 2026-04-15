@@ -48,6 +48,7 @@ const memberService = {
       throw error.response?.data || error;
     }
   },
+
 };
 
 export default memberService;

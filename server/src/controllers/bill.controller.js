@@ -10,11 +10,23 @@ const sendResponse = (res, status, success, message, data = null) => {
 // POST /api/bills — RM-7 & RM-9: Tạo hóa đơn và chia tiền
 const createBill = async (req, res) => {
   try {
-    const { room_id, bill_type, total_amount, billing_month, member_ids, note } = req.body;
+    const {
+      room_id,
+      bill_type,
+      bill_type_other,
+      total_amount,
+      billing_month,
+      bill_date,
+      payer_id,
+      member_ids,
+      custom_splits,
+      note,
+    } = req.body;
 
     const missingFields = [];
     if (!room_id) missingFields.push("room_id");
     if (!bill_type) missingFields.push("bill_type");
+    if (bill_type === "other" && !bill_type_other?.trim()) missingFields.push("bill_type_other");
     if (total_amount === undefined || total_amount === null) missingFields.push("total_amount");
     if (!billing_month) missingFields.push("billing_month");
     if (!member_ids || !Array.isArray(member_ids)) missingFields.push("member_ids (array)");
@@ -34,7 +46,18 @@ const createBill = async (req, res) => {
     const createdBy = req.user?._id || req.body.created_by;
 
     const { bill, details } = await billService.createBillWithSplit(
-      { room_id, bill_type, total_amount, billing_month, member_ids, note },
+      {
+        room_id,
+        bill_type,
+        bill_type_other,
+        total_amount,
+        billing_month,
+        bill_date,
+        payer_id,
+        member_ids,
+        custom_splits,
+        note,
+      },
       createdBy
     );
 

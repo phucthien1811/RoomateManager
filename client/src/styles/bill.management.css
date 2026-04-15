@@ -605,6 +605,95 @@
   margin-top: 6px;
 }
 
+.participant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-select-all-members {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.participant-list {
+  margin-top: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.participant-row:last-child {
+  border-bottom: none;
+}
+
+.participant-row.selected {
+  background: #f8fbff;
+}
+
+.participant-row.away {
+  background: #fff7ed;
+}
+
+.participant-toggle {
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  flex: 1;
+  text-align: left;
+}
+
+.participant-toggle small {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.participant-split {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 240px;
+}
+
+.participant-split select {
+  width: 72px;
+}
+
+.participant-split input {
+  width: 100%;
+}
+
+.participant-empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
 .error-text {
   color: var(--color-error);
   font-size: 13px;

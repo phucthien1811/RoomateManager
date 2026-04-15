@@ -2,23 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faPlus,
-  faFileAlt,
   faTrash,
   faTimes,
   faCheckCircle,
-  faClock,
   faCheck,
   faLightbulb,
   faDroplet,
   faWifi,
   faHouse,
+  faFileAlt,
   faExclamationTriangle,
   faHourglassEnd,
   faListCheck,
+  faUsers,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
+import absenceService from '../services/absence.service.js';
 import '../styles/bill.management.css';
 
 const BillManagement = () => {
@@ -31,12 +32,18 @@ const BillManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  const [roomMembers, setRoomMembers] = useState([]);
+  const [awayMemberIds, setAwayMemberIds] = useState([]);
+  const [splitParticipants, setSplitParticipants] = useState([]);
 
   const [formData, setFormData] = useState({
     room_id: '',
     bill_type: 'electricity',
+    bill_type_other: '',
+    bill_date: new Date().toISOString().slice(0, 10),
     total_amount: '',
-    billing_month: '',
+    payer_id: '',
+    billing_month: new Date().toISOString().slice(0, 7),
     description: '',
   });
 
@@ -66,8 +73,12 @@ const BillManagement = () => {
   useEffect(() => {
     if (selectedRoomId) {
       fetchBills();
+      fetchRoomParticipants(selectedRoomId);
     } else {
       setBills([]);
+      setRoomMembers([]);
+      setAwayMemberIds([]);
+      setSplitParticipants([]);
     }
   }, [selectedRoomId]);
 
@@ -105,19 +116,72 @@ const BillManagement = () => {
     }
   };
 
+  const fetchRoomParticipants = async (roomId) => {
+    try {
+      const [members, reports] = await Promise.all([
+        roomService.getRoomMembers(roomId),
+        absenceService.getAbsenceReports(roomId),
+      ]);
+
+      const memberList = Array.isArray(members) ? members : [];
+      setRoomMembers(memberList);
+
+      const now = new Date();
+      const awayIds = (Array.isArray(reports) ? reports : [])
+        .filter((report) => {
+          if ((report.reason || '').toLowerCase() !== 'về quê') return false;
+          const start = new Date(report.startDate);
+          const end = new Date(report.endDate);
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+          return start <= now && now <= end;
+        })
+        .map((report) => report.member?.user?._id || report.member?.user)
+        .filter(Boolean)
+        .map((id) => String(id));
+
+      setAwayMemberIds(Array.from(new Set(awayIds)));
+    } catch (err) {
+      console.error('Error fetching participants/absence:', err);
+      setRoomMembers([]);
+      setAwayMemberIds([]);
+      setSplitParticipants([]);
+    }
+  };
+
   const handleOpenModal = () => {
     if (!selectedRoomId) {
       setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn');
       return;
     }
 
+    const now = new Date();
+    const defaultDate = now.toISOString().slice(0, 10);
+    const defaultMonth = defaultDate.slice(0, 7);
+    const defaultPayerId = roomMembers[0]?._id || '';
+
     setFormData({
       room_id: selectedRoomId,
       bill_type: 'electricity',
+      bill_type_other: '',
+      bill_date: defaultDate,
       total_amount: '',
-      billing_month: '',
+      payer_id: defaultPayerId,
+      billing_month: defaultMonth,
       description: '',
     });
+
+    setSplitParticipants(
+      roomMembers.map((member) => ({
+        member_id: member._id,
+        name: member.name || member.email || 'Thành viên',
+        email: member.email || '',
+        selected: !awayMemberIds.includes(String(member._id)),
+        split_mode: 'percent',
+        split_value: '',
+        isAway: awayMemberIds.includes(String(member._id)),
+      }))
+    );
+
     setError('');
     setShowModal(true);
   };
@@ -129,28 +193,61 @@ const BillManagement = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // Auto-format billing_month: remove spaces, ensure YYYY-MM format
-    if (name === 'billing_month') {
-      // Remove all spaces and dashes
-      let cleaned = value.replace(/[\s-]/g, '');
-      // If 6 digits like 202405, format as 2024-05
-      if (cleaned.length === 6 && /^\d{6}$/.test(cleaned)) {
-        cleaned = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
-      }
-      // If 4 digits and first 2 are month like 0504, don't format
-      // Otherwise accept as-is (user can manually enter 2024-05)
+
+    if (name === 'bill_date') {
+      const month = value ? value.slice(0, 7) : formData.billing_month;
       setFormData((prev) => ({
         ...prev,
-        [name]: cleaned,
+        bill_date: value,
+        billing_month: month,
       }));
       return;
     }
-    
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleToggleParticipant = (memberId) => {
+    setError('');
+    setSplitParticipants((prev) =>
+      prev.map((participant) => {
+        if (participant.member_id !== memberId) return participant;
+        if (participant.isAway) {
+          setError(`${participant.name} đang về quê`);
+          return participant;
+        }
+        return {
+          ...participant,
+          selected: !participant.selected,
+        };
+      })
+    );
+  };
+
+  const handleSelectAllParticipants = () => {
+    setError('');
+    setSplitParticipants((prev) =>
+      prev.map((participant) => ({
+        ...participant,
+        selected: participant.isAway ? false : true,
+      }))
+    );
+  };
+
+  const handleParticipantSplitChange = (memberId, field, value) => {
+    setSplitParticipants((prev) =>
+      prev.map((participant) =>
+        participant.member_id === memberId
+          ? {
+              ...participant,
+              [field]: value,
+            }
+          : participant
+      )
+    );
   };
 
   const validateBillingMonth = (month) => {
@@ -168,9 +265,13 @@ const BillManagement = () => {
   };
 
   const handleSaveBill = async () => {
-    // Validate required fields
     if (!formData.room_id || !formData.bill_type || !formData.total_amount || !formData.billing_month) {
       setError('Vui lòng điền tất cả các trường bắt buộc');
+      return;
+    }
+
+    if (formData.bill_type === 'other' && !formData.bill_type_other.trim()) {
+      setError('Vui lòng nhập nội dung cho loại hóa đơn khác');
       return;
     }
 
@@ -188,7 +289,6 @@ const BillManagement = () => {
       return;
     }
 
-    // Wait for auth to load
     if (authLoading) {
       setError('Đang xác thực, vui lòng chờ...');
       return;
@@ -200,7 +300,6 @@ const BillManagement = () => {
       return;
     }
 
-    // Get user ID (try both field names)
     const userId = user.id || user._id;
     if (!userId) {
       console.error('User object invalid:', user);
@@ -212,41 +311,59 @@ const BillManagement = () => {
     try {
       setError('');
 
-      // Lấy room object để get tất cả members
-      const selectedRoom = rooms.find(r => r._id === formData.room_id);
-      if (!selectedRoom) {
-        setError('Phòng không tồn tại');
+      const selectedParticipants = splitParticipants.filter((participant) => participant.selected && !participant.isAway);
+      if (selectedParticipants.length === 0) {
+        setError('Vui lòng chọn ít nhất 1 thành viên cùng thanh toán');
         setSubmitting(false);
         return;
       }
 
-      // Lấy danh sách member IDs từ room (hoặc nếu không có, dùng user hiện tại)
-      const memberIds = selectedRoom.members && selectedRoom.members.length > 0
-        ? selectedRoom.members.map(m => typeof m === 'string' ? m : m._id)
-        : [userId];
+      const hasAnyCustomSplit = selectedParticipants.some(
+        (participant) => String(participant.split_value).trim() !== ''
+      );
+      const customSplits = [];
+      if (hasAnyCustomSplit) {
+        for (const participant of selectedParticipants) {
+          const rawValue = String(participant.split_value).trim();
+          if (!rawValue) {
+            setError('Nếu đã chia theo %/số tiền, vui lòng nhập đầy đủ cho mọi thành viên được chọn');
+            setSubmitting(false);
+            return;
+          }
+          const parsed = Number(rawValue);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            setError('Giá trị chia bill không hợp lệ');
+            setSubmitting(false);
+            return;
+          }
+          customSplits.push({
+            member_id: participant.member_id,
+            mode: participant.split_mode,
+            value: parsed,
+          });
+        }
+      }
+
+      const memberIds = selectedParticipants.map((participant) => participant.member_id);
 
       const billData = {
         room_id: formData.room_id,
         bill_type: formData.bill_type,
+        bill_type_other: formData.bill_type === 'other' ? formData.bill_type_other.trim() : undefined,
+        bill_date: formData.bill_date,
         total_amount: parseInt(formData.total_amount),
+        payer_id: formData.payer_id || userId,
         billing_month: formData.billing_month,
         note: formData.description,
         member_ids: memberIds,
+        custom_splits: customSplits,
       };
 
-      console.log('Creating bill with data:', billData);
-      const response = await billService.createBill(billData);
-      console.log('Bill created successfully:', response);
-      
-      console.log('Refreshing bills list...');
+      await billService.createBill(billData);
       await fetchBills();
-      console.log('Closing modal...');
       handleCloseModal();
-      alert('✅ Tạo hóa đơn thành công!');
     } catch (err) {
       console.error('Error saving bill:', err);
-      console.error('Error response:', err.response);
-      console.error('Error message:', err.message);
       const errorMsg = err.response?.data?.message || err.message || 'Lỗi khi lưu hóa đơn';
       setError(errorMsg);
     } finally {
@@ -261,7 +378,7 @@ const BillManagement = () => {
         await fetchBills();
       } catch (err) {
         console.error('Error deleting bill:', err);
-        alert('Lỗi khi xóa hóa đơn: ' + (err.message || 'Vui lòng thử lại'));
+        setError(err.message || 'Lỗi khi xóa hóa đơn');
       }
     }
   };
@@ -271,10 +388,9 @@ const BillManagement = () => {
       try {
         await billService.confirmBillPayment(billId, detailId);
         await fetchBills();
-        alert('✅ Thanh toán đã được xác nhận!');
       } catch (err) {
         console.error('Error confirming payment:', err);
-        alert('Lỗi: ' + (err.message || 'Không thể xác nhận thanh toán'));
+        setError(err.message || 'Không thể xác nhận thanh toán');
       }
     }
   };
@@ -392,6 +508,11 @@ const BillManagement = () => {
                           <FontAwesomeIcon icon={faHouse} /> HÓA ĐƠN TIỀN THUÊ
                         </>
                       )}
+                      {bill.bill_type === 'other' && (
+                        <>
+                          <FontAwesomeIcon icon={faFileAlt} /> {`HÓA ĐƠN ${bill.bill_type_other || 'KHÁC'}`}
+                        </>
+                      )}
                     </h3>
                   </div>
                   <span className={`bill-status status-${bill.status}`}>
@@ -446,9 +567,9 @@ const BillManagement = () => {
                       </div>
                     )}
                     <div className="summary-item">
-                      <span className="summary-label">Ngày tạo:</span>
+                      <span className="summary-label">Ngày hóa đơn:</span>
                       <span className="summary-value">
-                        {formatDate(bill.created_at || bill.createdAt || new Date())}
+                        {formatDate(bill.bill_date || bill.created_at || bill.createdAt || new Date())}
                       </span>
                     </div>
                   </div>
@@ -594,23 +715,36 @@ const BillManagement = () => {
                     <option value="water">Tiền Nước</option>
                     <option value="internet">Tiền Internet</option>
                     <option value="rent">Tiền Thuê</option>
+                    <option value="other">Khác</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Kỳ tính (YYYY-MM) *</label>
+                  <label>Ngày hóa đơn *</label>
                   <input
-                    type="text"
-                    name="billing_month"
-                    value={formData.billing_month}
+                    type="date"
+                    name="bill_date"
+                    value={formData.bill_date}
                     onChange={handleInputChange}
-                    placeholder="2025-05 hoặc 202505"
                   />
                   <span className="hint-text">
-                    Nhập theo định dạng YYYY-MM (ví dụ: 2025-05). Có thể bỏ dấu gạch ngang.
+                    Kỳ tính tự cập nhật theo ngày đã chọn: <strong>{formData.billing_month || '-'}</strong>
                   </span>
                 </div>
               </div>
+
+              {formData.bill_type === 'other' && (
+                <div className="form-group">
+                  <label>Nội dung loại khác *</label>
+                  <input
+                    type="text"
+                    name="bill_type_other"
+                    value={formData.bill_type_other}
+                    onChange={handleInputChange}
+                    placeholder="VD: Phí vệ sinh, phí gửi xe..."
+                  />
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Tổng tiền *</label>
@@ -624,6 +758,78 @@ const BillManagement = () => {
                 />
                 <span className="hint-text">
                   Tối thiểu 1.000 VNĐ
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label>Thành viên chịu trách nhiệm thanh toán *</label>
+                <select
+                  name="payer_id"
+                  value={formData.payer_id}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Chọn người chịu trách nhiệm</option>
+                  {roomMembers.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.name || member.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <div className="participant-head">
+                  <label>Thành viên cùng thanh toán *</label>
+                  <button type="button" className="btn-select-all-members" onClick={handleSelectAllParticipants}>
+                    <FontAwesomeIcon icon={faUsers} /> Chọn tất cả (trừ người về quê)
+                  </button>
+                </div>
+                <div className="participant-list">
+                  {splitParticipants.length === 0 ? (
+                    <div className="participant-empty">Không có thành viên trong phòng.</div>
+                  ) : (
+                    splitParticipants.map((participant) => (
+                      <div
+                        key={participant.member_id}
+                        className={`participant-row ${participant.selected ? 'selected' : ''} ${participant.isAway ? 'away' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="participant-toggle"
+                          onClick={() => handleToggleParticipant(participant.member_id)}
+                        >
+                          <input type="checkbox" readOnly checked={participant.selected} />
+                          <span>{participant.name}</span>
+                          {participant.isAway && <small>Đang về quê</small>}
+                        </button>
+                        <div className="participant-split">
+                          <select
+                            value={participant.split_mode}
+                            onChange={(e) =>
+                              handleParticipantSplitChange(participant.member_id, 'split_mode', e.target.value)
+                            }
+                            disabled={!participant.selected || participant.isAway}
+                          >
+                            <option value="percent">%</option>
+                            <option value="amount">VND</option>
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={participant.split_mode === 'percent' ? 'VD: 25' : 'VD: 150000'}
+                            value={participant.split_value}
+                            onChange={(e) =>
+                              handleParticipantSplitChange(participant.member_id, 'split_value', e.target.value)
+                            }
+                            disabled={!participant.selected || participant.isAway}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <span className="hint-text">
+                  Để trống phần chia của từng người nếu muốn hệ thống tự chia đều.
                 </span>
               </div>
 

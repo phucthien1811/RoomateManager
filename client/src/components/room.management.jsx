@@ -8,10 +8,11 @@ import {
   faUsers,
   faMapMarkerAlt,
   faUser,
-  faMoneyBillWave,
+  faKey,
+  faCopy,
+  faCheck,
 } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
-import memberService from '../services/member.service.js';
 import '../styles/room.management.css';
 
 const RoomManagement = () => {
@@ -21,16 +22,12 @@ const RoomManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
-    owner: '',
-    monthlyRent: '',
   });
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
-  const [memberRows, setMemberRows] = useState([{ email: '', name: '' }]);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [copiedRoomId, setCopiedRoomId] = useState(null);
 
   // Fetch rooms on component mount
   useEffect(() => {
@@ -58,21 +55,10 @@ const RoomManagement = () => {
       setFormData({
         name: room.name,
         address: room.address || room.location || '',
-        owner: typeof room.owner === 'object' ? room.owner?._id : room.owner || '',
-        monthlyRent: room.monthlyRent || room.monthlyRent || '',
       });
-      // Set selected members for edit mode
-      if (room.members && Array.isArray(room.members)) {
-        setSelectedMembers(
-          room.members.map(m => typeof m === 'object' ? m._id : m)
-        );
-      }
-      setMemberRows([{ email: '', name: '' }]);
       setEditingId(room._id || room.id);
     } else {
-      setFormData({ name: '', address: '', owner: '', monthlyRent: '' });
-      setSelectedMembers([]);
-      setMemberRows([{ email: '', name: '' }]);
+      setFormData({ name: '', address: '' });
       setEditingId(null);
     }
     setShowModal(true);
@@ -80,27 +66,9 @@ const RoomManagement = () => {
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setFormData({ name: '', address: '', owner: '', monthlyRent: '' });
-    setSelectedMembers([]);
-    setMemberRows([{ email: '', name: '' }]);
+    setFormData({ name: '', address: '' });
     setEditingId(null);
     setError('');
-  };
-
-  const handleMemberRowChange = (index, field, value) => {
-    const newRows = [...memberRows];
-    newRows[index][field] = value;
-    setMemberRows(newRows);
-  };
-
-  const handleAddMemberRow = () => {
-    setMemberRows([...memberRows, { email: '', name: '' }]);
-  };
-
-  const handleRemoveMemberRow = (index) => {
-    if (memberRows.length > 1) {
-      setMemberRows(memberRows.filter((_, i) => i !== index));
-    }
   };
 
   const handleInputChange = (e) => {
@@ -125,47 +93,31 @@ const RoomManagement = () => {
           name: formData.name,
           address: formData.address,
           location: formData.address,
-          owner: formData.owner,
-          monthlyRent: parseInt(formData.monthlyRent) || 0,
         };
         const createdRoom = await roomService.createRoom(newRoom);
         // Lưu room ID để dùng ở các component khác
         if (createdRoom && (createdRoom._id || createdRoom.id)) {
           localStorage.setItem('currentRoomId', createdRoom._id || createdRoom.id);
-          
-          // Thêm các thành viên mới 
-          const validMembers = memberRows.filter(m => m.email.trim());
-          if (validMembers.length > 0) {
-            for (const member of validMembers) {
-              try {
-                await memberService.addMember(createdRoom._id || createdRoom.id, member);
-              } catch (err) {
-                console.error('Error adding member:', err);
-              }
-            }
-          }
         }
+        const createdRoomName = createdRoom?.name || formData.name;
+        const createdRoomCode = createdRoom?.code || createdRoom?.inviteCode || '---';
+        const successMessage = `Bạn vừa tạo phòng ${createdRoomName} thành công, mã phòng là ${createdRoomCode}`;
+        window.dispatchEvent(
+          new CustomEvent('app-notification', {
+            detail: {
+              type: 'success',
+              title: 'Tạo phòng thành công',
+              message: successMessage,
+            },
+          })
+        );
       } else if (modalType === 'edit') {
         const updates = {
           name: formData.name,
           address: formData.address,
           location: formData.address,
-          owner: formData.owner,
-          monthlyRent: parseInt(formData.monthlyRent) || 0,
         };
         await roomService.updateRoom(editingId, updates);
-        
-        // Thêm các thành viên mới nếu có
-        const validMembers = memberRows.filter(m => m.email.trim());
-        if (validMembers.length > 0) {
-          for (const member of validMembers) {
-            try {
-              await memberService.addMember(editingId, member);
-            } catch (err) {
-              console.error('Error adding member:', err);
-            }
-          }
-        }
       }
       // Refresh rooms list
       await fetchRooms();
@@ -190,8 +142,18 @@ const RoomManagement = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN').format(amount);
+  const handleCopyRoomCode = async (room) => {
+    const roomCode = room.code || room.inviteCode;
+    if (!roomCode) return;
+
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      const roomId = room._id || room.id;
+      setCopiedRoomId(roomId);
+      setTimeout(() => setCopiedRoomId(null), 1500);
+    } catch (err) {
+      setError('Không thể sao chép mã phòng. Vui lòng thử lại.');
+    }
   };
 
   return (
@@ -199,7 +161,7 @@ const RoomManagement = () => {
       <div className="room-management-header">
         <div className="header-content">
           <h1>Quản Lý Phòng</h1>
-          <p>Quản lý thông tin phòng trọ và thành viên</p>
+          <p>Tạo phòng với tên + địa chỉ, thành viên tham gia bằng mã phòng</p>
         </div>
         <button
           className="btn-create-room"
@@ -260,15 +222,23 @@ const RoomManagement = () => {
                   <span className="info-text">{room.members?.length || 0} thành viên</span>
                 </div>
 
-                <div className="room-rent-divider"></div>
-
-                <div className="room-rent-info">
-                  <span className="rent-label">
-                    <FontAwesomeIcon icon={faMoneyBillWave} /> Tiền thuê / tháng
-                  </span>
-                  <span className="rent-value">
-                    {formatCurrency(room.monthlyRent || 0)}
-                  </span>
+                <div className="room-info-item room-code-item">
+                  <FontAwesomeIcon icon={faKey} className="info-icon" />
+                  <div className="room-code-content">
+                    <span className="info-text">
+                      Mã phòng: <strong>{room.code || room.inviteCode || '---'}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className={`btn-copy-code ${copiedRoomId === (room._id || room.id) ? 'copied' : ''}`}
+                      onClick={() => handleCopyRoomCode(room)}
+                      disabled={!(room.code || room.inviteCode)}
+                      title="Sao chép mã phòng"
+                    >
+                      <FontAwesomeIcon icon={copiedRoomId === (room._id || room.id) ? faCheck : faCopy} />
+                      {copiedRoomId === (room._id || room.id) ? 'Đã sao chép' : 'Sao chép'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="room-status">
@@ -280,9 +250,6 @@ const RoomManagement = () => {
                 </div>
               </div>
 
-              <div className="room-card-footer">
-                <button className="btn-manage-members">Quản lý thành viên</button>
-              </div>
             </div>
           ))
         )}
@@ -337,97 +304,13 @@ const RoomManagement = () => {
                   disabled={submitting}
                 />
               </div>
-
-              <div className="form-group">
-                <label htmlFor="owner">Chủ Phòng</label>
-                <input
-                  type="text"
-                  id="owner"
-                  name="owner"
-                  value={formData.owner}
-                  onChange={handleInputChange}
-                  placeholder="Tên chủ phòng"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="monthlyRent">Tiền Thuê / Tháng (VND)</label>
-                <input
-                  type="number"
-                  id="monthlyRent"
-                  name="monthlyRent"
-                  value={formData.monthlyRent}
-                  onChange={handleInputChange}
-                  placeholder="VD: 3400000"
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>{modalType === 'create' ? 'Thêm Thành Viên Mới' : 'Thêm Thành Viên Mới'} (Tùy Chọn)</label>
-                {memberRows.map((row, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr auto auto',
-                        gap: '8px',
-                        marginBottom: '10px'
-                      }}
-                    >
-                      <input
-                        type="email"
-                        value={row.email}
-                        onChange={(e) => handleMemberRowChange(index, 'email', e.target.value)}
-                        placeholder="Email thành viên"
-                        disabled={submitting}
-                      />
-                      <input
-                        type="text"
-                        value={row.name}
-                        onChange={(e) => handleMemberRowChange(index, 'name', e.target.value)}
-                        placeholder="Tên (tùy chọn)"
-                        disabled={submitting}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddMemberRow}
-                        disabled={submitting}
-                        style={{
-                          padding: '8px 12px',
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          minWidth: '70px'
-                        }}
-                      >
-                        + Thêm
-                      </button>
-                      {memberRows.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMemberRow(index)}
-                          disabled={submitting}
-                          style={{
-                            padding: '8px 12px',
-                            backgroundColor: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            minWidth: '70px'
-                          }}
-                        >
-                          Xóa
-                        </button>
-                      )}
-                    </div>
-                  ))}
+              {modalType === 'create' && (
+                <div className="form-group">
+                  <p className="create-room-note">
+                    Chủ phòng sẽ mặc định là tài khoản đang đăng nhập. Sau khi tạo phòng, thành viên tham gia bằng mã phòng.
+                  </p>
                 </div>
-
+              )}
 
             </div>
 

@@ -50,6 +50,13 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
     };
 
     fetchRooms();
+
+    const handleRoomJoined = () => {
+      fetchRooms();
+    };
+
+    window.addEventListener('room-joined', handleRoomJoined);
+    return () => window.removeEventListener('room-joined', handleRoomJoined);
   }, []);
 
   const handleRoomChange = (roomId) => {

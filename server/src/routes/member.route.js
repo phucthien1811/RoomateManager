@@ -22,4 +22,10 @@ router.put('/:roomId/leave', authenticate, memberController.leaveRoom);
 // Cập nhật biệt danh
 router.put('/:roomId/nickname', authenticate, memberController.updateMemberNickname);
 
+// Cập nhật thông tin thành viên
+router.put('/:memberId', authenticate, memberController.updateMember);
+
+// Chuyển thành viên sang phòng khác
+router.put('/:roomId/members/:memberId/transfer', authenticate, memberController.transferMemberRoom);
+
 module.exports = router;

@@ -8,8 +8,6 @@ import {
   faEnvelope,
   faPhone,
   faCrown,
-  faCheckCircle,
-  faEllipsisV,
 } from '@fortawesome/free-solid-svg-icons';
 import memberService from '../services/member.service.js';
 import roomService from '../services/room.service.js';
@@ -23,40 +21,48 @@ const MemberManagement = () => {
     name: '',
     email: '',
     phone: '',
-    room: '',
     role: 'Thành viên',
   });
   const [editingId, setEditingId] = useState(null);
-  const [activeDropdown, setActiveDropdown] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [rooms, setRooms] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
 
-  // Fetch members on mount
   useEffect(() => {
-    fetchMembers();
     fetchRooms();
+    fetchMembers(selectedRoomId);
+
+    const handleRoomSelected = (event) => {
+      const roomId = event.detail?.roomId || localStorage.getItem('currentRoomId') || '';
+      setSelectedRoomId(roomId);
+      fetchMembers(roomId);
+    };
+
+    window.addEventListener('room-selected', handleRoomSelected);
+    return () => window.removeEventListener('room-selected', handleRoomSelected);
   }, []);
 
-  const fetchMembers = async () => {
+  const fetchMembers = async (roomIdOverride) => {
     try {
       setLoading(true);
       setError('');
-      // Get current room ID or first room
-      const roomId = localStorage.getItem('currentRoomId');
+      const roomId = roomIdOverride || localStorage.getItem('currentRoomId');
+      const currentRoom = rooms.find((room) => room._id === roomId);
       if (roomId) {
         const data = await memberService.getMembers(roomId);
         const formattedMembers = data.map((member) => ({
-          id: member._id,
-          _id: member._id,
-          name: member.name,
-          email: member.email,
-          phone: member.phone || '',
-          room: member.room?.name || '',
+          id: member._id || member.user?._id,
+          _id: member._id || member.user?._id,
+          name: member.name || member.user?.name || '',
+          email: member.email || member.user?.email || '',
+          phone: member.phone || member.user?.phone || '',
+          room: member.room?.name || currentRoom?.name || 'Phòng hiện tại',
+          roomId,
           role: member.role || 'Thành viên',
           status: member.status || 'active',
-          joinDate: member.createdAt || new Date().toISOString(),
+          joinDate: member.createdAt || member.joinedAt || new Date().toISOString(),
           totalDebt: member.totalDebt || 0,
         }));
         setMembers(formattedMembers);
@@ -86,12 +92,16 @@ const MemberManagement = () => {
         name: member.name,
         email: member.email,
         phone: member.phone,
-        room: member.room,
         role: member.role,
       });
       setEditingId(member._id || member.id);
     } else {
-      setFormData({ name: '', email: '', phone: '', room: '', role: 'Thành viên' });
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'Thành viên',
+      });
       setEditingId(null);
     }
     setShowModal(true);
@@ -99,7 +109,12 @@ const MemberManagement = () => {
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setFormData({ name: '', email: '', phone: '', room: '', role: 'Thành viên' });
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      role: 'Thành viên',
+    });
     setEditingId(null);
     setError('');
   };
@@ -133,11 +148,12 @@ const MemberManagement = () => {
           await memberService.addMember(roomId, newMember);
         }
       } else if (modalType === 'edit') {
+        const currentRoomId = localStorage.getItem('currentRoomId');
         const updates = {
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          role: formData.role,
+          roomId: currentRoomId,
         };
         await memberService.updateMember(editingId, updates);
       }
@@ -361,38 +377,14 @@ const MemberManagement = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="room">Phòng</label>
-                  <select
-                    id="room"
-                    name="room"
-                    value={formData.room}
-                    onChange={handleInputChange}
-                    disabled={submitting}
-                  >
-                    <option value="">Chọn phòng</option>
-                    {rooms.map((room) => (
-                      <option key={room._id} value={room.name}>
-                        {room.name}
-                      </option>
-                    ))}
-                  </select>
+              {modalType === 'edit' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="role">Vai Trò</label>
+                    <input id="role" name="role" value={formData.role} disabled />
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="role">Vai Trò</label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    disabled={submitting}
-                  >
-                    <option value="Thành viên">Thành viên</option>
-                    <option value="Chủ phòng">Chủ phòng</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="modal-footer">

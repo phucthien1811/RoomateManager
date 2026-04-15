@@ -14,10 +14,20 @@ const roomBillSchema = new mongoose.Schema(
       enum: Object.values(BILL_TYPES),
       required: [true, "bill_type là bắt buộc"],
     },
+    bill_type_other: {
+      type: String,
+      trim: true,
+      maxlength: [120, "bill_type_other không được vượt quá 120 ký tự"],
+      default: null,
+    },
     total_amount: {
       type: Number,
       required: [true, "total_amount là bắt buộc"],
       min: [1000, "total_amount phải lớn hơn 1,000 VNĐ"],
+    },
+    bill_date: {
+      type: Date,
+      default: Date.now,
     },
     // Định dạng YYYY-MM, ví dụ: "2025-06"
     billing_month: {
@@ -40,6 +50,12 @@ const roomBillSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: [true, "created_by là bắt buộc"],
+    },
+    payer_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      default: null,
     },
   },
   {

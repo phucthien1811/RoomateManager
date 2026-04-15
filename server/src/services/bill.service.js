@@ -3,23 +3,100 @@ const RoomBill = require("../models/room.bill.model");
 const BillDetail = require("../models/bill.detail.model");
 const { BILL_STATUS, BILL_DETAIL_STATUS } = require("../constants/bill.constant");
 
-// Largest Remainder Method — chia tiền thành số nguyên, đảm bảo tổng luôn khớp
-// Cách làm: floor hết rồi cộng phần dư vào người đầu tiên
 const splitAmountByLargestRemainder = (totalAmount, memberCount) => {
   if (memberCount <= 0) throw new Error("Số lượng thành viên phải lớn hơn 0");
-
   const baseAmounts = Array(memberCount).fill(Math.floor(totalAmount / memberCount));
   const remainder = totalAmount - baseAmounts.reduce((sum, val) => sum + val, 0);
-
-  // Phần dư cộng vào người đầu (thường là trưởng phòng / người tạo bill)
   if (remainder > 0) baseAmounts[0] += remainder;
-
   return baseAmounts;
+};
+
+const normalizeCustomSplits = (customSplits = [], totalAmount, memberIds = []) => {
+  if (!Array.isArray(customSplits) || customSplits.length === 0) return null;
+
+  const normalizedIds = memberIds.map((id) => id.toString());
+  const allocations = [];
+  let usedAmount = 0;
+  let pendingPercent = 0;
+
+  for (const split of customSplits) {
+    const id = split?.member_id?.toString();
+    if (!id || !normalizedIds.includes(id)) continue;
+
+    if (split.mode === "amount") {
+      const amount = Number(split.value);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new Error("Số tiền chia cho thành viên không hợp lệ");
+      }
+      const amountRounded = Math.round(amount);
+      usedAmount += amountRounded;
+      allocations.push({ member_id: id, amount_due: amountRounded, mode: "amount", value: amountRounded });
+    } else if (split.mode === "percent") {
+      const percent = Number(split.value);
+      if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+        throw new Error("Tỷ lệ chia bill phải trong khoảng 0-100%");
+      }
+      pendingPercent += percent;
+      allocations.push({ member_id: id, amount_due: null, mode: "percent", value: percent });
+    }
+  }
+
+  if (allocations.length !== normalizedIds.length) {
+    throw new Error("Thiếu cấu hình chia bill cho một số thành viên");
+  }
+
+  if (usedAmount > totalAmount) {
+    throw new Error("Tổng tiền đã phân bổ vượt quá tổng hóa đơn");
+  }
+
+  if (pendingPercent > 100) {
+    throw new Error("Tổng tỷ lệ chia bill vượt quá 100%");
+  }
+
+  let remainForPercent = totalAmount - usedAmount;
+  const percentItems = allocations.filter((item) => item.mode === "percent");
+  if (percentItems.length === 0) {
+    const diff = totalAmount - usedAmount;
+    if (diff !== 0 && allocations.length > 0) {
+      allocations[allocations.length - 1].amount_due += diff;
+    }
+  } else {
+    const percentTotal = percentItems.reduce((sum, item) => sum + item.value, 0);
+    const divisor = percentTotal === 0 ? percentItems.length : percentTotal;
+    let allocated = 0;
+    percentItems.forEach((item, index) => {
+      let value = 0;
+      if (percentTotal === 0) {
+        value = Math.floor(remainForPercent / percentItems.length);
+      } else {
+        value = Math.floor((remainForPercent * item.value) / divisor);
+      }
+      item.amount_due = value;
+      allocated += value;
+      if (index === percentItems.length - 1) {
+        item.amount_due += remainForPercent - allocated;
+      }
+    });
+  }
+
+  const byMember = new Map(allocations.map((a) => [a.member_id, a]));
+  return normalizedIds.map((id) => byMember.get(id).amount_due);
 };
 
 // RM-7 & RM-9: Tạo hóa đơn + chia tiền cho các thành viên
 const createBillWithSplit = async (billData, createdBy) => {
-  const { room_id, bill_type, total_amount, billing_month, note, member_ids } = billData;
+  const {
+    room_id,
+    bill_type,
+    bill_type_other,
+    total_amount,
+    billing_month,
+    bill_date,
+    note,
+    payer_id,
+    member_ids,
+    custom_splits,
+  } = billData;
 
   if (!member_ids || member_ids.length === 0) {
     throw new Error("Phải có ít nhất 1 thành viên để chia tiền");
@@ -30,25 +107,36 @@ const createBillWithSplit = async (billData, createdBy) => {
     const newBill = await RoomBill.create({
       room_id,
       bill_type,
+      bill_type_other: bill_type === "other" ? (bill_type_other || "").trim() : null,
       total_amount,
       billing_month,
+      bill_date: bill_date ? new Date(bill_date) : new Date(),
       note: note || null,
       status: BILL_STATUS.PENDING,
       created_by: createdBy,
+      payer_id: payer_id || createdBy,
     });
 
-    // Tính toán chia tiền
-    const splitAmounts = splitAmountByLargestRemainder(total_amount, member_ids.length);
+    const splitAmounts =
+      normalizeCustomSplits(custom_splits, total_amount, member_ids) ||
+      splitAmountByLargestRemainder(total_amount, member_ids.length);
 
     // Tạo chi tiết hóa đơn cho từng thành viên
-    const billDetailDocs = member_ids.map((memberId, index) => ({
-      bill_id: newBill._id,
-      member_id: memberId,
-      amount_due: splitAmounts[index],
-      status: BILL_DETAIL_STATUS.PENDING,
-      paid_at: null,
-      confirmed_by: null,
-    }));
+    const billDetailDocs = member_ids.map((memberId, index) => {
+      const due = splitAmounts[index];
+      const costRatio = total_amount > 0 ? due / total_amount : 0;
+      return {
+        bill_id: newBill._id,
+        member_id: memberId,
+        amount_due: due,
+        original_amount: due,
+        actual_amount: due,
+        cost_ratio: Number(costRatio.toFixed(6)),
+        status: BILL_DETAIL_STATUS.PENDING,
+        paid_at: null,
+        confirmed_by: null,
+      };
+    });
 
     const details = await BillDetail.insertMany(billDetailDocs);
 

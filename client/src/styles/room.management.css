@@ -197,36 +197,49 @@
   word-break: break-word;
 }
 
-/* Rent Section */
-.room-rent-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #e5e7eb, transparent);
-  margin: 16px 0;
-}
-
-.room-rent-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px;
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-  border-radius: 10px;
-  border: 1px solid #c6f6d5;
-  margin-bottom: 14px;
-}
-
-.rent-label {
-  font-size: 12px;
-  color: #047857;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.rent-value {
-  font-size: 16px;
+.room-code-item .info-text strong {
+  color: #1d4ed8;
   font-weight: 800;
-  color: #059669;
+}
+
+.room-code-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn-copy-code {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-copy-code:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.btn-copy-code.copied {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.btn-copy-code:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Status Section */
@@ -257,56 +270,6 @@
   background: #f3f4f6;
   color: #6b7280;
   border: 1px solid #e5e7eb;
-}
-
-/* Card Footer */
-.room-card-footer {
-  padding: 16px 20px 20px;
-  border-top: 1px solid #f3f4f6;
-  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-}
-
-.btn-manage-members {
-  width: 100%;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-manage-members::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.15);
-  transition: left 0.4s ease;
-  z-index: 1;
-}
-
-.btn-manage-members:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
-}
-
-.btn-manage-members:hover::before {
-  left: 100%;
-}
-
-.btn-manage-members:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 /* Modal Styles */
@@ -506,12 +469,19 @@
     margin-bottom: 16px;
   }
 
-  .room-rent-info {
-    padding: 14px;
-  }
-
   .modal-container {
     width: 95%;
     max-width: 100%;
   }
+}
+
+.create-room-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 13px;
+  line-height: 1.5;
 }

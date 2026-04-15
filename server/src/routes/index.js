@@ -22,6 +22,9 @@ router.use('/chores', require('./chore.route'));
 // Fund routes - Quỹ nhà
 router.use('/fund', require('./fund.route'));
 
+// Notification routes - Thông báo
+router.use('/notifications', require('./notification.route'));
+
 // Example route
 router.get('/hello', (req, res) => {
   res.json({ message: 'Hello from Roommate Manager API!' });

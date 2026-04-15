@@ -25,7 +25,7 @@ const AppLayout = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { user, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, refreshNotifications } = useNotifications();
 
   const currentUser = user || {
     name: 'Guest User',
@@ -34,7 +34,7 @@ const AppLayout = () => {
 
   const handleJoinRoom = (roomData) => {
     console.log('Joined room:', roomData);
-    // Sau này sẽ call API join room
+    refreshNotifications();
     setActiveMenu('dashboard');
   };
 

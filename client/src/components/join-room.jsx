@@ -46,12 +46,33 @@ const JoinRoom = ({ onJoinRoom, onCancel, currentUser }) => {
     try {
       // Call API to join room
       const result = await roomService.joinRoom(formData.roomCode);
+      const joinedRoom = result?.room;
       
       setSuccess(true);
+      if (joinedRoom?._id) {
+        localStorage.setItem('currentRoomId', joinedRoom._id);
+        window.dispatchEvent(new CustomEvent('room-selected', { detail: { roomId: joinedRoom._id } }));
+        window.dispatchEvent(new CustomEvent('room-joined', { detail: { roomId: joinedRoom._id } }));
+      }
+
+      if (joinedRoom?.name) {
+        window.dispatchEvent(
+          new CustomEvent('app-notification', {
+            detail: {
+              type: 'success',
+              title: 'Tham gia phòng thành công',
+              message: `Tham gia thành công phòng ${joinedRoom.name}`,
+              meta: `ROOM ${joinedRoom._id || ''}`,
+            },
+          })
+        );
+      }
+
       setTimeout(() => {
         onJoinRoom({
           roomCode: formData.roomCode,
-          roomId: result.roomId || result._id,
+          roomId: joinedRoom?._id || joinedRoom?.roomId || result.roomId || result._id,
+          roomName: joinedRoom?.name || '',
           userName: currentUser?.name || 'Thành viên mới',
           joinedDate: new Date().toISOString(),
         });
@@ -60,7 +81,7 @@ const JoinRoom = ({ onJoinRoom, onCancel, currentUser }) => {
       console.error('Error joining room:', err);
       const errorMessage = err.message || 'Mã phòng không tồn tại. Vui lòng kiểm tra lại.';
       
-      if (err.status === 409) {
+      if (err.status === 409 || err.status === 400) {
         setError('Bạn đã là thành viên của phòng này');
       } else if (err.status === 404) {
         setError('Mã phòng không tồn tại. Vui lòng kiểm tra lại.');

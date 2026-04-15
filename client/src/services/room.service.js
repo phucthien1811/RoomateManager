@@ -71,12 +71,17 @@ const roomService = {
    */
   joinRoom: async (roomCode) => {
     try {
-      const response = await api.post('/rooms/join', {
+      const response = await api.post('/members/join', {
+        inviteCode: roomCode,
         code: roomCode,
       });
-      return response.data.room;
+      return response.data;
     } catch (error) {
-      throw error.response?.data || error;
+      const payload = error.response?.data || error;
+      if (error.response?.status) {
+        payload.status = error.response.status;
+      }
+      throw payload;
     }
   },
 
