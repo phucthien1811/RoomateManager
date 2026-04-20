@@ -18,6 +18,7 @@ import FinancialReport from './components/financial.report.jsx';
 import JoinRoom from './components/join-room.jsx';
 import AbsenceReport from './components/absence.report.jsx';
 import DutySchedule from './components/duty.schedule.jsx';
+import InternalNewsfeed from './components/internal.newsfeed.jsx';
 import './styles/app.css';
 
 // Component for main app layout
@@ -46,6 +47,7 @@ const AppLayout = () => {
     bills: 'Hóa Đơn',
     absence: 'Báo Cáo Vắng Mặt',
     duties: 'Phân Công Trực Nhật',
+    newsfeed: 'Bảng Tin Nội Bộ',
     tasks: 'Công Việc Chung',
     expenses: 'Quỹ Tiền Chung',
     reports: 'Báo Cáo Tài Chính',
@@ -70,6 +72,8 @@ const AppLayout = () => {
         return <AbsenceReport />;
       case 'duties':
         return <DutySchedule />;
+      case 'newsfeed':
+        return <InternalNewsfeed />;
       case 'tasks':
         return <TaskTracking />;
       case 'expenses':

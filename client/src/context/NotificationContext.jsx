@@ -2,9 +2,12 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import notificationService from '../services/notification.service.js';
 
 const NotificationContext = createContext(null);
+const NOTIFICATION_STORAGE_KEY = 'roommate_manager.notification_history';
+
+const isServerNotificationId = (id = '') => /^[a-fA-F0-9]{24}$/.test(String(id));
 
 const makeNotification = (payload = {}) => ({
-  id: payload.id || payload._id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  id: payload.id || payload._id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   type: payload.type || 'info',
   title: payload.title || 'Thông báo',
   message: payload.message || '',
@@ -13,22 +16,54 @@ const makeNotification = (payload = {}) => ({
   read: Boolean(payload.read),
 });
 
+const getTimestamp = (value) => {
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const mergeNotifications = (...collections) => {
+  const map = new Map();
+
+  collections.flat().forEach((item) => {
+    const notification = makeNotification(item);
+    const existed = map.get(notification.id);
+
+    if (!existed) {
+      map.set(notification.id, notification);
+      return;
+    }
+
+    map.set(notification.id, {
+      ...existed,
+      ...notification,
+      read: existed.read || notification.read,
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+};
+
+const getStoredNotifications = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((item) => makeNotification(item)) : [];
+  } catch (error) {
+    console.error('Error reading stored notifications:', error);
+    return [];
+  }
+};
+
 export const NotificationProvider = ({ children }) => {
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(() => getStoredNotifications());
 
   const refreshNotifications = async () => {
     try {
       const data = await notificationService.getMyNotifications();
-      const normalized = data.map((item) => ({
-        id: item._id || item.id,
-        type: item.type || 'info',
-        title: item.title || 'Thông báo',
-        message: item.message || '',
-        meta: item.meta || '',
-        createdAt: item.createdAt || new Date().toISOString(),
-        read: Boolean(item.read),
-      }));
-      setNotifications(normalized);
+      const normalized = data.map((item) => makeNotification(item));
+      setNotifications((prev) => mergeNotifications(normalized, prev));
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -43,15 +78,25 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     const handleAppNotification = (event) => {
       const notification = makeNotification(event.detail || {});
-      setNotifications((prev) => [notification, ...prev].slice(0, 200));
+      setNotifications((prev) => mergeNotifications([notification], prev));
     };
 
     window.addEventListener('app-notification', handleAppNotification);
     return () => window.removeEventListener('app-notification', handleAppNotification);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
+    } catch (error) {
+      console.error('Error saving notification history:', error);
+    }
+  }, [notifications]);
+
   const markAsRead = async (id) => {
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
+    if (!isServerNotificationId(id)) return;
     try {
       await notificationService.markAsRead(id);
     } catch (error) {

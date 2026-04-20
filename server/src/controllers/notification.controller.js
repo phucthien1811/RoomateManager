@@ -3,9 +3,7 @@ const Notification = require('../models/notification.model');
 const listMyNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
-    const notifications = await Notification.find({ recipient: userId })
-      .sort({ createdAt: -1 })
-      .limit(200);
+    const notifications = await Notification.find({ recipient: userId }).sort({ createdAt: -1 });
     res.json({ notifications });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy thông báo', error: error.message });

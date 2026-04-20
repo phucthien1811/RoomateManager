@@ -11,6 +11,7 @@ import {
   faDoorOpen,
   faCalendarAlt,
   faCalendarCheck,
+  faBullhorn,
 } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
 import '../styles/sidebar.css';
@@ -23,10 +24,11 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
     { id: 'rooms', label: 'Quản Lý Phòng', icon: faHome },
     { id: 'joinRoom', label: 'Tham Gia Phòng', icon: faDoorOpen },
-    { id: 'members', label: 'Quản Lý Thành Viên', icon: faUsers },
+    { id: 'members', label: 'Thành Viên', icon: faUsers },
     { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
-    { id: 'absence', label: 'Báo Cáo Vắng Mặt', icon: faCalendarAlt },
-    { id: 'duties', label: 'Phân Công Trực Nhật', icon: faCalendarCheck },
+    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
+    { id: 'newsfeed', label: 'Bảng Tin Nội Bộ', icon: faBullhorn },
     { id: 'tasks', label: 'Công Việc Chung', icon: faTasks },
     { id: 'expenses', label: 'Quỹ Tiền Chung', icon: faPiggyBank },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },

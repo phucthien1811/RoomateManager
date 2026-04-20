@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const roomController = require('../controllers/room.controller');
+const postController = require('../controllers/post.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 
 // GET /api/rooms - Lấy danh sách phòng của user
@@ -26,5 +27,11 @@ router.post('/:roomId/members', authenticate, roomController.addMember);
 
 // DELETE /api/rooms/:roomId/members/:memberId - Xóa thành viên khỏi phòng
 router.delete('/:roomId/members/:memberId', authenticate, roomController.removeMember);
+
+// GET /api/rooms/:roomId/posts - Lấy bài viết trong phòng
+router.get('/:roomId/posts', authenticate, postController.listRoomPosts);
+
+// POST /api/rooms/:roomId/posts - Tạo bài viết mới trong phòng
+router.post('/:roomId/posts', authenticate, postController.createRoomPost);
 
 module.exports = router;
