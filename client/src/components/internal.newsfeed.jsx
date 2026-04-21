@@ -4,6 +4,7 @@ import { faBullhorn, faPen, faPlus, faTrash } from '@fortawesome/free-solid-svg-
 import { useAuth } from '../context/AuthContext.jsx';
 import postService from '../services/post.service.js';
 import roomService from '../services/room.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/internal.newsfeed.css';
 
 const emptyForm = {
@@ -133,14 +134,9 @@ const InternalNewsfeed = () => {
 
   return (
     <div className="internal-newsfeed-page">
-      <div className="newsfeed-header">
-        <div className="newsfeed-header-left">
-          <h1>
-            <FontAwesomeIcon icon={faBullhorn} /> Bảng Tin Nội Bộ
-          </h1>
-          <p>{roomName ? `Phòng: ${roomName}` : 'Chọn phòng để xem bảng tin'} • {postCountLabel}</p>
-        </div>
-      </div>
+      <PageHeader 
+        title="Bảng Tin Nội Bộ"
+      />
 
       <div className="newsfeed-create-box">
         <h3>{isEditing ? 'Chỉnh sửa bài viết' : 'Tạo bài viết mới'}</h3>

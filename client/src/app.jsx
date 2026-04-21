@@ -34,18 +34,7 @@ const AppLayout = () => {
   };
 
 
-  const menuLabels = {
-    dashboard: 'Dashboard',
-    rooms: 'Phòng',
-    members: 'Quản Lý Thành Viên',
-    bills: 'Hóa Đơn',
-    absence: 'Báo Cáo Vắng Mặt',
-    duties: 'Phân Công Trực Nhật',
-    newsfeed: 'Bảng Tin Nội Bộ',
-    tasks: 'Công Việc Chung',
-    expenses: 'Quỹ Tiền Chung',
-    reports: 'Báo Cáo Tài Chính',
-  };
+
 
   const handleLogout = () => {
     logout();
@@ -85,9 +74,7 @@ const AppLayout = () => {
       <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
       <div className="app-main">
         <header className="global-header">
-          <div className="global-header-left">
-            <h1>{menuLabels[activeMenu]}</h1>
-          </div>
+
           <div className="global-header-right">
             <div className="global-user">
               <span className="global-user-name">{currentUser.name}</span>

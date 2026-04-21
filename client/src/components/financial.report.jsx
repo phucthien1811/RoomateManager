@@ -14,6 +14,7 @@ import {
 import * as XLSX from 'xlsx';
 import billService from '../services/bill.service.js';
 import fundService from '../services/fund.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/financial.report.css';
 
 /* ─── helpers ─── */
@@ -207,25 +208,23 @@ const FinancialReport = () => {
 
   return (
     <div className="fr-page">
-
       {/* ── HEADER ── */}
-      <div className="fr-header">
-        <div>
-          <h1>Báo Cáo Tài Chính</h1>
-          <p>Sổ thu chi theo hóa đơn và quỹ phòng</p>
-        </div>
-        <div className="fr-header-right">
-          <input
-            type="month"
-            className="fr-month-input"
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(e.target.value)}
-          />
-          <button className="fr-btn-export" onClick={exportXLSX} disabled={rows.length === 0}>
-            <FontAwesomeIcon icon={faDownload} /> Xuất Excel (.xlsx)
-          </button>
-        </div>
-      </div>
+      <PageHeader 
+        title="Báo Cáo Tài Chính"
+        actions={
+          <>
+            <input
+              type="month"
+              className="fr-month-input"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+            />
+            <button className="fr-btn-export" onClick={exportXLSX} disabled={rows.length === 0}>
+              <FontAwesomeIcon icon={faDownload} /> Xuất Excel (.xlsx)
+            </button>
+          </>
+        }
+      />
 
       {/* ── TRẠNG THÁI ── */}
       {!selectedRoomId && (

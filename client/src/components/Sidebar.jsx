@@ -22,14 +22,14 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
-    { id: 'rooms', label: 'Phòng', icon: faDoorOpen },
-    { id: 'members', label: 'Thành Viên', icon: faUsers },
-    { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
-    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
-    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
     { id: 'newsfeed', label: 'Bảng Tin Nội Bộ', icon: faBullhorn },
-    { id: 'tasks', label: 'Công Việc Chung', icon: faTasks },
-    { id: 'expenses', label: 'Quỹ Tiền Chung', icon: faPiggyBank },
+    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
+    { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
+    { id: 'members', label: 'Thành Viên', icon: faUsers },
+    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    { id: 'tasks', label: 'Công Việc', icon: faTasks },
+    { id: 'expenses', label: 'Quỹ Tiền', icon: faPiggyBank },
+    { id: 'rooms', label: 'Phòng', icon: faDoorOpen },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 

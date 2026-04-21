@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../context/AuthContext.jsx';
 import choreService from '../services/chore.service.js';
 import roomService from '../services/room.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/task.tracking.css';
 
 const formatDateOnly = (date) => {
@@ -253,12 +254,7 @@ const TaskTracking = () => {
 
   return (
     <div className="task-tracking-page">
-      <div className="task-header">
-        <div>
-          <h1>Công Việc</h1>
-          <p>Theo dõi nhiệm vụ từ lịch trực và xác nhận hoàn thành bằng ảnh minh chứng.</p>
-        </div>
-      </div>
+      <PageHeader title="Công Việc" />
 
       <div className="week-toolbar">
         <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7)))}>

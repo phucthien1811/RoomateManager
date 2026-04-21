@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
 import absenceService from '../services/absence.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/bill.management.css';
 
 /* ─── helpers ─────────────────────────── */
@@ -391,18 +392,14 @@ const BillManagement = () => {
   return (
     <div className="bill-management">
       {/* HEADER */}
-      <div className="bill-management-header">
-        <div className="bm-header-left">
-          <h1>
-            <span className="page-icon"><FontAwesomeIcon icon={faFileInvoiceDollar} /></span>
-            Hóa Đơn Phòng
-          </h1>
-          <p>Quản lý và theo dõi hóa đơn chung cho tất cả thành viên · {selectedRoomName}</p>
-        </div>
-        <button className="btn-create-bill" onClick={handleOpenModal} disabled={submitting}>
-          <FontAwesomeIcon icon={faPlus} /> Tạo Hóa Đơn Mới
-        </button>
-      </div>
+      <PageHeader
+        title="Hóa Đơn Phòng"
+        actions={
+          <button className="btn-create-bill" onClick={handleOpenModal} disabled={submitting}>
+            <FontAwesomeIcon icon={faPlus} /> Tạo Hóa Đơn Mới
+          </button>
+        }
+      />
 
       {error && <div className="alert alert-error"><FontAwesomeIcon icon={faExclamationTriangle} /> {error}</div>}
 

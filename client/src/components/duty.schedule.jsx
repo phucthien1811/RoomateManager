@@ -7,6 +7,7 @@ import timezone from 'dayjs/plugin/timezone';
 import roomService from '../services/room.service.js';
 import dutyScheduleService from '../services/duty.schedule.service.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import PageHeader from './PageHeader.jsx';
 import '../styles/duty.schedule.css';
 
 dayjs.extend(utc);
@@ -429,7 +430,7 @@ const DutySchedule = () => {
 
   return (
     <div className="duty-schedule">
-      <div className="schedule-brand">LỊCH TRỰC NHẬT PHÒNG</div>
+      <PageHeader title="Lịch Trực Nhật Phòng" />
 
       <div className="schedule-toolbar">
         <div className="toolbar-group">

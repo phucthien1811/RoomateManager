@@ -11,6 +11,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import memberService from '../services/member.service.js';
 import roomService from '../services/room.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/member.management.css';
 
 const MemberManagement = () => {
@@ -201,19 +202,18 @@ const MemberManagement = () => {
 
   return (
     <div className="member-management">
-      <div className="member-management-header">
-        <div className="header-content">
-          <h1>Quản Lý Thành Viên</h1>
-          <p>Quản lý thông tin thành viên phòng và các quyền lợi liên quan</p>
-        </div>
-        <button
-          className="btn-add-member"
-          onClick={() => handleOpenModal('create')}
-          disabled={submitting}
-        >
-          <FontAwesomeIcon icon={faPlus} /> Thêm Thành Viên
-        </button>
-      </div>
+      <PageHeader 
+        title="Quản Lý Thành Viên"
+        actions={
+          <button
+            className="btn-add-member"
+            onClick={() => handleOpenModal('create')}
+            disabled={submitting}
+          >
+            <FontAwesomeIcon icon={faPlus} /> Thêm Thành Viên
+          </button>
+        }
+      />
 
       {error && (
         <div className="error-message">

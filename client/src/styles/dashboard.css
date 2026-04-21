@@ -1,4 +1,4 @@
-﻿@import './colors.css';
+@import './colors.css';
 
 .dashboard {
   padding: 28px;
@@ -18,14 +18,15 @@
 
 .dashboard-header h1 {
   margin: 0;
-  font-size: 32px;
-  font-weight: 800;
-  color: #111827;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-primary);
 }
 
 .room-subtitle {
-  margin: 8px 0 0;
-  color: #4b5563;
+  margin: 6px 0 0;
+  margin-left: 47px;
+  color: var(--color-text-secondary);
   font-size: 14px;
   display: flex;
   gap: 8px;

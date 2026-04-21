@@ -4,6 +4,7 @@ import { faCalendarAlt, faEdit, faExclamationCircle, faPlus, faTimes } from '@fo
 import { useAuth } from '../context/AuthContext.jsx';
 import absenceService from '../services/absence.service.js';
 import roomService from '../services/room.service.js';
+import PageHeader from './PageHeader.jsx';
 import '../styles/absence.report.css';
 
 const formatDate = (date) => (date ? new Date(date).toLocaleDateString('vi-VN') : '-');
@@ -155,15 +156,14 @@ const AbsenceReport = () => {
 
   return (
     <div className="absence-report-page">
-      <div className="absence-report-header">
-        <div className="header-content">
-          <h1>Báo Cáo Vắng Mặt</h1>
-          <p>Phòng hiện tại: {selectedRoomName}</p>
-        </div>
-        <button className="btn-create-report" onClick={handleOpenModal} disabled={submitting}>
-          <FontAwesomeIcon icon={faPlus} /> Báo Cáo Vắng Mặt
-        </button>
-      </div>
+      <PageHeader 
+        title="Báo Cáo Vắng Mặt"
+        actions={
+          <button className="btn-create-report" onClick={handleOpenModal} disabled={submitting}>
+            <FontAwesomeIcon icon={faPlus} /> Báo Cáo Vắng Mặt
+          </button>
+        }
+      />
 
       {error && (
         <div className="alert alert-error">

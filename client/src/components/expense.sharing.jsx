@@ -22,6 +22,7 @@ import fundService from '../services/fund.service.js';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import PageHeader from './PageHeader.jsx';
 import '../styles/expense.sharing.css';
 
 /* ─── constants ─────────────────────────────── */
@@ -302,23 +303,16 @@ const ExpenseSharing = () => {
   ══════════════════════════════════════════════ */
   return (
     <div className="expense-sharing">
-
       {/* ── HEADER + TAB SWITCH ── */}
-      <div className="expense-sharing-header">
-        <div className="header-content">
-          <h1>Quỹ Tiền Chung</h1>
-          <p>
-            {mode === 'room'
-              ? <><FontAwesomeIcon icon={faHouse} /> {selectedRoomName}</>
-              : <><FontAwesomeIcon icon={faUser} /> {getMemberName(user)} · {selectedRoomName}</>}
-          </p>
-        </div>
-        {/* Tab switch giống Dashboard */}
-        <div className="dashboard-mode-switch">
-          <button className={mode === 'room'     ? 'active' : ''} onClick={() => setMode('room')}>Phòng</button>
-          <button className={mode === 'personal' ? 'active' : ''} onClick={() => setMode('personal')}>Cá nhân</button>
-        </div>
-      </div>
+      <PageHeader 
+        title="Quỹ Tiền Chung"
+        actions={
+          <div className="dashboard-mode-switch">
+            <button className={mode === 'room' ? 'active' : ''} onClick={() => setMode('room')}>Phòng</button>
+            <button className={mode === 'personal' ? 'active' : ''} onClick={() => setMode('personal')}>Cá nhân</button>
+          </div>
+        }
+      />
 
       {error && <div className="alert-error">{error}</div>}
       {!selectedRoomId && <div className="es-empty">Vui lòng chọn phòng ở sidebar để xem quỹ.</div>}

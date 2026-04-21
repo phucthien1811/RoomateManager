@@ -381,7 +381,12 @@ const Dashboard = () => {
     <div className="dashboard">
       <div className="dashboard-header">
         <div>
-          <h1>{dashboardMode === 'room' ? 'Dashboard phòng' : 'Dashboard cá nhân'}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" width="35" height="35" viewBox="0 0 35 35">
+              <image id="Layer_1_copy" x="1" y="1" width="33" height="33" xlinkHref="/datalogo" />
+            </svg>
+            <h1>{dashboardMode === 'room' ? 'Dashboard phòng' : 'Dashboard cá nhân'}</h1>
+          </div>
           <p className="room-subtitle">
             {dashboardMode === 'room' ? (
               <>
