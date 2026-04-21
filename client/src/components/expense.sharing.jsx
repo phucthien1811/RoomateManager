@@ -58,7 +58,7 @@ const fileToBase64 = (file) =>
 /* ─── Component ──────────────────────────────── */
 const ExpenseSharing = () => {
   const { user } = useAuth();
-  const currentUserId = user?.id || user?._id;
+  const currentUserId = String(user?.id || user?._id || '');
 
   /* ── State ── */
   const [mode, setMode]           = useState('room'); // 'room' | 'personal'
@@ -149,17 +149,17 @@ const ExpenseSharing = () => {
   /* ── Computed: personal tab ── */
   const personalStats = useMemo(() => {
     const myDeposit = transactions
-      .filter(t => t.type === 'deposit' && (t.performed_by?._id || t.performed_by?.toString?.()) === currentUserId)
+      .filter(t => t.type === 'deposit' && String(t.performed_by?._id || t.performed_by || '') === currentUserId)
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
     const myBillTotal = bills.reduce((s, bill) => {
-      const d = (bill.details || []).find(d => (d.member_id?._id || d.member_id) === currentUserId);
+      const d = (bill.details || []).find(d => String(d.member_id?._id || d.member_id || '') === currentUserId);
       return s + (Number(d?.amount_due) || 0);
     }, 0);
 
     const myBillsByType = {};
     bills.forEach(bill => {
-      const d = (bill.details || []).find(d => (d.member_id?._id || d.member_id) === currentUserId);
+      const d = (bill.details || []).find(d => String(d.member_id?._id || d.member_id || '') === currentUserId);
       if (!d) return;
       const label = bill.bill_type === 'other' ? (bill.bill_type_other || 'Khác') : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
       myBillsByType[label] = (myBillsByType[label] || 0) + (Number(d.amount_due) || 0);
@@ -180,6 +180,7 @@ const ExpenseSharing = () => {
       amount: Number(tx.amount) || 0,
       note: tx.description || '',
       proofImages: tx.proof_images || [],
+      userId: String(tx.performed_by?._id || tx.performed_by || ''),
     }));
     bills.forEach(bill => rows.push({
       id: 'bill-' + bill._id,
@@ -191,9 +192,46 @@ const ExpenseSharing = () => {
       amount: Number(bill.total_amount) || 0,
       note: `Tháng ${bill.billing_month} · ${bill.status === 'completed' ? 'Đã trả đủ' : 'Còn thanh toán'}`,
       proofImages: bill.bill_images || [],
+      details: bill.details || [],
     }));
     return rows.sort((a, b) => b.date - a.date);
   }, [transactions, bills]);
+
+  const personalHistoryRows = useMemo(() => {
+    const rows = [];
+    transactions.forEach(tx => {
+      const uid = String(tx.performed_by?._id || tx.performed_by || '');
+      if (tx.type === 'deposit' && uid === currentUserId) {
+        rows.push({
+          id: tx._id,
+          date: new Date(tx.created_at || tx.createdAt),
+          type: 'deposit',
+          label: `Tôi nạp quỹ`,
+          amount: Number(tx.amount) || 0,
+          note: tx.description || '',
+          proofImages: tx.proof_images || [],
+        });
+      }
+    });
+
+    bills.forEach(bill => {
+      const d = (bill.details || []).find(detail => String(detail.member_id?._id || detail.member_id || '') === currentUserId);
+      if (d) {
+        rows.push({
+          id: 'my-bill-' + bill._id,
+          date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+          type: 'bill',
+          label: bill.bill_type === 'other'
+            ? (bill.bill_type_other || 'Hóa đơn khác (phần của tôi)')
+            : `Trừ ${BILL_TYPE_LABEL[bill.bill_type] || 'hóa đơn'} (phần của tôi)`,
+          amount: Number(d.amount_due) || 0,
+          note: `Tháng ${bill.billing_month} · ${d.status === 'paid' ? 'Đã thanh toán' : 'Chưa trả'}`,
+          proofImages: bill.bill_images || [],
+        });
+      }
+    });
+    return rows.sort((a, b) => b.date - a.date);
+  }, [transactions, bills, currentUserId]);
 
   /* ── Handlers: deposit ── */
   const handleSelectProof = async (e) => {
@@ -444,9 +482,7 @@ const ExpenseSharing = () => {
                 <div className="fund-chart-card">
                   <h2>Giao dịch gần nhất của tôi</h2>
                   <HistoryTable
-                    rows={historyRows
-                      .filter(r => r.type === 'deposit' && r.label.includes(getMemberName(user)))
-                      .slice(0, 5)}
+                    rows={personalHistoryRows.slice(0, 5)}
                     onThumb={setLightboxSrc}
                     compact
                   />
@@ -567,9 +603,7 @@ const ExpenseSharing = () => {
             </div>
             <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               <HistoryTable
-                rows={historyRows.filter(r =>
-                  r.type === 'deposit' && r.label.includes(getMemberName(user))
-                )}
+                rows={personalHistoryRows}
                 onThumb={setLightboxSrc}
               />
             </div>
