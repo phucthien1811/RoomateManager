@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const roomController = require('../controllers/room.controller');
 const postController = require('../controllers/post.controller');
+const dutyScheduleController = require('../controllers/duty.schedule.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 
 // GET /api/rooms - Lấy danh sách phòng của user
@@ -33,5 +34,11 @@ router.get('/:roomId/posts', authenticate, postController.listRoomPosts);
 
 // POST /api/rooms/:roomId/posts - Tạo bài viết mới trong phòng
 router.post('/:roomId/posts', authenticate, postController.createRoomPost);
+
+// GET /api/rooms/:roomId/duties?week_start=YYYY-MM-DD - Lấy lịch trực nhật theo tuần
+router.get('/:roomId/duties', authenticate, dutyScheduleController.listByRoomAndWeek);
+
+// POST /api/rooms/:roomId/duties - Tạo lịch trực nhật
+router.post('/:roomId/duties', authenticate, dutyScheduleController.createDuty);
 
 module.exports = router;

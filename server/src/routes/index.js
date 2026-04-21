@@ -28,6 +28,9 @@ router.use('/notifications', require('./notification.route'));
 // Post routes - Bảng tin nội bộ
 router.use('/posts', require('./post.route'));
 
+// Duty schedule routes - Lịch trực nhật
+router.use('/duties', require('./duty.schedule.route'));
+
 // Example route
 router.get('/hello', (req, res) => {
   res.json({ message: 'Hello from Roommate Manager API!' });

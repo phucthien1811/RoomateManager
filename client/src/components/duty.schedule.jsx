@@ -1,10 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faChevronLeft, faChevronRight, faPenToSquare, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import roomService from '../services/room.service.js';
+import dutyScheduleService from '../services/duty.schedule.service.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/duty.schedule.css';
 
-const members = ['Duy Nguyễn', 'Iris Trần', 'An Phạm', 'Minh Trần'];
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const appTimezone = 'Asia/Ho_Chi_Minh';
+const defaultMembers = ['Duy Nguyễn', 'Iris Trần', 'An Phạm', 'Minh Trần'];
 const dayColumns = [
   { shortLabel: 'CN', dutyDay: 'Chủ nhật', offset: -1 },
   { shortLabel: 'THỨ 2', dutyDay: 'Thứ 2', offset: 0 },
@@ -37,11 +46,10 @@ const startOfWeekMonday = (inputDate) => {
 };
 
 const toDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return dayjs(date).tz(appTimezone).format('YYYY-MM-DD');
 };
+
+const getTodayKey = () => dayjs().tz(appTimezone).format('YYYY-MM-DD');
 
 const getDayDateByOffset = (weekStart, offset) => {
   const result = new Date(weekStart);
@@ -71,60 +79,17 @@ const notify = ({ type, title, message, meta }) => {
 };
 
 const DutySchedule = () => {
-  const [selectedDate, setSelectedDate] = useState(toDateKey(new Date()));
+  const { user } = useAuth();
+  const [selectedDate, setSelectedDate] = useState(getTodayKey());
+  const [isFollowingToday, setIsFollowingToday] = useState(true);
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const [loadingDuties, setLoadingDuties] = useState(false);
   const [roomCreatedAt, setRoomCreatedAt] = useState(() => {
     const cached = localStorage.getItem('currentRoomCreatedAt');
     const parsed = cached ? new Date(cached) : null;
     return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date(0);
   });
-  const [schedules, setSchedules] = useState([
-    {
-      weekStart: '2026-04-20',
-      duties: [
-        {
-          id: 'duty-1',
-          day: 'Thứ 2',
-          title: 'Vệ sinh phòng khách',
-          startHour: 20,
-          endHour: 21,
-          members: ['Duy Nguyễn'],
-          note: 'Ưu tiên lau bàn và hút bụi khu sofa',
-        },
-        {
-          id: 'duty-2',
-          day: 'Thứ 2',
-          title: 'Học bài',
-          startHour: 22,
-          endHour: 23,
-          members: ['Iris Trần'],
-          note: '',
-        },
-        {
-          id: 'duty-3',
-          day: 'Thứ 4',
-          title: 'Rửa bát và dọn bếp',
-          startHour: 16,
-          endHour: 17,
-          members: ['Iris Trần', 'An Phạm'],
-          note: 'Đổ rác nhà bếp sau khi dọn',
-        },
-      ],
-    },
-    {
-      weekStart: '2026-04-27',
-      duties: [
-        {
-          id: 'duty-5',
-          day: 'Thứ 3',
-          title: 'Đổ rác và lau sàn',
-          startHour: 19,
-          endHour: 20,
-          members: ['Duy Nguyễn'],
-          note: '',
-        },
-      ],
-    },
-  ]);
+  const [schedules, setSchedules] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingDay, setEditingDay] = useState('');
   const [editingOffset, setEditingOffset] = useState(0);
@@ -139,6 +104,7 @@ const DutySchedule = () => {
 
   useEffect(() => {
     const loadRoomCreatedAt = async (roomId) => {
+      setSelectedRoomId(roomId || '');
       if (!roomId) {
         setRoomCreatedAt(new Date(0));
         return;
@@ -169,7 +135,25 @@ const DutySchedule = () => {
     return () => window.removeEventListener('room-selected', handleRoomSelected);
   }, []);
 
+  useEffect(() => {
+    if (!isFollowingToday) return undefined;
+
+    const syncToday = () => setSelectedDate(getTodayKey());
+    syncToday();
+
+    const intervalId = setInterval(syncToday, 60000);
+    return () => clearInterval(intervalId);
+  }, [isFollowingToday]);
+
   const displayWeekStart = useMemo(() => startOfWeekMonday(new Date(selectedDate)), [selectedDate]);
+  const todayKey = getTodayKey();
+  const memberOptions = useMemo(() => {
+    const uniqueMembers = new Set(defaultMembers);
+    if (user?.name && String(user.name).trim()) {
+      uniqueMembers.add(String(user.name).trim());
+    }
+    return Array.from(uniqueMembers);
+  }, [user?.name]);
   const displayWeekKey = useMemo(() => toDateKey(displayWeekStart), [displayWeekStart]);
   const earliestWeekStart = useMemo(() => startOfWeekMonday(roomCreatedAt), [roomCreatedAt]);
   const earliestWeekKey = useMemo(() => toDateKey(earliestWeekStart), [earliestWeekStart]);
@@ -177,6 +161,46 @@ const DutySchedule = () => {
     weekStart: displayWeekKey,
     duties: [],
   };
+
+  useEffect(() => {
+    const fetchWeekDuties = async () => {
+      if (!selectedRoomId) {
+        setSchedules((prev) => prev.filter((item) => item.weekStart !== displayWeekKey));
+        return;
+      }
+
+      setLoadingDuties(true);
+      try {
+        const duties = await dutyScheduleService.getWeekDuties(selectedRoomId, displayWeekKey);
+        const mapped = duties.map((item) => ({
+          id: item._id,
+          day: item.day_label,
+          title: item.title,
+          startHour: Number(item.start_hour),
+          endHour: Number(item.end_hour),
+          members: Array.isArray(item.members) ? item.members : [],
+          note: item.note || '',
+          createdByName: item.created_by_name || '',
+        }));
+
+        setSchedules((prev) => {
+          const withoutWeek = prev.filter((item) => item.weekStart !== displayWeekKey);
+          return [...withoutWeek, { weekStart: displayWeekKey, duties: mapped }];
+        });
+      } catch (error) {
+        notify({
+          type: 'error',
+          title: 'Lỗi tải lịch trực',
+          message: error?.message || 'Không thể tải lịch trực nhật từ hệ thống',
+          meta: displayWeekKey,
+        });
+      } finally {
+        setLoadingDuties(false);
+      }
+    };
+
+    fetchWeekDuties();
+  }, [selectedRoomId, displayWeekKey]);
 
   const weekDates = useMemo(
     () => dayColumns.map((dayColumn) => getDayDateByOffset(displayWeekStart, dayColumn.offset)),
@@ -250,7 +274,7 @@ const DutySchedule = () => {
     }));
   };
 
-  const handleSaveDuty = () => {
+  const handleSaveDuty = async () => {
     if (!formData.title.trim()) {
       alert('Vui lòng nhập tiêu đề.');
       return;
@@ -271,57 +295,85 @@ const DutySchedule = () => {
       return;
     }
 
-    setSchedules((prev) => {
-      const targetSchedule =
-        prev.find((schedule) => schedule.weekStart === displayWeekKey) || {
+    const targetSchedule = schedules.find((schedule) => schedule.weekStart === displayWeekKey) || {
+      weekStart: displayWeekKey,
+      duties: [],
+    };
+
+    const hasOverlap = targetSchedule.duties.some((duty) => {
+      if (duty.day !== editingDay || duty.id === editingDutyId) return false;
+      return !(formData.endHour <= duty.startHour || formData.startHour >= duty.endHour);
+    });
+
+    if (hasOverlap) {
+      alert('Khung giờ bị trùng với công việc khác trong cùng ngày.');
+      return;
+    }
+
+    if (!selectedRoomId) {
+      alert('Vui lòng chọn phòng trước khi tạo lịch trực.');
+      return;
+    }
+
+    const payload = {
+      week_start: displayWeekKey,
+      day_label: editingDay,
+      title: formData.title.trim(),
+      start_hour: Number(formData.startHour),
+      end_hour: Number(formData.endHour),
+      members: [...formData.members],
+      note: formData.note.trim(),
+    };
+
+    try {
+      let savedDuty;
+      if (editingDutyId) {
+        savedDuty = await dutyScheduleService.updateDuty(editingDutyId, payload);
+      } else {
+        savedDuty = await dutyScheduleService.createDuty(selectedRoomId, payload);
+      }
+
+      const mappedDuty = {
+        id: savedDuty._id,
+        day: savedDuty.day_label,
+        title: savedDuty.title,
+        startHour: Number(savedDuty.start_hour),
+        endHour: Number(savedDuty.end_hour),
+        members: Array.isArray(savedDuty.members) ? savedDuty.members : [],
+        note: savedDuty.note || '',
+        createdByName: savedDuty.created_by_name || '',
+      };
+
+      setSchedules((prev) => {
+        const withoutWeek = prev.filter((schedule) => schedule.weekStart !== displayWeekKey);
+        const baseWeek = prev.find((schedule) => schedule.weekStart === displayWeekKey) || {
           weekStart: displayWeekKey,
           duties: [],
         };
-
-      const hasOverlap = targetSchedule.duties.some((duty) => {
-        if (duty.day !== editingDay || duty.id === editingDutyId) return false;
-        return !(formData.endHour <= duty.startHour || formData.startHour >= duty.endHour);
+        const nextWeekDuties = editingDutyId
+          ? baseWeek.duties.map((duty) => (duty.id === editingDutyId ? mappedDuty : duty))
+          : [...baseWeek.duties, mappedDuty];
+        return [...withoutWeek, { weekStart: displayWeekKey, duties: nextWeekDuties }];
       });
-
-      if (hasOverlap) {
-        alert('Khung giờ bị trùng với công việc khác trong cùng ngày.');
-        return prev;
-      }
-
-      const payload = {
-        id: editingDutyId || `${displayWeekKey}-${editingDay}-${Date.now()}`,
-        day: editingDay,
-        title: formData.title.trim(),
-        startHour: Number(formData.startHour),
-        endHour: Number(formData.endHour),
-        members: [...formData.members],
-        note: formData.note.trim(),
-      };
-
-      const nextSchedules = prev.some((schedule) => schedule.weekStart === displayWeekKey)
-        ? prev.map((schedule) => {
-            if (schedule.weekStart !== displayWeekKey) return schedule;
-            const duties = editingDutyId
-              ? schedule.duties.map((duty) => (duty.id === editingDutyId ? payload : duty))
-              : [...schedule.duties, payload];
-            return { ...schedule, duties };
-          })
-        : [...prev, { ...targetSchedule, duties: [...targetSchedule.duties, payload] }];
 
       notify({
         type: 'success',
         title: editingDutyId ? 'Cập nhật lịch thành công' : 'Đã thêm lịch trực thành công',
-        message: `${payload.title} (${getDutyTimeRange(payload.startHour, payload.endHour)})`,
-        meta: `${editingDay} - ${payload.members.join(', ')}`,
+        message: `${mappedDuty.title} (${getDutyTimeRange(mappedDuty.startHour, mappedDuty.endHour)})`,
+        meta: `${editingDay} - ${mappedDuty.members.join(', ')}`,
       });
-
-      return nextSchedules;
-    });
-
-    handleCloseModal();
+      handleCloseModal();
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: 'Lưu lịch thất bại',
+        message: error?.message || 'Không thể lưu lịch trực nhật',
+        meta: editingDay,
+      });
+    }
   };
 
-  const handleDeleteDuty = (dutyId) => {
+  const handleDeleteDuty = async (dutyId) => {
     const duty = currentSchedule.duties.find((item) => item.id === dutyId);
     if (!duty) return;
 
@@ -337,26 +389,42 @@ const DutySchedule = () => {
       return;
     }
 
-    setSchedules((prev) =>
-      prev.map((schedule) =>
-        schedule.weekStart !== displayWeekKey
-          ? schedule
-          : { ...schedule, duties: schedule.duties.filter((item) => item.id !== dutyId) }
-      )
-    );
-    notify({
-      type: 'info',
-      title: 'Đã xóa lịch trực',
-      message: duty.title,
-      meta: duty.day,
-    });
+    try {
+      await dutyScheduleService.deleteDuty(dutyId);
+      setSchedules((prev) =>
+        prev.map((schedule) =>
+          schedule.weekStart !== displayWeekKey
+            ? schedule
+            : { ...schedule, duties: schedule.duties.filter((item) => item.id !== dutyId) }
+        )
+      );
+      notify({
+        type: 'info',
+        title: 'Đã xóa lịch trực',
+        message: duty.title,
+        meta: duty.day,
+      });
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: 'Xóa lịch thất bại',
+        message: error?.message || 'Không thể xóa lịch trực nhật',
+        meta: duty.day,
+      });
+    }
   };
 
   const moveWeek = (direction) => {
     const next = new Date(displayWeekStart);
     next.setDate(next.getDate() + direction * 7);
     if (next < earliestWeekStart) return;
+    setIsFollowingToday(false);
     setSelectedDate(toDateKey(next));
+  };
+
+  const handleChangeDate = (value) => {
+    setIsFollowingToday(value === getTodayKey());
+    setSelectedDate(value);
   };
 
   return (
@@ -369,7 +437,7 @@ const DutySchedule = () => {
           <input
             type="date"
             value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
+            onChange={(event) => handleChangeDate(event.target.value)}
             className="toolbar-date-input"
           />
         </div>
@@ -385,7 +453,14 @@ const DutySchedule = () => {
           >
             <FontAwesomeIcon icon={faChevronLeft} />
           </button>
-          <button type="button" className="current-btn" onClick={() => setSelectedDate(toDateKey(new Date()))}>
+          <button
+            type="button"
+            className="current-btn"
+            onClick={() => {
+              setIsFollowingToday(true);
+              setSelectedDate(getTodayKey());
+            }}
+          >
             Hôm nay
           </button>
           <button type="button" title="Tuần sau" onClick={() => moveWeek(1)}>
@@ -396,13 +471,19 @@ const DutySchedule = () => {
 
       <div className="schedule-table-wrap">
         <table className="duty-grid">
+          <colgroup>
+            <col className="timezone-col-fixed" />
+            {dayColumns.map((day) => (
+              <col key={`col-${day.dutyDay}`} className="day-col-fixed" />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th className="timezone-col">GMT+07</th>
               {dayColumns.map((day, index) => (
                 <th key={day.dutyDay} className="calendar-head-cell">
                   <span className="calendar-day-label">{day.shortLabel}</span>
-                  <span className={`calendar-day-number ${day.shortLabel === 'THỨ 2' ? 'selected' : ''}`}>
+                  <span className={`calendar-day-number ${toDateKey(weekDates[index]) === todayKey ? 'selected' : ''}`}>
                     {weekDates[index]?.getDate()}
                   </span>
                 </th>
@@ -432,10 +513,11 @@ const DutySchedule = () => {
                         className={`duty-cell-filled ${isLocked ? 'locked' : ''}`}
                         onClick={() => handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty)}
                       >
-                        <div className="duty-card">
+                        <div className="duty-card" title={duty.note || ''}>
                           <strong>{duty.title}</strong>
                           <p className="duty-time">{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
                           <div className="duty-member-tags">
+                            {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
                             {duty.members.map((member) => (
                               <span key={member}>{member}</span>
                             ))}
@@ -542,7 +624,7 @@ const DutySchedule = () => {
               <div className="form-group">
                 <label>Thành viên phụ trách</label>
                 <div className="member-tag-picker">
-                  {members.map((member) => {
+                  {memberOptions.map((member) => {
                     const selected = formData.members.includes(member);
                     return (
                       <button
