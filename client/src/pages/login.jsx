@@ -96,10 +96,6 @@ const Login = () => {
             <a href="/register">Đăng ký ngay</a>
           </p>
         </div>
-
-        <div className="demo-credentials">
-          <p>Demo: any@email.com | password123</p>
-        </div>
       </div>
     </div>
   );

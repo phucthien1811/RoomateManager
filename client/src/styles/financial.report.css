@@ -1,6 +1,6 @@
-@import './colors.css';
+﻿@import './colors.css';
 
-/* ── PAGE ───────────────────────────────── */
+/* â”€â”€ PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-page {
   background: var(--color-bg);
   padding: 36px 28px;
@@ -10,7 +10,7 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* ── HEADER ─────────────────────────────── */
+/* â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-header {
   display: flex;
   justify-content: space-between;
@@ -78,7 +78,7 @@
 .fr-btn-export:hover:not(:disabled) { opacity: 0.82; }
 .fr-btn-export:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ── STATUS ─────────────────────────────── */
+/* â”€â”€ STATUS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-empty {
   background: white;
   border: 1.5px dashed var(--color-border);
@@ -99,7 +99,7 @@
   margin-bottom: 20px;
 }
 
-/* ── STAT CARDS ─────────────────────────── */
+/* â”€â”€ STAT CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -142,7 +142,7 @@
 .expense-strip { background: var(--color-error); }
 .balance-strip { background: var(--color-accent); }
 
-/* ── TABLE WRAPPER ──────────────────────── */
+/* â”€â”€ TABLE WRAPPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-table-wrap {
   background: white;
   border-radius: 14px;
@@ -151,7 +151,7 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 
-/* ── TABLE ──────────────────────────────── */
+/* â”€â”€ TABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-table {
   width: 100%;
   border-collapse: collapse;
@@ -211,7 +211,7 @@
 /* colors */
 .c-income  { color: #0d9488; }
 .c-expense { color: #dc2626; }
-.c-balance { color: #2563eb; }
+.c-balance { color: #2f6fec; }
 .c-muted   { color: var(--color-text-light); font-size: 12px; }
 
 /* row label */
@@ -238,10 +238,10 @@
   font-weight: 700;
 }
 
-.cat-bill { background: #eff6ff; color: #2563eb; }
+.cat-bill { background: #f1f6ff; color: #2f6fec; }
 .cat-fund { background: #f0fdf4; color: #16a34a; }
 
-/* ── FOOTER ROW ─────────────────────────── */
+/* â”€â”€ FOOTER ROW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fr-tfoot {
   background: var(--color-bg-alt);
   border-top: 2px solid var(--color-border);
@@ -258,7 +258,7 @@
   font-size: 12px;
 }
 
-/* ── RESPONSIVE ─────────────────────────── */
+/* â”€â”€ RESPONSIVE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media (max-width: 768px) {
   .fr-page { padding: 20px 14px; }
 
@@ -269,3 +269,5 @@
 
   .fr-stats { grid-template-columns: 1fr; gap: 10px; }
 }
+
+

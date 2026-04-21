@@ -1,4 +1,4 @@
-.task-tracking-page {
+﻿.task-tracking-page {
   padding: 24px;
   background: #f6f8fb;
   min-height: 100%;
@@ -28,7 +28,7 @@
   justify-content: space-between;
   background: #fff;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d7e2f2;
   padding: 10px 14px;
   margin-bottom: 16px;
 }
@@ -56,7 +56,7 @@
   background: #fff;
   padding: 18px;
   text-align: center;
-  color: #475569;
+  color: #4e678c;
 }
 
 .task-section {
@@ -79,7 +79,7 @@
 
 .task-card {
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d7e2f2;
   border-radius: 12px;
   padding: 12px;
   display: flex;
@@ -103,7 +103,7 @@
 .task-card p,
 .task-card small {
   margin: 0;
-  color: #475569;
+  color: #4e678c;
 }
 
 .tag-list {
@@ -116,7 +116,7 @@
   font-size: 12px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: #d7e2f2;
   color: #0f172a;
 }
 
@@ -160,13 +160,13 @@
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: #2f6fec;
   color: #fff;
 }
 
 .btn-secondary {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: #eaf1ff;
+  color: #1f5ad6;
 }
 
 .btn-danger {
@@ -175,8 +175,8 @@
 }
 
 .btn-ghost {
-  background: #f1f5f9;
-  color: #334155;
+  background: #edf2fb;
+  color: #2b4d80;
 }
 
 .btn-primary:disabled,
@@ -204,7 +204,7 @@
   overflow: auto;
   background: #fff;
   border-radius: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d7e2f2;
 }
 
 .modal-head {
@@ -212,7 +212,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #d7e2f2;
 }
 
 .modal-head h2 {
@@ -260,7 +260,7 @@
   gap: 8px;
   max-height: 180px;
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d7e2f2;
   border-radius: 10px;
   padding: 8px;
 }
@@ -296,7 +296,7 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #d7e2f2;
 }
 
 @media (max-width: 768px) {
@@ -313,3 +313,5 @@
     grid-template-columns: 1fr;
   }
 }
+
+

@@ -1,8 +1,8 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 .dashboard {
   padding: 28px;
-  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  background: linear-gradient(135deg, #f4f7fc 0%, #f3f4f6 100%);
   min-height: 100%;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .dashboard-mode-switch button.active {
-  background: #2563eb;
+  background: #2f6fec;
   color: #fff;
 }
 
@@ -257,7 +257,7 @@
 
 .member-mode-switch button.active {
   background: #eef4ff;
-  color: #2563eb;
+  color: #2f6fec;
 }
 
 .expense-legend-list {
@@ -343,7 +343,7 @@
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: #fff;
   font-weight: 700;
   display: flex;
@@ -407,3 +407,5 @@
     font-size: 26px;
   }
 }
+
+

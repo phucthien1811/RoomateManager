@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 .member-management {
   background: var(--color-bg);
@@ -216,14 +216,14 @@
 }
 
 .btn-table-action.edit {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(47, 111, 236, 0.28);
 }
 
 .btn-table-action.edit:hover {
   transform: scale(1.08);
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 6px 16px rgba(47, 111, 236, 0.36);
 }
 
 .btn-table-action.edit:active {
@@ -361,7 +361,7 @@
 .form-group select {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563EB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232f6fec' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 20px;
@@ -438,3 +438,5 @@
     max-width: 100%;
   }
 }
+
+

@@ -1,4 +1,4 @@
-/* Authentication Pages Styling */
+﻿/* Authentication Pages Styling */
 
 :root {
   --primary-color: #4a90e2;
@@ -8,8 +8,8 @@
   --success-color: #27ae60;
   --text-color: #2c3e50;
   --text-light: #7f8c8d;
-  --border-color: #ecf0f1;
-  --bg-light: #f8f9fa;
+  --border-color: #e9eef7;
+  --bg-light: #f4f7fc;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -19,7 +19,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   padding: 20px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -203,21 +203,6 @@
   text-decoration: underline;
 }
 
-.demo-credentials {
-  background-color: var(--bg-light);
-  padding: 12px 14px;
-  border-radius: 6px;
-  border-left: 3px solid var(--primary-light);
-  text-align: center;
-}
-
-.demo-credentials p {
-  margin: 0;
-  color: var(--text-light);
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-}
-
 /* Loading spinner */
 
 .loading-container {
@@ -226,7 +211,7 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
 }
 
 .spinner {
@@ -292,3 +277,5 @@
     padding: 10px 12px;
   }
 }
+
+

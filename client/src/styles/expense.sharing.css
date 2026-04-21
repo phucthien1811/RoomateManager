@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 .expense-sharing {
   background: var(--color-bg);
@@ -326,8 +326,8 @@
 }
 
 .tx-type.withdraw {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: #eaf1ff;
+  color: #1f5ad6;
 }
 
 .tx-amount.in {
@@ -336,7 +336,7 @@
 }
 
 .tx-amount.out {
-  color: #2563eb;
+  color: #2f6fec;
   font-weight: 700;
 }
 
@@ -506,7 +506,7 @@
   }
 }
 
-/* ── NEW: Stats section ───────────────── */
+/* â”€â”€ NEW: Stats section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .es-empty {
   background: white;
   border: 1.5px dashed var(--color-border);
@@ -575,7 +575,7 @@
 .c-income  { color: #0d9488 !important; }
 .c-expense { color: #dc2626 !important; }
 
-/* ── Member contribution bars ─────────── */
+/* â”€â”€ Member contribution bars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .member-contrib-list {
   display: flex;
   flex-direction: column;
@@ -593,7 +593,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #2f6fec, #8b5cf6);
   color: white;
   font-size: 13px;
   font-weight: 700;
@@ -624,7 +624,7 @@
 
 .mc-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #0ea5e9);
+  background: linear-gradient(90deg, #2f6fec, #0ea5e9);
   border-radius: 3px;
   transition: width 0.4s ease;
 }
@@ -636,7 +636,7 @@
   white-space: nowrap;
 }
 
-/* ── History table new columns ─────────── */
+/* â”€â”€ History table new columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .td-date { white-space: nowrap; color: var(--color-text-light); font-size: 12px; }
 .td-num  { text-align: right; white-space: nowrap; }
 
@@ -694,19 +694,19 @@
 
 .tx-thumb-btn:hover .tx-thumb-overlay { opacity: 1; }
 
-/* ── Proof image upload ─────────────────── */
+/* â”€â”€ Proof image upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .proof-upload-area {
   display: block;
   border: 2px dashed #c7d2fe;
   border-radius: 12px;
-  background: #f5f3ff;
+  background: #eef3ff;
   cursor: pointer;
   transition: all 0.2s;
   margin-bottom: 10px;
 }
 
 .proof-upload-area:hover {
-  border-color: #6366f1;
+  border-color: #2f6fec;
   background: #eef2ff;
 }
 
@@ -720,7 +720,7 @@
 
 .proof-upload-icon {
   font-size: 22px;
-  color: #6366f1;
+  color: #2f6fec;
 }
 
 .proof-upload-inner span {
@@ -779,7 +779,7 @@
   margin-top: 4px;
 }
 
-/* ── Lightbox ────────────────────────── */
+/* â”€â”€ Lightbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .lightbox-overlay {
   position: fixed;
   inset: 0;
@@ -830,7 +830,7 @@
   .es-stat-row { grid-template-columns: 1fr 1fr; }
 }
 
-/* ── Tab switch (Dashboard pattern) ─────────── */
+/* â”€â”€ Tab switch (Dashboard pattern) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dashboard-mode-switch {
   display: flex;
   background: var(--color-bg-alt);
@@ -859,7 +859,7 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
-/* ── Quick-action banking buttons ──────────── */
+/* â”€â”€ Quick-action banking buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .qa-row {
   display: flex;
   gap: 14px;
@@ -913,7 +913,7 @@
   line-height: 1.3;
 }
 
-/* ── Fund balance hint in modal ─────────── */
+/* â”€â”€ Fund balance hint in modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .fund-balance-hint {
   display: block;
   font-size: 13px;
@@ -924,14 +924,16 @@
   padding: 8px 12px;
 }
 
-/* ── Withdraw button variant ─────────────── */
+/* â”€â”€ Withdraw button variant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .btn-withdraw {
   background: #dc2626 !important;
 }
 
 .btn-withdraw:hover { opacity: 0.87; }
 
-/* ── Wide modal ──────────────────────────── */
+/* â”€â”€ Wide modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-wide {
   width: min(720px, 95vw) !important;
 }
+
+

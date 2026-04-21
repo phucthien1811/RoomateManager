@@ -103,18 +103,25 @@ const choreLogSchema = new mongoose.Schema(
   }
 );
 
-choreLogSchema.pre("validate", function (next) {
+choreLogSchema.pre("validate", function () {
   if (!this.title && this.note) {
     this.title = String(this.note).trim();
   }
   if ((!this.assigned_members || this.assigned_members.length === 0) && this.assigned_to) {
     this.assigned_members = [this.assigned_to];
   }
-  next();
 });
 
 choreLogSchema.index({ room_id: 1, source_type: 1, chore_date: 1 });
-choreLogSchema.index({ room_id: 1, duty_id: 1, assigned_to: 1 }, { unique: true, sparse: true });
+choreLogSchema.index(
+  { room_id: 1, duty_id: 1, assigned_to: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      duty_id: { $type: "objectId" },
+    },
+  }
+);
 
 const ChoreLog = mongoose.model("ChoreLog", choreLogSchema);
 

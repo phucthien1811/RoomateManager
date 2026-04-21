@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 * {
   box-sizing: border-box;
@@ -93,9 +93,9 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid #eaf1ff;
+  background: #f1f6ff;
+  color: #1f5ad6;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -122,7 +122,7 @@ body {
 .global-notification-modal {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: var(--color-overlay);
   z-index: 1200;
   display: flex;
   justify-content: flex-end;
@@ -174,4 +174,6 @@ body {
     align-items: flex-start;
   }
 }
+
+
 

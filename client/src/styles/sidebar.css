@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 /* Sidebar Styles - Premium Design */
 .sidebar {
@@ -140,4 +140,6 @@
 .logout-icon {
   font-size: 14px;
 }
+
+
 

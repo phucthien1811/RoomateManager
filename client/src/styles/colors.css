@@ -1,42 +1,48 @@
-/* Professional Color System */
+﻿/* Unified Roommate Manager palette (based on dashboard + financial report screens) */
 :root {
-  /* Primary Colors - Deep & Professional */
-  --color-primary: #1E293B;
-  --color-primary-light: #334155;
-  --color-primary-lighter: #64748B;
+  /* Core brand */
+  --color-primary: #213a63;
+  --color-primary-light: #2b4d80;
+  --color-primary-lighter: #4e678c;
 
-  /* Accent Color - Royal Blue */
-  --color-accent: #2563EB;
-  --color-accent-light: #3B82F6;
-  --color-accent-lighter: #DBEAFE;
+  --color-accent: #2f6fec;
+  --color-accent-light: #4e83ef;
+  --color-accent-strong: #1f5ad6;
+  --color-accent-lighter: #eaf1ff;
 
-  /* Secondary Accent - Gold/Bronze (subtle) */
-  --color-secondary: #9333EA;
-  --color-secondary-light: #A855F7;
+  /* Keep secondary in same family to avoid off-brand purple pages */
+  --color-secondary: #2f6fec;
+  --color-secondary-light: #4e83ef;
 
-  /* Success Color - Teal/Green */
-  --color-success: #0D9488;
-  --color-success-light: #14B8A6;
-  --color-success-lighter: #CCFBF1;
+  /* Semantic */
+  --color-success: #149b8a;
+  --color-success-light: #20b6a3;
+  --color-success-lighter: #d8f6f2;
 
-  /* Background - Clean & Minimal */
-  --color-bg: #F8F9FA;
-  --color-bg-white: #FFFFFF;
-  --color-bg-alt: #F1F5F9;
+  --color-warning: #d08b1d;
+  --color-error: #cf3d3d;
+  --color-info: #2f6fec;
 
-  /* Text Colors */
-  --color-text-primary: #1E293B;
-  --color-text-secondary: #475569;
-  --color-text-light: #64748B;
-  --color-text-lighter: #94A3B8;
-  --color-text-inverse: #FFFFFF;
+  /* Surfaces */
+  --color-bg: #f4f7fc;
+  --color-bg-white: #ffffff;
+  --color-bg-alt: #edf2fb;
 
-  /* Border Colors */
-  --color-border: #E2E8F0;
-  --color-border-light: #F1F5F9;
+  /* Typography */
+  --color-text-primary: #213a63;
+  --color-text-secondary: #4e678c;
+  --color-text-light: #6f84a5;
+  --color-text-lighter: #97a8c2;
+  --color-text-inverse: #ffffff;
 
-  /* Utility Colors */
-  --color-warning: #D97706;
-  --color-error: #DC2626;
-  --color-info: #0EA5E9;
+  /* Borders */
+  --color-border: #d7e2f2;
+  --color-border-light: #e9eef7;
+
+  /* Shadows/overlays */
+  --color-shadow-soft: rgba(33, 58, 99, 0.08);
+  --color-shadow-medium: rgba(33, 58, 99, 0.16);
+  --color-overlay: rgba(33, 58, 99, 0.32);
 }
+
+

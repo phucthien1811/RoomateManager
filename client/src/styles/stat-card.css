@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 /* Stat Card Styles - Premium Design */
 .stat-card {
@@ -78,3 +78,5 @@
   color: var(--color-text-lighter);
   opacity: 0.4;
 }
+
+

@@ -1,4 +1,4 @@
-@import './colors.css';
+﻿@import './colors.css';
 
 .room-management {
   background: var(--color-bg);
@@ -130,14 +130,14 @@
 }
 
 .btn-action.edit {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(47, 111, 236, 0.28);
 }
 
 .btn-action.edit:hover {
   transform: scale(1.08);
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 6px 16px rgba(47, 111, 236, 0.36);
 }
 
 .btn-action.edit:active {
@@ -198,7 +198,7 @@
 }
 
 .room-code-item .info-text strong {
-  color: #1d4ed8;
+  color: #1f5ad6;
   font-weight: 800;
 }
 
@@ -211,9 +211,9 @@
 }
 
 .btn-copy-code {
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid #d3e2ff;
+  background: #f1f6ff;
+  color: #1f5ad6;
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 12px;
@@ -227,8 +227,8 @@
 }
 
 .btn-copy-code:hover:not(:disabled) {
-  background: #dbeafe;
-  border-color: #93c5fd;
+  background: #eaf1ff;
+  border-color: #b7cdf9;
 }
 
 .btn-copy-code.copied {
@@ -479,9 +479,11 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #f1f6ff;
+  border: 1px solid #d3e2ff;
   color: #1e3a8a;
   font-size: 13px;
   line-height: 1.5;
 }
+
+

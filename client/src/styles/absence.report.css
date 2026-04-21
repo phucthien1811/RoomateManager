@@ -1,15 +1,15 @@
-/* ============================================
+﻿/* ============================================
    ABSENCE REPORT COMPONENT STYLES
    ============================================ */
 
 :root {
   --color-primary: #1f2937;
-  --color-accent: #3b82f6;
+  --color-accent: #4e83ef;
   --color-accent-light: #60a5fa;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
-  --color-bg: #f9fafb;
+  --color-bg: #f4f7fc;
   --color-bg-light: #ffffff;
   --color-text-primary: #1f2937;
   --color-text-secondary: #6b7280;
@@ -60,20 +60,20 @@
   padding: 12px 24px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: white;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(47, 111, 236, 0.28);
   white-space: nowrap;
 }
 
 .btn-create-report:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #2f6fec 0%, #1f5ad6 100%);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8px 20px rgba(47, 111, 236, 0.36);
 }
 
 .btn-create-report:disabled {
@@ -165,13 +165,13 @@
 
 .filter-select:hover {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(47, 111, 236, 0.12);
 }
 
 .filter-select:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(47, 111, 236, 0.12);
 }
 
 .filter-select:disabled {
@@ -246,15 +246,15 @@
 }
 
 .absence-table tbody tr:hover {
-  background: #f9fafb;
+  background: #f4f7fc;
 }
 
 .btn-edit-action {
   padding: 6px 10px;
-  border: 1px solid #93c5fd;
+  border: 1px solid #b7cdf9;
   border-radius: 6px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f1f6ff;
+  color: #1f5ad6;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -264,7 +264,7 @@
 }
 
 .btn-edit-action:hover {
-  background: #dbeafe;
+  background: #eaf1ff;
 }
 
 .action-disabled-text {
@@ -390,9 +390,9 @@
   border-radius: 10px;
   font-size: 24px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 12px rgba(47, 111, 236, 0.28);
 }
 
 .absence-title-content h3 {
@@ -683,7 +683,7 @@
 .form-input:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(47, 111, 236, 0.12);
 }
 
 .form-input::placeholder {
@@ -733,7 +733,7 @@ textarea.form-input {
   padding: 10px 24px;
   border: none;
   border-radius: 6px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
   color: white;
   font-size: 14px;
   font-weight: 600;
@@ -743,8 +743,8 @@ textarea.form-input {
 }
 
 .btn-save:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(135deg, #2f6fec 0%, #1f5ad6 100%);
+  box-shadow: 0 4px 12px rgba(47, 111, 236, 0.28);
 }
 
 .btn-save:disabled {
@@ -981,3 +981,5 @@ textarea.form-input {
     padding: 24px;
   }
 }
+
+
