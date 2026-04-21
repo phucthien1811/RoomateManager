@@ -3,73 +3,18 @@ import notificationService from '../services/notification.service.js';
 import { useAuth } from './AuthContext.jsx';
 
 const NotificationContext = createContext(null);
-const NOTIFICATION_STORAGE_KEY = 'roommate_manager.notification_history';
-const buildStorageKey = (userId) => `${NOTIFICATION_STORAGE_KEY}.${String(userId || 'guest')}`;
-
-const isServerNotificationId = (id = '') => /^[a-fA-F0-9]{24}$/.test(String(id));
-
-const makeNotification = (payload = {}) => ({
-  id: payload.id || payload._id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  type: payload.type || 'info',
-  title: payload.title || 'Thông báo',
-  message: payload.message || '',
-  meta: payload.meta || '',
-  createdAt: payload.createdAt || new Date().toISOString(),
-  read: Boolean(payload.read),
-});
-
-const getTimestamp = (value) => {
-  const timestamp = new Date(value).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-};
-
-const mergeNotifications = (...collections) => {
-  const map = new Map();
-
-  collections.flat().forEach((item) => {
-    const notification = makeNotification(item);
-    const existed = map.get(notification.id);
-
-    if (!existed) {
-      map.set(notification.id, notification);
-      return;
-    }
-
-    map.set(notification.id, {
-      ...existed,
-      ...notification,
-      read: existed.read || notification.read,
-    });
-  });
-
-  return Array.from(map.values()).sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
-};
-
-const getStoredNotifications = (userId) => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(buildStorageKey(userId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map((item) => makeNotification(item)) : [];
-  } catch (error) {
-    console.error('Error reading stored notifications:', error);
-    return [];
-  }
-};
 
 export const NotificationProvider = ({ children }) => {
   const { user } = useAuth();
   const userId = user?.id || user?._id || null;
-  const storageKey = useMemo(() => buildStorageKey(userId), [userId]);
   const [notifications, setNotifications] = useState([]);
 
   const refreshNotifications = useCallback(async () => {
     if (!userId) return;
     try {
       const data = await notificationService.getMyNotifications();
-      const normalized = data.map((item) => makeNotification(item));
-      setNotifications((prev) => mergeNotifications(normalized, prev));
+      // data là mảng các đối tượng Notification từ MongoDB
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -80,38 +25,13 @@ export const NotificationProvider = ({ children }) => {
       setNotifications([]);
       return;
     }
-    setNotifications(getStoredNotifications(userId));
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) return undefined;
     refreshNotifications();
-    const intervalId = setInterval(refreshNotifications, 10000);
+    const intervalId = setInterval(refreshNotifications, 15000);
     return () => clearInterval(intervalId);
   }, [refreshNotifications, userId]);
 
-  useEffect(() => {
-    const handleAppNotification = (event) => {
-      const notification = makeNotification(event.detail || {});
-      setNotifications((prev) => mergeNotifications([notification], prev));
-    };
-
-    window.addEventListener('app-notification', handleAppNotification);
-    return () => window.removeEventListener('app-notification', handleAppNotification);
-  }, []);
-
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(notifications));
-    } catch (error) {
-      console.error('Error saving notification history:', error);
-    }
-  }, [notifications, storageKey, userId]);
-
   const markAsRead = async (id) => {
-    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-    if (!isServerNotificationId(id)) return;
+    setNotifications((prev) => prev.map((item) => (item._id === id ? { ...item, read: true } : item)));
     try {
       await notificationService.markAsRead(id);
     } catch (error) {
@@ -148,7 +68,7 @@ export const NotificationProvider = ({ children }) => {
       clearNotifications,
       refreshNotifications,
     }),
-    [notifications, unreadCount]
+    [notifications, unreadCount, markAsRead, markAllAsRead, clearNotifications, refreshNotifications]
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

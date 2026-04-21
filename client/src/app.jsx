@@ -15,7 +15,7 @@ import TaskTracking from './components/task.tracking.jsx';
 import ExpenseSharing from './components/expense.sharing.jsx';
 import NotificationBoard from './components/notification.board.jsx';
 import FinancialReport from './components/financial.report.jsx';
-import JoinRoom from './components/join-room.jsx';
+
 import AbsenceReport from './components/absence.report.jsx';
 import DutySchedule from './components/duty.schedule.jsx';
 import InternalNewsfeed from './components/internal.newsfeed.jsx';
@@ -33,16 +33,10 @@ const AppLayout = () => {
     email: 'guest@gmail.com',
   };
 
-  const handleJoinRoom = (roomData) => {
-    console.log('Joined room:', roomData);
-    refreshNotifications();
-    setActiveMenu('dashboard');
-  };
 
   const menuLabels = {
     dashboard: 'Dashboard',
-    rooms: 'Quản Lý Phòng',
-    joinRoom: 'Tham Gia Phòng',
+    rooms: 'Phòng',
     members: 'Quản Lý Thành Viên',
     bills: 'Hóa Đơn',
     absence: 'Báo Cáo Vắng Mặt',
@@ -80,14 +74,7 @@ const AppLayout = () => {
         return <ExpenseSharing />;
       case 'reports':
         return <FinancialReport />;
-      case 'joinRoom':
-        return (
-          <JoinRoom
-            onJoinRoom={handleJoinRoom}
-            onCancel={() => setActiveMenu('dashboard')}
-            currentUser={currentUser}
-          />
-        );
+
       default:
         return <Dashboard />;
     }
@@ -99,8 +86,7 @@ const AppLayout = () => {
       <div className="app-main">
         <header className="global-header">
           <div className="global-header-left">
-            <h1>{menuLabels[activeMenu] || 'Roommate Manager'}</h1>
-            <p>Roommate Manager</p>
+            <h1>{menuLabels[activeMenu]}</h1>
           </div>
           <div className="global-header-right">
             <div className="global-user">

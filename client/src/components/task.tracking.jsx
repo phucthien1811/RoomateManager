@@ -177,14 +177,6 @@ const TaskTracking = () => {
       });
       setShowCreateModal(false);
       await fetchData();
-      window.dispatchEvent(new CustomEvent('app-notification', {
-        detail: {
-          type: 'success',
-          title: 'Đã tạo công việc',
-          message: createForm.title.trim(),
-          meta: 'Công việc chung',
-        },
-      }));
     } catch (err) {
       setError(err.message || 'Không thể tạo công việc');
     } finally {
@@ -227,14 +219,6 @@ const TaskTracking = () => {
       }
       setShowProofModal(false);
       await fetchData();
-      window.dispatchEvent(new CustomEvent('app-notification', {
-        detail: {
-          type: 'success',
-          title: 'Đã hoàn thành nhiệm vụ',
-          message: proofTarget.item.title || 'Công việc',
-          meta: 'Có minh chứng ảnh',
-        },
-      }));
     } catch (err) {
       setError(err.message || 'Không thể cập nhật trạng thái hoàn thành');
     } finally {

@@ -55,18 +55,7 @@ const JoinRoom = ({ onJoinRoom, onCancel, currentUser }) => {
         window.dispatchEvent(new CustomEvent('room-joined', { detail: { roomId: joinedRoom._id } }));
       }
 
-      if (joinedRoom?.name) {
-        window.dispatchEvent(
-          new CustomEvent('app-notification', {
-            detail: {
-              type: 'success',
-              title: 'Tham gia phòng thành công',
-              message: `Tham gia thành công phòng ${joinedRoom.name}`,
-              meta: `ROOM ${joinedRoom._id || ''}`,
-            },
-          })
-        );
-      }
+
 
       setTimeout(() => {
         onJoinRoom({

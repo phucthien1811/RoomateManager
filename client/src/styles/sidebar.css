@@ -1,12 +1,11 @@
-﻿@import './colors.css';
+@import './colors.css';
 
 /* Sidebar Styles - Premium Design */
 .sidebar {
   width: 260px;
   background: var(--color-bg-white);
   padding: 32px 0;
-  height: calc(100vh - 20px);
-  margin: 10px 0;
+  height: 100vh;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -24,6 +23,31 @@
 .sidebar-header {
   padding: 0 24px;
   margin-bottom: 24px;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.logo-text-three {
+  color: #3b82f6;
+  letter-spacing: 0.5px;
+}
+
+.logo-text-am {
+  background-color: #3b82f6;
+  color: #ffffff;
+  padding: 2px 14px;
+  border-radius: 9999px;
+  letter-spacing: 1px;
 }
 
 .logo {

@@ -1,4 +1,4 @@
-﻿@import './colors.css';
+@import './colors.css';
 
 .room-management {
   background: var(--color-bg);
@@ -6,6 +6,211 @@
   min-height: 100%;
 }
 
+/* ── Tab Bar ─────────────────────────────────────────────────────────── */
+.room-management-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0;
+}
+
+.rm-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s ease;
+  border-radius: 4px 4px 0 0;
+}
+
+.rm-tab:hover {
+  color: var(--color-accent);
+  background: #f0f5ff;
+}
+
+.rm-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.room-management-tabs .btn-create-room {
+  margin-left: auto;
+  margin-bottom: 2px;
+}
+
+/* ── Join Room Panel ──────────────────────────────────────────────────── */
+.join-room-panel {
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.join-room-panel-inner {
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 460px;
+  text-align: center;
+  animation: slideUp 0.3s ease;
+}
+
+.join-room-panel-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: white;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.3);
+}
+
+.join-room-panel-inner h2 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.join-room-panel-inner > p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 28px;
+}
+
+.join-room-panel-form {
+  text-align: left;
+}
+
+.join-room-panel-form .form-group {
+  margin-bottom: 20px;
+}
+
+.join-room-panel-form .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper .input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 15px;
+}
+
+.input-wrapper .form-input {
+  width: 100%;
+  padding: 11px 14px 11px 42px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #111827;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.input-wrapper .form-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.join-room-panel-form .btn-submit {
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+}
+
+.join-room-panel-form .btn-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99,102,241,0.4);
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+}
+
+.join-room-hint {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+/* Alerts */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+}
+
+/* Spinner small */
+.spinner-sm {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Legacy header (kept for fallback) ────────────────────────────────── */
 .room-management-header {
   display: flex;
   justify-content: space-between;

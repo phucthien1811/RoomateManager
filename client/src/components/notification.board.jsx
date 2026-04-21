@@ -54,16 +54,16 @@ const NotificationBoard = ({ compact = false }) => {
         ) : (
           notifications.map((item) => (
             <div
-              key={item.id}
+              key={item._id || item.id}
               className={`notification-item ${item.read ? 'read' : 'unread'} type-${item.type || 'info'}`}
               onClick={() => {
-                if (!item.read) markAsRead(item.id);
+                if (!item.read) markAsRead(item._id || item.id);
               }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !item.read) {
-                  markAsRead(item.id);
+                  markAsRead(item._id || item.id);
                 }
               }}
             >

@@ -22,8 +22,7 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
-    { id: 'rooms', label: 'Quản Lý Phòng', icon: faHome },
-    { id: 'joinRoom', label: 'Tham Gia Phòng', icon: faDoorOpen },
+    { id: 'rooms', label: 'Phòng', icon: faDoorOpen },
     { id: 'members', label: 'Thành Viên', icon: faUsers },
     { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
     { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
@@ -70,6 +69,10 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
+        <div className="sidebar-logo">
+          <span className="logo-text-three">THREE</span>
+          <span className="logo-text-am">AM</span>
+        </div>
         {rooms.length > 0 && (
           <div className="sidebar-room-switch">
             <label htmlFor="sidebar-room-selector">Phòng hiện tại</label>
@@ -87,7 +90,7 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
           </div>
         )}
       </div>
-      
+
       <nav className="sidebar-menu">
         <div className="menu-title">MENU</div>
         {menuItems.map((item) => {

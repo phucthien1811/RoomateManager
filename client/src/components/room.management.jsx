@@ -11,11 +11,16 @@ import {
   faKey,
   faCopy,
   faCheck,
+  faDoorOpen,
+  faExclamationCircle,
+  faCheckCircle,
+  faHome,
 } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
 import '../styles/room.management.css';
 
 const RoomManagement = () => {
+  const [activeTab, setActiveTab] = useState('myRooms');
   const [rooms, setRooms] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('create');
@@ -28,6 +33,12 @@ const RoomManagement = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [copiedRoomId, setCopiedRoomId] = useState(null);
+
+  // Join room state
+  const [joinCode, setJoinCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joinSuccess, setJoinSuccess] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   // Fetch rooms on component mount
   useEffect(() => {
@@ -95,22 +106,10 @@ const RoomManagement = () => {
           location: formData.address,
         };
         const createdRoom = await roomService.createRoom(newRoom);
-        // Lưu room ID để dùng ở các component khác
         if (createdRoom && (createdRoom._id || createdRoom.id)) {
           localStorage.setItem('currentRoomId', createdRoom._id || createdRoom.id);
         }
-        const createdRoomName = createdRoom?.name || formData.name;
-        const createdRoomCode = createdRoom?.code || createdRoom?.inviteCode || '---';
-        const successMessage = `Bạn vừa tạo phòng ${createdRoomName} thành công, mã phòng là ${createdRoomCode}`;
-        window.dispatchEvent(
-          new CustomEvent('app-notification', {
-            detail: {
-              type: 'success',
-              title: 'Tạo phòng thành công',
-              message: successMessage,
-            },
-          })
-        );
+
       } else if (modalType === 'edit') {
         const updates = {
           name: formData.name,
@@ -156,104 +155,194 @@ const RoomManagement = () => {
     }
   };
 
+  const handleJoinRoom = async (e) => {
+    e.preventDefault();
+    setJoinError('');
+    if (!joinCode.trim()) {
+      setJoinError('Vui lòng nhập mã phòng');
+      return;
+    }
+    if (joinCode.trim().length < 4) {
+      setJoinError('Mã phòng không hợp lệ (tối thiểu 4 ký tự)');
+      return;
+    }
+    setJoining(true);
+    try {
+      const result = await roomService.joinRoom(joinCode.trim());
+      const joinedRoom = result?.room;
+      setJoinSuccess(true);
+      if (joinedRoom?._id) {
+        localStorage.setItem('currentRoomId', joinedRoom._id);
+        window.dispatchEvent(new CustomEvent('room-selected', { detail: { roomId: joinedRoom._id } }));
+        window.dispatchEvent(new CustomEvent('room-joined', { detail: { roomId: joinedRoom._id } }));
+      }
+      setTimeout(() => {
+        setJoinSuccess(false);
+        setJoinCode('');
+        setActiveTab('myRooms');
+        fetchRooms();
+      }, 1500);
+    } catch (err) {
+      if (err.status === 409 || err.status === 400) {
+        setJoinError('Bạn đã là thành viên của phòng này');
+      } else if (err.status === 404) {
+        setJoinError('Mã phòng không tồn tại. Vui lòng kiểm tra lại.');
+      } else {
+        setJoinError(err.message || 'Mã phòng không tồn tại. Vui lòng kiểm tra lại.');
+      }
+    } finally {
+      setJoining(false);
+    }
+  };
+
   return (
     <div className="room-management">
-      <div className="room-management-header">
-        <div className="header-content">
-          <h1>Quản Lý Phòng</h1>
-          <p>Tạo phòng với tên + địa chỉ, thành viên tham gia bằng mã phòng</p>
-        </div>
+      <div className="room-management-tabs">
         <button
-          className="btn-create-room"
-          onClick={() => handleOpenModal('create')}
-          disabled={submitting}
+          className={`rm-tab ${activeTab === 'myRooms' ? 'active' : ''}`}
+          onClick={() => setActiveTab('myRooms')}
         >
-          <FontAwesomeIcon icon={faPlus} /> Tạo Phòng Mới
+          <FontAwesomeIcon icon={faHome} /> Phòng Của Tôi
         </button>
-      </div>
-
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
-
-      <div className="rooms-grid">
-        {loading ? (
-          <div className="loading-message">Đang tải dữ liệu...</div>
-        ) : rooms.length === 0 ? (
-          <div className="empty-message">Chưa có phòng nào. Tạo phòng mới để bắt đầu.</div>
-        ) : (
-          rooms.map((room) => (
-            <div key={room._id || room.id} className="room-card">
-              <div className="room-card-header">
-                <h3 className="room-name">{room.name}</h3>
-                <div className="room-actions">
-                  <button
-                    className="btn-action edit"
-                    onClick={() => handleOpenModal('edit', room)}
-                    title="Chỉnh sửa"
-                  >
-                    <FontAwesomeIcon icon={faEdit} />
-                  </button>
-                  <button
-                    className="btn-action delete"
-                    onClick={() => handleDeleteRoom(room._id || room.id)}
-                    title="Xóa"
-                  >
-                    <FontAwesomeIcon icon={faTrash} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="room-card-body">
-                <div className="room-info-item">
-                  <FontAwesomeIcon icon={faMapMarkerAlt} className="info-icon" />
-                  <span className="info-text">{room.address || room.location}</span>
-                </div>
-
-                <div className="room-info-item">
-                  <FontAwesomeIcon icon={faUser} className="info-icon" />
-                  <span className="info-text">Chủ phòng: {typeof room.owner === 'object' ? room.owner?.name : room.owner || 'Chưa gán'}</span>
-                </div>
-
-                <div className="room-info-item">
-                  <FontAwesomeIcon icon={faUsers} className="info-icon" />
-                  <span className="info-text">{room.members?.length || 0} thành viên</span>
-                </div>
-
-                <div className="room-info-item room-code-item">
-                  <FontAwesomeIcon icon={faKey} className="info-icon" />
-                  <div className="room-code-content">
-                    <span className="info-text">
-                      Mã phòng: <strong>{room.code || room.inviteCode || '---'}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      className={`btn-copy-code ${copiedRoomId === (room._id || room.id) ? 'copied' : ''}`}
-                      onClick={() => handleCopyRoomCode(room)}
-                      disabled={!(room.code || room.inviteCode)}
-                      title="Sao chép mã phòng"
-                    >
-                      <FontAwesomeIcon icon={copiedRoomId === (room._id || room.id) ? faCheck : faCopy} />
-                      {copiedRoomId === (room._id || room.id) ? 'Đã sao chép' : 'Sao chép'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="room-status">
-                  <span
-                    className={`status-badge status-${room.status || 'active'}`}
-                  >
-                    {room.status === 'active' ? 'Đang hoạt động' : 'Không hoạt động'}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-          ))
+        <button
+          className={`rm-tab ${activeTab === 'joinRoom' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('joinRoom'); setJoinError(''); setJoinSuccess(false); }}
+        >
+          <FontAwesomeIcon icon={faDoorOpen} /> Tham Gia Phòng
+        </button>
+        {activeTab === 'myRooms' && (
+          <button
+            className="btn-create-room"
+            onClick={() => handleOpenModal('create')}
+            disabled={submitting}
+          >
+            <FontAwesomeIcon icon={faPlus} /> Tạo Phòng Mới
+          </button>
         )}
       </div>
+
+      {activeTab === 'myRooms' && (
+        <>
+          {error && <div className="error-message">{error}</div>}
+          <div className="rooms-grid">
+            {loading ? (
+              <div className="loading-message">Đang tải dữ liệu...</div>
+            ) : rooms.length === 0 ? (
+              <div className="empty-message">Chưa có phòng nào. Tạo phòng mới để bắt đầu.</div>
+            ) : (
+              rooms.map((room) => (
+                <div key={room._id || room.id} className="room-card">
+                  <div className="room-card-header">
+                    <h3 className="room-name">{room.name}</h3>
+                    <div className="room-actions">
+                      <button
+                        className="btn-action edit"
+                        onClick={() => handleOpenModal('edit', room)}
+                        title="Chỉnh sửa"
+                      >
+                        <FontAwesomeIcon icon={faEdit} />
+                      </button>
+                      <button
+                        className="btn-action delete"
+                        onClick={() => handleDeleteRoom(room._id || room.id)}
+                        title="Xóa"
+                      >
+                        <FontAwesomeIcon icon={faTrash} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="room-card-body">
+                    <div className="room-info-item">
+                      <FontAwesomeIcon icon={faMapMarkerAlt} className="info-icon" />
+                      <span className="info-text">{room.address || room.location}</span>
+                    </div>
+                    <div className="room-info-item">
+                      <FontAwesomeIcon icon={faUser} className="info-icon" />
+                      <span className="info-text">Chủ phòng: {typeof room.owner === 'object' ? room.owner?.name : room.owner || 'Chưa gán'}</span>
+                    </div>
+                    <div className="room-info-item">
+                      <FontAwesomeIcon icon={faUsers} className="info-icon" />
+                      <span className="info-text">{room.members?.length || 0} thành viên</span>
+                    </div>
+                    <div className="room-info-item room-code-item">
+                      <FontAwesomeIcon icon={faKey} className="info-icon" />
+                      <div className="room-code-content">
+                        <span className="info-text">
+                          Mã phòng: <strong>{room.code || room.inviteCode || '---'}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          className={`btn-copy-code ${copiedRoomId === (room._id || room.id) ? 'copied' : ''}`}
+                          onClick={() => handleCopyRoomCode(room)}
+                          disabled={!(room.code || room.inviteCode)}
+                          title="Sao chép mã phòng"
+                        >
+                          <FontAwesomeIcon icon={copiedRoomId === (room._id || room.id) ? faCheck : faCopy} />
+                          {copiedRoomId === (room._id || room.id) ? 'Đã sao chép' : 'Sao chép'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="room-status">
+                      <span className={`status-badge status-${room.status || 'active'}`}>
+                        {room.status === 'active' ? 'Đang hoạt động' : 'Không hoạt động'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'joinRoom' && (
+        <div className="join-room-panel">
+          <div className="join-room-panel-inner">
+            <div className="join-room-panel-icon">
+              <FontAwesomeIcon icon={faDoorOpen} />
+            </div>
+            <h2>Tham Gia Phòng</h2>
+            <p>Nhập mã phòng được cấp bởi chủ phòng để tham gia</p>
+
+            {joinError && (
+              <div className="alert alert-error">
+                <FontAwesomeIcon icon={faExclamationCircle} className="alert-icon" />
+                <span>{joinError}</span>
+              </div>
+            )}
+            {joinSuccess && (
+              <div className="alert alert-success">
+                <FontAwesomeIcon icon={faCheckCircle} className="alert-icon" />
+                <span>Tham gia phòng thành công! Đang chuyển hướng...</span>
+              </div>
+            )}
+
+            <form onSubmit={handleJoinRoom} className="join-room-panel-form">
+              <div className="form-group">
+                <label htmlFor="joinCode">Mã Phòng</label>
+                <div className="input-wrapper">
+                  <FontAwesomeIcon icon={faKey} className="input-icon" />
+                  <input
+                    type="text"
+                    id="joinCode"
+                    className="form-input"
+                    placeholder="Nhập mã phòng (VD: ROOM01)"
+                    value={joinCode}
+                    onChange={(e) => { setJoinCode(e.target.value); setJoinError(''); }}
+                    disabled={joining}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="btn-submit" disabled={joining}>
+                {joining ? <span className="spinner-sm"></span> : <><FontAwesomeIcon icon={faDoorOpen} /> Tham Gia</>}
+              </button>
+            </form>
+
+            <p className="join-room-hint">Chưa có mã phòng? Liên hệ chủ phòng để được cấp mã truy cập.</p>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
