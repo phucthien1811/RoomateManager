@@ -17,6 +17,9 @@ import {
   faReceipt,
   faChartPie,
   faFileInvoiceDollar,
+  faCamera,
+  faImages,
+  faExpand,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import billService from '../services/bill.service.js';
@@ -33,6 +36,14 @@ const formatDate = (date) =>
 
 const getInitials = (name = '') =>
   name.trim().split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase() || '?';
+
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Không đọc được file'));
+    reader.readAsDataURL(file);
+  });
 
 const BILL_TYPES = [
   { key: 'electricity', label: 'Điện',    icon: faLightbulb,       cls: 'electric' },
@@ -58,6 +69,12 @@ const BillManagement = () => {
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
+  // RM-8: Image upload state
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imageModalBill, setImageModalBill] = useState(null);
+  const [pendingImages, setPendingImages] = useState([]);   // base64 preview sebelum save
+  const [imagePreviewSrc, setImagePreviewSrc] = useState(null); // lightbox src
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const [formData, setFormData] = useState({
     room_id: '',
@@ -184,6 +201,53 @@ const BillManagement = () => {
   };
 
   const handleCloseModal = () => { setShowModal(false); setError(''); };
+
+  /* RM-8 — Image upload handlers */
+  const handleOpenImageModal = (bill) => {
+    setImageModalBill(bill);
+    setPendingImages(bill.bill_images || []);
+    setError('');
+    setShowImageModal(true);
+  };
+
+  const handleCloseImageModal = () => {
+    if (uploadingImages) return;
+    setShowImageModal(false);
+    setImageModalBill(null);
+    setPendingImages([]);
+  };
+
+  const handleSelectImages = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 5);
+    if (files.length === 0) return;
+    try {
+      const base64List = await Promise.all(files.map(fileToBase64));
+      // Gộp ảnh mới vào ảnh cũ, tổng không quá 5
+      setPendingImages((prev) => [...prev, ...base64List].slice(0, 5));
+    } catch {
+      setError('Không thể đọc ảnh. Vui lòng thử lại.');
+    }
+  };
+
+  const handleRemovePendingImage = (index) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveImages = async () => {
+    if (!imageModalBill) return;
+    if (pendingImages.length === 0) { setError('Vui lòng chọn ít nhất 1 ảnh'); return; }
+    try {
+      setUploadingImages(true);
+      setError('');
+      await billService.uploadBillImages(imageModalBill._id, pendingImages);
+      await fetchBills();
+      handleCloseImageModal();
+    } catch (err) {
+      setError(err.message || 'Không thể lưu ảnh hóa đơn');
+    } finally {
+      setUploadingImages(false);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -505,6 +569,29 @@ const BillManagement = () => {
                         </div>
                       </div>
                     )}
+
+                    {/* ── RM-8: Bill Images Thumbnails ── */}
+                    {(bill.bill_images?.length > 0) && (
+                      <div className="bill-images-section">
+                        <p className="members-section-title">
+                          <FontAwesomeIcon icon={faImages} />
+                          Ảnh hóa đơn thực tế ({bill.bill_images.length}/5)
+                        </p>
+                        <div className="bill-thumbnails">
+                          {bill.bill_images.map((src, idx) => (
+                            <button
+                              key={idx}
+                              className="thumbnail-btn"
+                              onClick={() => setImagePreviewSrc(src)}
+                              title="Xem ảnh"
+                            >
+                              <img src={src} alt={`Hóa đơn ${idx + 1}`} />
+                              <span className="thumb-overlay"><FontAwesomeIcon icon={faExpand} /></span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Card Footer ── */}
@@ -526,6 +613,15 @@ const BillManagement = () => {
                         Chỉ {bill.payer_id?.name || bill.created_by?.name || 'người quản lý'} mới có thể xác nhận
                       </span>
                     )}
+                    {/* RM-8: Upload ảnh button */}
+                    <button
+                      className="btn-upload-img"
+                      onClick={() => handleOpenImageModal(bill)}
+                      title={bill.bill_images?.length > 0 ? 'Cập nhật ảnh hóa đơn' : 'Đính kèm ảnh hóa đơn'}
+                    >
+                      <FontAwesomeIcon icon={faCamera} />
+                      {bill.bill_images?.length > 0 ? bill.bill_images.length : ''}
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteBill(bill._id)} title="Xóa hóa đơn">
                       <FontAwesomeIcon icon={faTrash} />
                     </button>
@@ -693,6 +789,88 @@ const BillManagement = () => {
                 {submitting ? 'Đang lưu...' : 'Tạo Hóa Đơn'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ─── RM-8: IMAGE UPLOAD MODAL ─── */}
+      {showImageModal && imageModalBill && (
+        <div className="modal-overlay" onClick={handleCloseImageModal}>
+          <div className="modal-container modal-img-upload" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><FontAwesomeIcon icon={faCamera} /> Ảnh hóa đơn thực tế</h2>
+              <button className="btn-close-modal" onClick={handleCloseImageModal}>
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {error && <div className="error-message">{error}</div>}
+
+              <p className="img-upload-hint">
+                Đính kèm ảnh chụp hóa đơn giấy để đối chiếu. Tối đa <strong>5 ảnh</strong>.
+              </p>
+
+              {/* Upload area */}
+              {pendingImages.length < 5 && (
+                <label className="img-upload-area">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleSelectImages}
+                  />
+                  <div className="img-upload-area-inner">
+                    <FontAwesomeIcon icon={faCamera} className="upload-icon" />
+                    <span>Bấm để chọn ảnh</span>
+                    <small>JPG, PNG, WEBP — tối đa 5 ảnh</small>
+                  </div>
+                </label>
+              )}
+
+              {/* Preview grid */}
+              {pendingImages.length > 0 && (
+                <div className="img-preview-grid">
+                  {pendingImages.map((src, idx) => (
+                    <div key={idx} className="img-preview-item">
+                      <img src={src} alt={`preview-${idx}`} onClick={() => setImagePreviewSrc(src)} />
+                      <button
+                        className="img-remove-btn"
+                        onClick={() => handleRemovePendingImage(idx)}
+                        title="Xoá ảnh này"
+                      >
+                        <FontAwesomeIcon icon={faTimes} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="hint-text" style={{ marginTop: 8 }}>
+                {pendingImages.length}/5 ảnh — Lưu để cập nhật lên hóa đơn
+              </p>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={handleCloseImageModal} disabled={uploadingImages}>
+                Hủy
+              </button>
+              <button className="btn-save" onClick={handleSaveImages} disabled={uploadingImages || pendingImages.length === 0}>
+                {uploadingImages ? 'Đang lưu...' : 'Lưu ảnh'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LIGHTBOX ─── */}
+      {imagePreviewSrc && (
+        <div className="lightbox-overlay" onClick={() => setImagePreviewSrc(null)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <button className="lightbox-close" onClick={() => setImagePreviewSrc(null)}>
+              <FontAwesomeIcon icon={faTimes} />
+            </button>
+            <img src={imagePreviewSrc} alt="Xem hóa đơn" />
           </div>
         </div>
       )}

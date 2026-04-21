@@ -41,6 +41,15 @@ const roomBillSchema = new mongoose.Schema(
       maxlength: [500, "Ghi chú không được vượt quá 500 ký tự"],
       default: null,
     },
+    // RM-8: Ảnh hóa đơn thực tế để đối chiếu (base64 data URL hoặc URL ảnh, tối đa 5)
+    bill_images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (arr) => arr.length <= 5,
+        message: "Tối đa 5 ảnh hóa đơn",
+      },
+    },
     status: {
       type: String,
       enum: Object.values(BILL_STATUS),

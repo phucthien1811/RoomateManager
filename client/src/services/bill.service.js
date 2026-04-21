@@ -78,12 +78,12 @@ const billService = {
   },
 
   /**
-   * Lấy chi tiết chia hóa đơn cho từng thành viên
+   * RM-8: Cập nhật ảnh hóa đơn thực tế (mảng base64 string, tối đa 5)
    */
-  getBillDetails: async (billId) => {
+  uploadBillImages: async (billId, images) => {
     try {
-      const response = await api.get(`/bills/${billId}/details`);
-      return response.data.data || response.data || [];
+      const response = await api.patch(`/bills/${billId}/images`, { images });
+      return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;
     }

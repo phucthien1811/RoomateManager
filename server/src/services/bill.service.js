@@ -291,11 +291,34 @@ const getBillHistory = async (roomId, options = {}) => {
   }
 };
 
+
+// RM-8: Cập nhật ảnh hóa đơn thực tế
+const uploadBillImages = async (billId, images, requesterId) => {
+  if (!Array.isArray(images) || images.length === 0) {
+    throw new Error("Phải cung cấp ít nhất 1 ảnh");
+  }
+  if (images.length > 5) {
+    throw new Error("Tối đa 5 ảnh hóa đơn");
+  }
+
+  const bill = await RoomBill.findById(billId).select("payer_id created_by bill_images");
+  if (!bill) throw new Error("Không tìm thấy hóa đơn");
+
+  const responsibleId = (bill.payer_id || bill.created_by)?.toString();
+  if (!responsibleId || responsibleId !== requesterId.toString()) {
+    throw new Error("Bạn không có quyền cập nhật ảnh hóa đơn này");
+  }
+
+  bill.bill_images = images;
+  await bill.save();
+  return bill;
+};
+
 module.exports = {
   createBillWithSplit,
   confirmPayment,
   getBillWithDetails,
   getBillHistory,
-  splitAmountByLargestRemainder, // export riêng để tiện viết unit test
+  uploadBillImages,
+  splitAmountByLargestRemainder,
 };
-

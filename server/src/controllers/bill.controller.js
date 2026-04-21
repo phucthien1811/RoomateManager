@@ -7,6 +7,42 @@ const sendResponse = (res, status, success, message, data = null) => {
   return res.status(status).json(payload);
 };
 
+// PATCH /api/bills/:billId/images — RM-8: Cập nhật ảnh hóa đơn thực tế
+const uploadBillImages = async (req, res) => {
+  try {
+    const { billId } = req.params;
+
+    if (!billId || !/^[a-fA-F0-9]{24}$/.test(billId)) {
+      return sendResponse(res, 400, false, "billId không hợp lệ");
+    }
+
+    const { images } = req.body;
+    if (!Array.isArray(images) || images.length === 0) {
+      return sendResponse(res, 400, false, "Vui lòng gửi mảng images (tối đa 5)");
+    }
+    if (images.length > 5) {
+      return sendResponse(res, 400, false, "Tối đa 5 ảnh hóa đơn");
+    }
+
+    const requesterId = req.user?._id;
+    if (!requesterId) {
+      return sendResponse(res, 401, false, "Chưa xác thực");
+    }
+
+    const bill = await billService.uploadBillImages(billId, images, requesterId);
+    return sendResponse(res, 200, true, "Cập nhật ảnh hóa đơn thành công", { bill_images: bill.bill_images });
+  } catch (error) {
+    if (error.message.includes("không có quyền")) {
+      return sendResponse(res, 403, false, error.message);
+    }
+    if (error.message.includes("Không tìm thấy")) {
+      return sendResponse(res, 404, false, error.message);
+    }
+    console.error("[BillController] uploadBillImages error:", error.message);
+    return sendResponse(res, 500, false, error.message || "Lỗi server khi cập nhật ảnh hóa đơn");
+  }
+};
+
 // POST /api/bills — RM-7 & RM-9: Tạo hóa đơn và chia tiền
 const createBill = async (req, res) => {
   try {
@@ -176,4 +212,5 @@ module.exports = {
   confirmPayment,
   getBillDetail,
   getBillHistory,
+  uploadBillImages,
 };
