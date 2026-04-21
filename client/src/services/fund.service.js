@@ -18,13 +18,14 @@ const fundService = {
   /**
    * Đóng góp vào quỹ
    */
-  contributeFund: async (roomId, amount, description = '', category = 'Chưa phân loại') => {
+  contributeFund: async (roomId, amount, description = '', category = 'Chưa phân loại', proofImages = []) => {
     try {
       const response = await api.post(`/fund/deposit`, {
         room_id: roomId,
         amount: Number(amount),
         description,
         category,
+        proof_images: proofImages,
       });
       return response.data?.data?.transaction;
     } catch (error) {
@@ -35,13 +36,14 @@ const fundService = {
   /**
    * Rút tiền từ quỹ
    */
-  withdrawFund: async (roomId, amount, reason, category = 'Chưa phân loại') => {
+  withdrawFund: async (roomId, amount, reason, category = 'Chưa phân loại', proofImages = []) => {
     try {
       const response = await api.post(`/fund/withdraw`, {
         room_id: roomId,
         amount: Number(amount),
         description: reason,
         category,
+        proof_images: proofImages,
       });
       return response.data?.data?.transaction;
     } catch (error) {

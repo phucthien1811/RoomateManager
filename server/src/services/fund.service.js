@@ -45,7 +45,7 @@ const getOrCreateFund = async (roomId) => {
 };
 
 // RM-22: Nạp tiền vào quỹ + ghi nhận người đóng góp
-const deposit = async ({ roomId, amount, performedBy, description, category }) => {
+const deposit = async ({ roomId, amount, performedBy, description, category, proofImages }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -75,6 +75,7 @@ const deposit = async ({ roomId, amount, performedBy, description, category }) =
           performed_by: performedBy,
           description,
           category: categoryName,
+          proof_images: Array.isArray(proofImages) ? proofImages.slice(0, 5) : [],
         },
       ],
       { session }
@@ -91,7 +92,7 @@ const deposit = async ({ roomId, amount, performedBy, description, category }) =
 };
 
 // Rút tiền từ quỹ (chi tiêu chung)
-const withdraw = async ({ roomId, amount, performedBy, description, category }) => {
+const withdraw = async ({ roomId, amount, performedBy, description, category, proofImages }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -120,6 +121,7 @@ const withdraw = async ({ roomId, amount, performedBy, description, category }) 
           performed_by: performedBy,
           description,
           category: categoryName,
+          proof_images: Array.isArray(proofImages) ? proofImages.slice(0, 5) : [],
         },
       ],
       { session }

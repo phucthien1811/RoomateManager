@@ -39,6 +39,10 @@ const fundTransactionSchema = new mongoose.Schema(
       trim: true,
       default: "Chưa phân loại",
     },
+    proof_images: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

@@ -42,7 +42,12 @@ const fmt = (n = 0) =>
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
-const getMemberName = (u) => u?.full_name || u?.name || u?.email || 'Thành viên';
+const getMemberName = (u) => {
+  if (u?.full_name) return u.full_name;
+  if (u?.name) return u.name;
+  if (u?.email) return u.email.split('@')[0];
+  return 'Thành viên';
+};
 
 const getInitials = (name = '') =>
   name.trim().split(' ').slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
@@ -77,7 +82,7 @@ const ExpenseSharing = () => {
 
   /* modal: withdraw */
   const [showWithdraw, setShowWithdraw] = useState(false);
-  const [withdrawForm, setWithdrawForm] = useState({ amount: '', description: '' });
+  const [withdrawForm, setWithdrawForm] = useState({ amount: '', description: '', proofImages: [] });
 
   /* modal: history (for personal tab action) */
   const [showHistory, setShowHistory] = useState(false);
@@ -121,12 +126,21 @@ const ExpenseSharing = () => {
 
   /* ── Computed: room tab ── */
   const roomStats = useMemo(() => {
+    // Tiền quỹ (cộng dồn toàn thời gian)
     const totalDeposit  = transactions.filter(t => t.type === 'deposit') .reduce((s, t) => s + (Number(t.amount) || 0), 0);
     const totalWithdraw = transactions.filter(t => t.type === 'withdraw').reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-    /* Pie: chi theo loại hóa đơn */
+    // Hóa đơn trong THÁNG NÀY (hiện tại)
+    const currentMonthStr = (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    })();
+    const thisMonthBills = bills.filter(b => b.billing_month === currentMonthStr);
+    const totalBillAmountMonth = thisMonthBills.reduce((s, b) => s + (Number(b.total_amount) || 0), 0);
+
+    /* Pie: chi theo loại hóa đơn trong THÁNG NÀY */
     const byType = {};
-    bills.forEach(bill => {
+    thisMonthBills.forEach(bill => {
       const label = bill.bill_type === 'other'
         ? (bill.bill_type_other || 'Khác')
         : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
@@ -143,7 +157,8 @@ const ExpenseSharing = () => {
       memberMap.set(key, { name: getMemberName(u), amount: (memberMap.get(key)?.amount || 0) + (Number(t.amount) || 0) });
     });
     const memberContribs = Array.from(memberMap.values()).sort((a, b) => b.amount - a.amount);
-    return { totalDeposit, totalWithdraw, memberContribs, roomPieData };
+    
+    return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length };
   }, [transactions, bills]);
 
   /* ── Computed: personal tab ── */
@@ -211,6 +226,16 @@ const ExpenseSharing = () => {
           note: tx.description || '',
           proofImages: tx.proof_images || [],
         });
+      } else if (tx.type === 'withdraw' && uid === currentUserId) {
+        rows.push({
+          id: tx._id,
+          date: new Date(tx.created_at || tx.createdAt),
+          type: 'withdraw',
+          label: tx.description || 'Tôi rút quỹ',
+          amount: Number(tx.amount) || 0,
+          note: tx.category || '',
+          proofImages: tx.proof_images || [],
+        });
       }
     });
 
@@ -248,7 +273,7 @@ const ExpenseSharing = () => {
     if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
     try {
       setSubmitting(true); setError('');
-      await fundService.contributeFund(selectedRoomId, amount, depositForm.description || 'Nạp quỹ', 'Nạp quỹ');
+      await fundService.contributeFund(selectedRoomId, amount, depositForm.description || 'Nạp quỹ', 'Nạp quỹ', depositForm.proofImages);
       await fetchAll();
       setShowDeposit(false);
       setDepositForm({ amount: '', description: '', proofImages: [] });
@@ -262,10 +287,10 @@ const ExpenseSharing = () => {
     if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
     try {
       setSubmitting(true); setError('');
-      await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ');
+      await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ', withdrawForm.proofImages);
       await fetchAll();
       setShowWithdraw(false);
-      setWithdrawForm({ amount: '', description: '' });
+      setWithdrawForm({ amount: '', description: '', proofImages: [] });
     } catch (err) { setError(err?.message || 'Không thể rút quỹ'); }
     finally { setSubmitting(false); }
   };
@@ -316,25 +341,25 @@ const ExpenseSharing = () => {
                   <small><FontAwesomeIcon icon={faArrowUp} /> Đóng góp</small>
                 </div>
                 <div className="overview-card">
-                  <span>Tổng đã chi</span>
+                  <span>Đã rút quỹ</span>
                   <strong style={{ color: '#dc2626' }}>{fmt(roomStats.totalWithdraw)}</strong>
-                  <small><FontAwesomeIcon icon={faArrowDown} /> Rút quỹ</small>
+                  <small><FontAwesomeIcon icon={faArrowDown} /> Số tiền đã dùng</small>
                 </div>
                 <div className="overview-card">
-                  <span>Hóa đơn phòng</span>
-                  <strong>{bills.length}</strong>
-                  <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> Tổng số hóa đơn</small>
+                  <span>Hóa đơn tháng này</span>
+                  <strong style={{ color: '#f59e0b' }}>{fmt(roomStats.totalBillAmountMonth)}</strong>
+                  <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> {roomStats.thisMonthBillsCount} hóa đơn phát sinh</small>
                 </div>
               </div>
 
               {/* Biểu đồ + Đóng góp thành viên — 2 cột */}
               <div className="fund-middle-grid">
 
-                {/* Pie: Chi theo loại hóa đơn */}
+                {/* Pie: Chi theo loại hóa đơn THÁNG NÀY */}
                 <div className="fund-chart-card">
-                  <h2>Chi theo loại hóa đơn</h2>
+                  <h2>Chi tiêu hóa đơn tháng này</h2>
                   {roomStats.roomPieData.length === 0 ? (
-                    <div className="empty-inline">Chưa có hóa đơn nào.</div>
+                    <div className="empty-inline">Chưa có hóa đơn nào phát sinh trong tháng.</div>
                   ) : (
                     <div className="pie-layout">
                       <ResponsiveContainer width="100%" height={230}>
@@ -581,6 +606,41 @@ const ExpenseSharing = () => {
                 <input type="text" placeholder="Mua đồ vệ sinh / chi phí chung..."
                   value={withdrawForm.description}
                   onChange={e => setWithdrawForm(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label><FontAwesomeIcon icon={faCamera} /> Ảnh minh chứng (tối đa 3)</label>
+                {withdrawForm.proofImages.length < 3 && (
+                  <label className="proof-upload-area">
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []).slice(0, 3);
+                        if (!files.length) return;
+                        try {
+                          const b64s = await Promise.all(files.map(fileToBase64));
+                          setWithdrawForm(p => ({ ...p, proofImages: [...p.proofImages, ...b64s].slice(0, 3) }));
+                        } catch { setError('Không thể đọc file ảnh'); }
+                      }} />
+                    <div className="proof-upload-inner">
+                      <FontAwesomeIcon icon={faCamera} className="proof-upload-icon" />
+                      <span>Chọn ảnh minh chứng hoặc hóa đơn mua đồ</span>
+                      <small>JPG, PNG — tối đa 3</small>
+                    </div>
+                  </label>
+                )}
+                {withdrawForm.proofImages.length > 0 && (
+                  <div className="proof-preview-grid">
+                    {withdrawForm.proofImages.map((src, i) => (
+                      <div key={i} className="proof-preview-item">
+                        <img src={src} alt="proof" onClick={() => setLightboxSrc(src)} />
+                        <button className="proof-remove-btn"
+                          onClick={() => setWithdrawForm(p => ({ ...p, proofImages: p.proofImages.filter((_, j) => j !== i) }))}>
+                          <FontAwesomeIcon icon={faTimes} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="hint-text">{withdrawForm.proofImages.length}/3 ảnh</p>
               </div>
             </div>
             <div className="modal-footer">

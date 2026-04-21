@@ -29,7 +29,7 @@ const getFundDetail = async (req, res) => {
 // POST /api/funds/deposit — RM-22: Nạp tiền vào quỹ
 const deposit = async (req, res) => {
   try {
-    const { room_id, amount, description, category } = req.body;
+    const { room_id, amount, description, category, proof_images } = req.body;
 
     if (!room_id || !amount) {
       return sendResponse(res, 400, false, "Thiếu room_id hoặc amount");
@@ -46,6 +46,7 @@ const deposit = async (req, res) => {
       performedBy,
       description,
       category,
+      proofImages: proof_images,
     });
 
     return sendResponse(res, 200, true, "Nạp tiền vào quỹ thành công", {
@@ -61,7 +62,7 @@ const deposit = async (req, res) => {
 // POST /api/funds/withdraw — Rút tiền từ quỹ
 const withdraw = async (req, res) => {
   try {
-    const { room_id, amount, description, category } = req.body;
+    const { room_id, amount, description, category, proof_images } = req.body;
 
     if (!room_id || !amount) {
       return sendResponse(res, 400, false, "Thiếu room_id hoặc amount");
@@ -78,6 +79,7 @@ const withdraw = async (req, res) => {
       performedBy,
       description,
       category,
+      proofImages: proof_images,
     });
 
     return sendResponse(res, 200, true, "Rút tiền từ quỹ thành công", {

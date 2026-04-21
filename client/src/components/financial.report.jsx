@@ -71,14 +71,19 @@ const buildRows = (bills, fundTransactions) => {
     rows.push({
       id:       tx._id,
       date:     new Date(tx.created_at || tx.createdAt),
-      label:    tx.description || (tx.type === 'deposit' ? 'Đóng góp quỹ' : 'Rút quỹ'),
+      label:    tx.type === 'deposit' ? 'Nạp tiền quỹ' : 'Rút quỹ',
       category: 'Quỹ phòng',
       icon:     tx.type === 'deposit' ? faArrowUp : faArrowDown,
       type:     tx.type === 'deposit' ? 'income' : 'expense',
       amount:   Math.abs(Number(tx.amount)) || 0,
-      note:     tx.description || '',
+      note:     (tx.type === 'deposit' ? 'Người nạp: ' : 'Người rút: ') + 
+                (tx.performed_by?.full_name || tx.performed_by?.name || tx.performed_by?.email || 'Thành viên') +
+                (tx.description ? ` - ${tx.description}` : ''),
       status:   tx.status || '',
-      month:    new Date(tx.created_at || tx.createdAt).toISOString().slice(0, 7),
+      month:    (() => {
+        const d = new Date(tx.created_at || tx.createdAt);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      })(),
     });
   });
 
@@ -93,7 +98,8 @@ const buildRows = (bills, fundTransactions) => {
     row.balance = balance;
   });
 
-  return rows;
+  // Đảo ngược để mới nhất lên đầu
+  return rows.reverse();
 };
 
 /* ─── Component ─── */
@@ -101,9 +107,10 @@ const FinancialReport = () => {
   const [selectedRoomId, setSelectedRoomId] = useState(
     () => localStorage.getItem('currentRoomId') || ''
   );
-  const [filterMonth, setFilterMonth] = useState(
-    () => new Date().toISOString().slice(0, 7)
-  );
+  const [filterMonth, setFilterMonth] = useState(() => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  });
   const [bills, setBills] = useState([]);
   const [fundTx, setFundTx] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -153,7 +160,7 @@ const FinancialReport = () => {
   /* Summary */
   const totalIncome  = rows.filter((r) => r.type === 'income').reduce((s, r) => s + r.amount, 0);
   const totalExpense = rows.filter((r) => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
+  const finalBalance = rows.length > 0 ? rows[0].balance : 0;
 
   /* Export Excel (.xlsx) — SheetJS, tiếng Việt hoàn hảo */
   const exportXLSX = () => {

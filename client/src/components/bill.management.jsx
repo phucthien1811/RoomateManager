@@ -188,11 +188,12 @@ const BillManagement = () => {
     setSplitParticipants(
       roomMembers.map((m) => {
         const isAway = awayMemberIds.includes(String(m._id));
-        if (isAway) return { member_id: m._id, name: m.name || m.email || 'Thành viên', email: m.email || '', selected: false, split_mode: 'percent', split_value: '', isAway: true };
+        const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Thành viên');
+        if (isAway) return { member_id: m._id, name: displayName, email: m.email || '', selected: false, split_mode: 'percent', split_value: '', isAway: true };
         const idx = available.findIndex((a) => String(a._id) === String(m._id));
         const isLast = idx === available.length - 1;
         const pct = isLast ? Number((100 - eq * (available.length - 1)).toFixed(2)) : eq;
-        return { member_id: m._id, name: m.name || m.email || 'Thành viên', email: m.email || '', selected: true, split_mode: 'percent', split_value: String(pct), isAway: false };
+        return { member_id: m._id, name: displayName, email: m.email || '', selected: true, split_mode: 'percent', split_value: String(pct), isAway: false };
       })
     );
 
@@ -357,8 +358,8 @@ const BillManagement = () => {
     }
   };
 
-  const handleConfirmPayment = async (billId, detailId) => {
-    if (!window.confirm('Xác nhận thanh toán?')) return;
+  const handleConfirmPayment = async (billId, detailId, skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm('Xác nhận thanh toán?')) return;
     try {
       await billService.confirmBillPayment(billId, detailId);
       await fetchBills();
@@ -599,10 +600,17 @@ const BillManagement = () => {
                     {canConfirm && bill.status !== 'completed' && bill.details?.length > 0 && (
                       <button
                         className="btn-confirm-all"
-                        onClick={() => {
-                          bill.details
-                            .filter((d) => d.status !== 'paid')
-                            .forEach((d) => handleConfirmPayment(bill._id, d._id));
+                        onClick={async () => {
+                          if (!window.confirm('Xác nhận thanh toán cho tất cả các thành viên chưa trả?')) return;
+                          try {
+                            const pending = bill.details.filter((d) => d.status !== 'paid');
+                            for (const d of pending) {
+                              await billService.confirmBillPayment(bill._id, d._id);
+                            }
+                            await fetchBills();
+                          } catch (err) {
+                            setError(err.message || 'Không thể xác nhận toàn bộ');
+                          }
                         }}
                       >
                         <FontAwesomeIcon icon={faCheckCircle} /> Xác nhận toàn bộ
@@ -711,7 +719,7 @@ const BillManagement = () => {
                 <select name="payer_id" value={formData.payer_id} onChange={handleInputChange}>
                   <option value="">— Chọn người chịu trách nhiệm —</option>
                   {roomMembers.map((m) => (
-                    <option key={m._id} value={m._id}>{m.name || m.email}</option>
+                    <option key={m._id} value={m._id}>{m.name || (m.email ? m.email.split('@')[0] : 'Thành viên')}</option>
                   ))}
                 </select>
               </div>
