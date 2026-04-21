@@ -3,620 +3,645 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowDown,
   faArrowUp,
-  faBurger,
-  faCarSide,
-  faClapperboard,
+  faCamera,
+  faCheck,
+  faChartPie,
+  faClockRotateLeft,
   faCoins,
+  faExpand,
   faFileInvoiceDollar,
-  faPlus,
-  faQuestionCircle,
-  faShop,
-  faSackDollar,
+  faHouse,
+  faMoneyBillTransfer,
+  faTimes,
+  faUser,
   faUserGroup,
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import fundService from '../services/fund.service.js';
+import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/expense.sharing.css';
 
-const PIE_COLORS = ['#60a5fa', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#94a3b8'];
-const DEFAULT_CATEGORIES = ['Ăn uống', 'Hóa đơn', 'Di chuyển', 'Mua sắm', 'Giải trí', 'Chưa phân loại'];
-const CATEGORY_ICON_MAP = {
-  'Ăn uống': faBurger,
-  'Hóa đơn': faFileInvoiceDollar,
-  'Di chuyển': faCarSide,
-  'Mua sắm': faShop,
-  'Giải trí': faClapperboard,
-  'Chưa phân loại': faQuestionCircle,
+/* ─── constants ─────────────────────────────── */
+const PIE_COLORS = ['#6366f1', '#0ea5e9', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6'];
+
+const BILL_TYPE_LABEL = {
+  electricity: 'Tiền Điện',
+  water: 'Tiền Nước',
+  internet: 'Internet',
+  rent: 'Tiền Thuê',
+  other: 'Khác',
 };
 
-const formatCurrency = (amount = 0) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
-    Number(amount) || 0
-  );
+/* ─── helpers ────────────────────────────────── */
+const fmt = (n = 0) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-const formatMonthKey = (monthKey) => {
-  const [year, month] = String(monthKey || '').split('-');
-  if (!year || !month) return monthKey || '';
-  return `Tháng ${month}/${year}`;
-};
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
-const getMonthKey = (dateValue) => {
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return '';
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  return `${date.getFullYear()}-${month}`;
-};
+const getMemberName = (u) => u?.full_name || u?.name || u?.email || 'Thành viên';
 
-const getMemberName = (user) => user?.full_name || user?.name || user?.email || 'Thành viên';
+const getInitials = (name = '') =>
+  name.trim().split(' ').slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
 
-const ExpenseSharing = () => {
-  const [rooms, setRooms] = useState([]);
-  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
-  const [fundBalance, setFundBalance] = useState(0);
-  const [transactions, setTransactions] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [categoryAllocations, setCategoryAllocations] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const [showTransactionModal, setShowTransactionModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryAmount, setNewCategoryAmount] = useState('');
-  const [transactionForm, setTransactionForm] = useState({
-    type: 'deposit',
-    amount: '',
-    description: '',
-    category: 'Chưa phân loại',
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Không đọc được file'));
+    reader.readAsDataURL(file);
   });
 
+/* ─── Component ──────────────────────────────── */
+const ExpenseSharing = () => {
+  const { user } = useAuth();
+  const currentUserId = user?.id || user?._id;
+
+  /* ── State ── */
+  const [mode, setMode]           = useState('room'); // 'room' | 'personal'
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const [rooms, setRooms]         = useState([]);
+  const [fundBalance, setFundBalance] = useState(0);
+  const [transactions, setTransactions] = useState([]);
+  const [bills, setBills]         = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  /* modal: deposit */
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [depositForm, setDepositForm] = useState({ amount: '', description: '', proofImages: [] });
+
+  /* modal: withdraw */
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ amount: '', description: '' });
+
+  /* modal: history (for personal tab action) */
+  const [showHistory, setShowHistory] = useState(false);
+
+  /* lightbox */
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+
+  /* ── Sync room từ sidebar ── */
   useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const list = await roomService.getRooms();
-        setRooms(list);
-      } catch (err) {
-        setError(err?.message || 'Không thể tải danh sách phòng');
-      }
+    const sync = (e) => {
+      const id = e?.detail?.roomId || localStorage.getItem('currentRoomId') || '';
+      setSelectedRoomId(id);
     };
-    fetchRooms();
+    sync();
+    window.addEventListener('room-selected', sync);
+    return () => window.removeEventListener('room-selected', sync);
   }, []);
 
-  useEffect(() => {
-    const applyRoom = (roomId) => {
-      if (!roomId) return;
-      setSelectedRoomId(roomId);
-    };
+  /* ── Rooms ── */
+  useEffect(() => { roomService.getRooms().then(setRooms).catch(() => {}); }, []);
 
-    applyRoom(localStorage.getItem('currentRoomId'));
-    const handleRoomSelected = (event) => applyRoom(event.detail?.roomId || localStorage.getItem('currentRoomId'));
-    window.addEventListener('room-selected', handleRoomSelected);
-    return () => window.removeEventListener('room-selected', handleRoomSelected);
-  }, []);
-
-  useEffect(() => {
-    const fetchFundData = async () => {
-      if (!selectedRoomId) {
-        setTransactions([]);
-        setFundBalance(0);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError('');
-        const detail = await fundService.getFundDetail(selectedRoomId);
-        setFundBalance(Number(detail.balance) || 0);
-        setTransactions(Array.isArray(detail.transactions) ? detail.transactions : []);
-        setCategoryAllocations(Array.isArray(detail.category_allocations) ? detail.category_allocations : []);
-        const serverCategories = Array.isArray(detail.categories) ? detail.categories : [];
-        const mergedCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...serverCategories]));
-        setCategories(mergedCategories);
-      } catch (err) {
-        setError(err?.message || 'Không thể tải dữ liệu quỹ');
-        setTransactions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFundData();
-  }, [selectedRoomId]);
-
-  const computed = useMemo(() => {
-    const monthKeys = Array.from(
-      new Set(
-        transactions
-          .map((tx) => getMonthKey(tx.created_at))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => b.localeCompare(a));
-
-    const sourceTransactions =
-      selectedMonth === 'all'
-        ? transactions
-        : transactions.filter((tx) => getMonthKey(tx.created_at) === selectedMonth);
-
-    const monthIncome = sourceTransactions
-      .filter((tx) => tx.type === 'deposit')
-      .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
-
-    const monthExpense = sourceTransactions
-      .filter((tx) => tx.type === 'withdraw')
-      .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
-
-    const pendingToCollect = Math.max(0, monthExpense - monthIncome);
-
-    const typeDistributionMap = sourceTransactions.reduce((map, tx) => {
-      const key = String(tx.category || '').trim() || 'Chưa phân loại';
-      map.set(key, (map.get(key) || 0) + (Number(tx.amount) || 0));
-      return map;
-    }, new Map());
-
-    const distributionData = Array.from(typeDistributionMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-
-    const allocationData = categoryAllocations
-      .filter((item) => Number(item.amount) > 0)
-      .map((item) => ({ name: item.name, value: Number(item.amount) || 0 }))
-      .sort((a, b) => b.value - a.value);
-
-    const contributionMap = new Map();
-    sourceTransactions
-      .filter((tx) => tx.type === 'deposit')
-      .forEach((tx) => {
-        const user = tx.performed_by || {};
-        const key = user._id || user.email || 'unknown';
-        contributionMap.set(key, {
-          name: getMemberName(user),
-          amount: (contributionMap.get(key)?.amount || 0) + (Number(tx.amount) || 0),
-        });
-      });
-
-    const contributionData = Array.from(contributionMap.values()).sort((a, b) => b.amount - a.amount);
-    const memberCount = contributionData.length || 1;
-    const expectedPerMember = Math.round(monthIncome / memberCount);
-    const reconcileData = contributionData.map((item) => {
-      const diff = item.amount - expectedPerMember;
-      return { ...item, expected: expectedPerMember, diff };
-    });
-
-    return {
-      monthKeys,
-      monthIncome,
-      monthExpense,
-      pendingToCollect,
-      distributionData,
-      allocationData,
-      contributionData,
-      reconcileData,
-      categoryListData: allocationData,
-    };
-  }, [transactions, selectedMonth, categoryAllocations]);
-
-  const selectedRoomName = rooms.find((room) => room._id === selectedRoomId)?.name || 'Chưa chọn phòng';
-
-  const handleCreateTransaction = async () => {
-    const amount = Number(transactionForm.amount);
-    if (!selectedRoomId) {
-      setError('Vui lòng chọn phòng ở sidebar');
-      return;
-    }
-    if (!amount || amount < 1000) {
-      setError('Số tiền tối thiểu là 1.000 VNĐ');
-      return;
-    }
-
+  /* ── Fetch fund + bills ── */
+  const fetchAll = async () => {
+    if (!selectedRoomId) { setTransactions([]); setBills([]); setFundBalance(0); return; }
     try {
-      setSubmitting(true);
-      setError('');
-      if (transactionForm.type === 'deposit') {
-        await fundService.contributeFund(
-          selectedRoomId,
-          amount,
-          transactionForm.description,
-          transactionForm.category
-        );
-      } else {
-        await fundService.withdrawFund(
-          selectedRoomId,
-          amount,
-          transactionForm.description,
-          transactionForm.category
-        );
-      }
-      const detail = await fundService.getFundDetail(selectedRoomId);
+      setLoading(true); setError('');
+      const [detail, billList] = await Promise.all([
+        fundService.getFundDetail(selectedRoomId),
+        billService.getBillsByRoom(selectedRoomId),
+      ]);
       setFundBalance(Number(detail.balance) || 0);
       setTransactions(Array.isArray(detail.transactions) ? detail.transactions : []);
-      setCategoryAllocations(Array.isArray(detail.category_allocations) ? detail.category_allocations : []);
-      setShowTransactionModal(false);
-      setTransactionForm({ type: 'deposit', amount: '', description: '', category: 'Chưa phân loại' });
-      const serverCategories = Array.isArray(detail.categories) ? detail.categories : [];
-      setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...serverCategories])));
+      setBills(Array.isArray(billList) ? billList : []);
     } catch (err) {
-      setError(err?.message || 'Không thể tạo giao dịch quỹ');
+      setError(err?.message || 'Không thể tải dữ liệu quỹ');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
+  useEffect(() => { fetchAll(); }, [selectedRoomId]); // eslint-disable-line
 
-  const handleAddCategory = () => {
-    const value = String(newCategoryName || '').trim();
-    const amount = Number(newCategoryAmount) || 0;
-    if (!value) {
-      setError('Vui lòng nhập tên danh mục');
-      return;
-    }
-    if (amount <= 0) {
-      setError('Số tiền phân bổ phải lớn hơn 0');
-      return;
-    }
-    if (!selectedRoomId) {
-      setError('Vui lòng chọn phòng ở sidebar');
-      return;
-    }
+  /* ── Computed: room tab ── */
+  const roomStats = useMemo(() => {
+    const totalDeposit  = transactions.filter(t => t.type === 'deposit') .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const totalWithdraw = transactions.filter(t => t.type === 'withdraw').reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-    setSubmitting(true);
-    setError('');
-    fundService
-      .createCategory(selectedRoomId, value, amount)
-      .then((data) => {
-        const nextCategories = Array.isArray(data.categories) ? data.categories : [...categories, value];
-        setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...nextCategories])));
-        if (Array.isArray(data.category_allocations)) {
-          setCategoryAllocations(data.category_allocations);
-        } else {
-          setCategoryAllocations((prev) => {
-            const next = [...prev];
-            const idx = next.findIndex((item) => item.name === value);
-            if (idx >= 0) {
-              next[idx] = { ...next[idx], amount: (Number(next[idx].amount) || 0) + amount };
-            } else {
-              next.push({ name: value, amount });
-            }
-            return next;
-          });
-        }
-        if (typeof data.balance === 'number') setFundBalance(data.balance);
-        setTransactionForm((prev) => ({ ...prev, category: value }));
-        setNewCategoryName('');
-        setNewCategoryAmount('');
-        setShowCategoryModal(false);
-      })
-      .catch((err) => {
-        setError(err?.message || 'Không thể tạo danh mục quỹ');
-      })
-      .finally(() => setSubmitting(false));
+    /* Pie: chi theo loại hóa đơn */
+    const byType = {};
+    bills.forEach(bill => {
+      const label = bill.bill_type === 'other'
+        ? (bill.bill_type_other || 'Khác')
+        : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
+      byType[label] = (byType[label] || 0) + (Number(bill.total_amount) || 0);
+    });
+    const roomPieData = Object.entries(byType)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    const memberMap = new Map();
+    transactions.filter(t => t.type === 'deposit').forEach(t => {
+      const u = t.performed_by || {};
+      const key = u._id || u.email || 'unknown';
+      memberMap.set(key, { name: getMemberName(u), amount: (memberMap.get(key)?.amount || 0) + (Number(t.amount) || 0) });
+    });
+    const memberContribs = Array.from(memberMap.values()).sort((a, b) => b.amount - a.amount);
+    return { totalDeposit, totalWithdraw, memberContribs, roomPieData };
+  }, [transactions, bills]);
+
+  /* ── Computed: personal tab ── */
+  const personalStats = useMemo(() => {
+    const myDeposit = transactions
+      .filter(t => t.type === 'deposit' && (t.performed_by?._id || t.performed_by?.toString?.()) === currentUserId)
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    const myBillTotal = bills.reduce((s, bill) => {
+      const d = (bill.details || []).find(d => (d.member_id?._id || d.member_id) === currentUserId);
+      return s + (Number(d?.amount_due) || 0);
+    }, 0);
+
+    const myBillsByType = {};
+    bills.forEach(bill => {
+      const d = (bill.details || []).find(d => (d.member_id?._id || d.member_id) === currentUserId);
+      if (!d) return;
+      const label = bill.bill_type === 'other' ? (bill.bill_type_other || 'Khác') : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
+      myBillsByType[label] = (myBillsByType[label] || 0) + (Number(d.amount_due) || 0);
+    });
+    const myPieData = Object.entries(myBillsByType).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+    return { myDeposit, myBillTotal, diff: myDeposit - myBillTotal, myPieData };
+  }, [transactions, bills, currentUserId]);
+
+  /* ── History rows (gộp transactions + bills) ── */
+  const historyRows = useMemo(() => {
+    const rows = [];
+    transactions.forEach(tx => rows.push({
+      id: tx._id,
+      date: new Date(tx.created_at || tx.createdAt),
+      type: tx.type === 'deposit' ? 'deposit' : 'withdraw',
+      label: tx.type === 'deposit' ? `Nạp quỹ — ${getMemberName(tx.performed_by)}` : (tx.description || 'Rút quỹ'),
+      amount: Number(tx.amount) || 0,
+      note: tx.description || '',
+      proofImages: tx.proof_images || [],
+    }));
+    bills.forEach(bill => rows.push({
+      id: 'bill-' + bill._id,
+      date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+      type: 'bill',
+      label: bill.bill_type === 'other'
+        ? (bill.bill_type_other || 'Hóa đơn khác')
+        : `Trừ ${BILL_TYPE_LABEL[bill.bill_type] || 'hóa đơn'} — ${fmt(bill.total_amount)}`,
+      amount: Number(bill.total_amount) || 0,
+      note: `Tháng ${bill.billing_month} · ${bill.status === 'completed' ? 'Đã trả đủ' : 'Còn thanh toán'}`,
+      proofImages: bill.bill_images || [],
+    }));
+    return rows.sort((a, b) => b.date - a.date);
+  }, [transactions, bills]);
+
+  /* ── Handlers: deposit ── */
+  const handleSelectProof = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 3);
+    if (!files.length) return;
+    try {
+      const b64s = await Promise.all(files.map(fileToBase64));
+      setDepositForm(p => ({ ...p, proofImages: [...p.proofImages, ...b64s].slice(0, 3) }));
+    } catch { setError('Không thể đọc file ảnh'); }
   };
 
+  const handleSaveDeposit = async () => {
+    const amount = Number(depositForm.amount);
+    if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
+    try {
+      setSubmitting(true); setError('');
+      await fundService.contributeFund(selectedRoomId, amount, depositForm.description || 'Nạp quỹ', 'Nạp quỹ');
+      await fetchAll();
+      setShowDeposit(false);
+      setDepositForm({ amount: '', description: '', proofImages: [] });
+    } catch (err) { setError(err?.message || 'Không thể nạp quỹ'); }
+    finally { setSubmitting(false); }
+  };
+
+  /* ── Handlers: withdraw ── */
+  const handleSaveWithdraw = async () => {
+    const amount = Number(withdrawForm.amount);
+    if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
+    try {
+      setSubmitting(true); setError('');
+      await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ');
+      await fetchAll();
+      setShowWithdraw(false);
+      setWithdrawForm({ amount: '', description: '' });
+    } catch (err) { setError(err?.message || 'Không thể rút quỹ'); }
+    finally { setSubmitting(false); }
+  };
+
+  const selectedRoomName = rooms.find(r => r._id === selectedRoomId)?.name || 'Chưa chọn phòng';
+
+  /* ══════════════════════════════════════════════
+     RENDER
+  ══════════════════════════════════════════════ */
   return (
     <div className="expense-sharing">
+
+      {/* ── HEADER + TAB SWITCH ── */}
       <div className="expense-sharing-header">
         <div className="header-content">
           <h1>Quỹ Tiền Chung</h1>
-          <p>Phòng hiện tại: {selectedRoomName}</p>
+          <p>
+            {mode === 'room'
+              ? <><FontAwesomeIcon icon={faHouse} /> {selectedRoomName}</>
+              : <><FontAwesomeIcon icon={faUser} /> {getMemberName(user)} · {selectedRoomName}</>}
+          </p>
         </div>
-        <button className="btn-add" onClick={() => setShowTransactionModal(true)} disabled={!selectedRoomId || submitting}>
-          <FontAwesomeIcon icon={faPlus} /> Thêm giao dịch quỹ
-        </button>
+        {/* Tab switch giống Dashboard */}
+        <div className="dashboard-mode-switch">
+          <button className={mode === 'room'     ? 'active' : ''} onClick={() => setMode('room')}>Phòng</button>
+          <button className={mode === 'personal' ? 'active' : ''} onClick={() => setMode('personal')}>Cá nhân</button>
+        </div>
       </div>
 
       {error && <div className="alert-error">{error}</div>}
+      {!selectedRoomId && <div className="es-empty">Vui lòng chọn phòng ở sidebar để xem quỹ.</div>}
 
-      <div className="fund-overview-grid">
-        <div className="overview-card">
-          <span>Số dư quỹ hiện tại</span>
-          <strong>{formatCurrency(fundBalance)}</strong>
-          <small><FontAwesomeIcon icon={faWallet} /> Quỹ phòng</small>
-        </div>
-        <div className="overview-card">
-          <span>Tổng thu {selectedMonth === 'all' ? 'đã ghi nhận' : formatMonthKey(selectedMonth)}</span>
-          <strong>{formatCurrency(computed.monthIncome)}</strong>
-          <small><FontAwesomeIcon icon={faArrowUp} /> Tiền đóng góp</small>
-        </div>
-        <div className="overview-card">
-          <span>Tổng chi {selectedMonth === 'all' ? 'đã ghi nhận' : formatMonthKey(selectedMonth)}</span>
-          <strong>{formatCurrency(computed.monthExpense)}</strong>
-          <small><FontAwesomeIcon icon={faArrowDown} /> Chi tiêu chung</small>
-        </div>
-        <div className="overview-card">
-          <span>Cần thu thêm</span>
-          <strong>{formatCurrency(computed.pendingToCollect)}</strong>
-          <small><FontAwesomeIcon icon={faCoins} /> Bù vào quỹ</small>
-        </div>
-      </div>
-
-      <div className="fund-filter-row">
-        <label htmlFor="fund-month-filter">Tháng</label>
-        <select
-          id="fund-month-filter"
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-        >
-          <option value="all">Tất cả</option>
-          {computed.monthKeys.map((month) => (
-            <option key={month} value={month}>
-              {formatMonthKey(month)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="fund-middle-grid">
-        <div className="fund-chart-card">
-          <h2>Chi theo danh mục</h2>
-          {computed.distributionData.length === 0 ? (
-            <div className="empty-inline">Chưa có dữ liệu giao dịch</div>
-          ) : (
-            <div className="pie-layout">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={computed.distributionData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={58}
-                    outerRadius={90}
-                    paddingAngle={3}
-                  >
-                    {computed.distributionData.map((item, index) => (
-                      <Cell key={`${item.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pie-legend">
-                {computed.distributionData.map((item, index) => (
-                  <div key={`${item.name}-${index}`} className="legend-item">
-                    <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p>{formatCurrency(item.value)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="fund-chart-card">
-          <h2><FontAwesomeIcon icon={faSackDollar} /> Số dư danh mục</h2>
-          {computed.allocationData.length === 0 ? (
-            <div className="empty-inline">Chưa có phân bổ danh mục</div>
-          ) : (
-            <div className="pie-layout">
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={computed.allocationData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={58}
-                    outerRadius={90}
-                    paddingAngle={3}
-                  >
-                    {computed.allocationData.map((item, index) => (
-                      <Cell key={`${item.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pie-legend">
-                {computed.allocationData.map((item, index) => (
-                  <div key={`${item.name}-${index}`} className="legend-item">
-                    <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                    <div>
-                      <strong>{item.name}</strong>
-                      <p>{formatCurrency(item.value)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="fund-chart-card full">
-        <div className="category-list-header">
-          <h2>Danh mục quỹ</h2>
-          <button className="btn-add category-add-btn" onClick={() => setShowCategoryModal(true)}>
-            <FontAwesomeIcon icon={faPlus} /> Thêm danh mục
-          </button>
-        </div>
-        {computed.categoryListData.length === 0 ? (
-          <div className="empty-inline">Chưa có dữ liệu danh mục</div>
-        ) : (
-          <div className="category-mobile-list">
-            {computed.categoryListData.map((item) => {
-              const icon = CATEGORY_ICON_MAP[item.name] || faQuestionCircle;
-              return (
-                <div
-                  key={item.name}
-                  className={`category-mobile-item ${item.name === 'Chưa phân loại' ? 'uncategorized' : ''}`}
-                >
-                  <div className="category-name-wrap">
-                    <span className="category-icon">
-                      <FontAwesomeIcon icon={icon} />
-                    </span>
-                    <span className="category-name">{item.name}</span>
-                  </div>
-                  <strong>{formatCurrency(item.value)}</strong>
+      {selectedRoomId && (
+        <>
+          {/* ══════ TAB: PHÒNG ══════ */}
+          {mode === 'room' && (
+            <>
+              {/* Stats */}
+              <div className="fund-overview-grid">
+                <div className="overview-card">
+                  <span>Số dư quỹ</span>
+                  <strong>{fmt(fundBalance)}</strong>
+                  <small><FontAwesomeIcon icon={faWallet} /> Quỹ phòng</small>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="fund-chart-card full">
-        <h2>Lịch sử giao dịch quỹ</h2>
-        {loading ? (
-          <div className="empty-inline">Đang tải dữ liệu...</div>
-        ) : transactions.length === 0 ? (
-          <div className="empty-inline">Chưa có giao dịch nào.</div>
-        ) : (
-          <div className="transaction-table-wrap">
-            <table className="transaction-table">
-              <thead>
-                <tr>
-                  <th>Ngày</th>
-                  <th>Loại</th>
-                  <th>Người tạo</th>
-                  <th>Nội dung</th>
-                  <th>Số tiền</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr key={tx._id}>
-                    <td>{new Date(tx.created_at).toLocaleDateString('vi-VN')}</td>
-                    <td>
-                      <span className={`tx-type ${tx.type}`}>{tx.type === 'deposit' ? 'Thu' : 'Chi'}</span>
-                    </td>
-                    <td>{getMemberName(tx.performed_by)}</td>
-                    <td>
-                      <div className="tx-description-main">{tx.description || '-'}</div>
-                      <div className="tx-category-chip">{tx.category || 'Chưa phân loại'}</div>
-                    </td>
-                    <td className={tx.type === 'deposit' ? 'tx-amount in' : 'tx-amount out'}>
-                      {formatCurrency(tx.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {showTransactionModal && (
-        <div className="modal-overlay" onClick={() => setShowTransactionModal(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Thêm giao dịch quỹ</h2>
-              <button className="btn-close-modal" onClick={() => setShowTransactionModal(false)}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Loại giao dịch</label>
-                  <select
-                    value={transactionForm.type}
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, type: e.target.value }))}
-                  >
-                    <option value="deposit">Thu (đóng góp)</option>
-                    <option value="withdraw">Chi (rút quỹ)</option>
-                  </select>
+                <div className="overview-card">
+                  <span>Tổng đã nạp</span>
+                  <strong style={{ color: '#0d9488' }}>{fmt(roomStats.totalDeposit)}</strong>
+                  <small><FontAwesomeIcon icon={faArrowUp} /> Đóng góp</small>
                 </div>
-                <div className="form-group">
-                  <label>Số tiền</label>
-                  <input
-                    type="number"
-                    min="1000"
-                    value={transactionForm.amount}
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, amount: e.target.value }))}
-                    placeholder="100000"
+                <div className="overview-card">
+                  <span>Tổng đã chi</span>
+                  <strong style={{ color: '#dc2626' }}>{fmt(roomStats.totalWithdraw)}</strong>
+                  <small><FontAwesomeIcon icon={faArrowDown} /> Rút quỹ</small>
+                </div>
+                <div className="overview-card">
+                  <span>Hóa đơn phòng</span>
+                  <strong>{bills.length}</strong>
+                  <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> Tổng số hóa đơn</small>
+                </div>
+              </div>
+
+              {/* Biểu đồ + Đóng góp thành viên — 2 cột */}
+              <div className="fund-middle-grid">
+
+                {/* Pie: Chi theo loại hóa đơn */}
+                <div className="fund-chart-card">
+                  <h2>Chi theo loại hóa đơn</h2>
+                  {roomStats.roomPieData.length === 0 ? (
+                    <div className="empty-inline">Chưa có hóa đơn nào.</div>
+                  ) : (
+                    <div className="pie-layout">
+                      <ResponsiveContainer width="100%" height={230}>
+                        <PieChart>
+                          <Pie
+                            data={roomStats.roomPieData}
+                            dataKey="value" nameKey="name"
+                            innerRadius={56} outerRadius={88} paddingAngle={3}
+                          >
+                            {roomStats.roomPieData.map((_, i) => (
+                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={v => fmt(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="pie-legend">
+                        {roomStats.roomPieData.map((item, i) => (
+                          <div key={i} className="legend-item">
+                            <span className="dot" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                            <div>
+                              <strong>{item.name}</strong>
+                              <p>{fmt(item.value)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Đóng góp thành viên */}
+                <div className="fund-chart-card">
+                  <h2><FontAwesomeIcon icon={faCoins} /> Đóng góp thành viên</h2>
+                  {roomStats.memberContribs.length === 0 ? (
+                    <div className="empty-inline">Chưa có ai đóng quỹ.</div>
+                  ) : (
+                    <div className="member-contrib-list">
+                      {roomStats.memberContribs.map((m, i) => (
+                        <div key={i} className="member-contrib-row">
+                          <div className="mc-avatar">{getInitials(m.name)}</div>
+                          <div className="mc-info">
+                            <span className="mc-name">{m.name}</span>
+                            <div className="mc-bar-track">
+                              <div className="mc-bar-fill" style={{
+                                width: roomStats.totalDeposit > 0
+                                  ? `${Math.min(100, (m.amount / roomStats.totalDeposit) * 100)}%` : '0%',
+                              }} />
+                            </div>
+                          </div>
+                          <span className="mc-amount">{fmt(m.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lịch sử phòng */}
+              <div className="fund-chart-card full">
+                <h2>Lịch sử thu chi phòng</h2>
+                {loading ? <div className="empty-inline">Đang tải...</div>
+                  : historyRows.length === 0 ? <div className="empty-inline">Chưa có giao dịch nào.</div>
+                  : <HistoryTable rows={historyRows} onThumb={setLightboxSrc} />}
+              </div>
+            </>
+          )}
+
+          {/* ══════ TAB: CÁ NHÂN ══════ */}
+          {mode === 'personal' && (
+            <>
+              {/* Quick action buttons — banking style */}
+              <div className="qa-row">
+                <button className="qa-btn" onClick={() => { setError(''); setShowDeposit(true); }}>
+                  <span className="qa-icon"><FontAwesomeIcon icon={faArrowUp} /></span>
+                  <span className="qa-label">Nạp tiền</span>
+                </button>
+                <button className="qa-btn" onClick={() => { setError(''); setShowWithdraw(true); }}>
+                  <span className="qa-icon"><FontAwesomeIcon icon={faMoneyBillTransfer} /></span>
+                  <span className="qa-label">Rút tiền</span>
+                </button>
+                <button className="qa-btn" onClick={() => setShowHistory(true)}>
+                  <span className="qa-icon"><FontAwesomeIcon icon={faClockRotateLeft} /></span>
+                  <span className="qa-label">Lịch sử</span>
+                </button>
+                <button className="qa-btn" onClick={() => setMode('room')}>
+                  <span className="qa-icon"><FontAwesomeIcon icon={faChartPie} /></span>
+                  <span className="qa-label">Thống kê</span>
+                </button>
+              </div>
+
+              {/* Personal stats */}
+              <div className="fund-overview-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginTop: 16 }}>
+                <div className="overview-card">
+                  <span>Tôi đã nạp</span>
+                  <strong style={{ color: '#0d9488' }}>{fmt(personalStats.myDeposit)}</strong>
+                  <small><FontAwesomeIcon icon={faArrowUp} /> Đóng quỹ</small>
+                </div>
+                <div className="overview-card">
+                  <span>Hóa đơn của tôi</span>
+                  <strong style={{ color: '#dc2626' }}>{fmt(personalStats.myBillTotal)}</strong>
+                  <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> Phân bổ</small>
+                </div>
+                <div className="overview-card">
+                  <span>Chênh lệch</span>
+                  <strong style={{ color: personalStats.diff >= 0 ? '#0d9488' : '#dc2626' }}>
+                    {fmt(personalStats.diff)}
+                  </strong>
+                  <small>{personalStats.diff >= 0 ? '✔ Đủ / dư' : '⚠ Còn thiếu'}</small>
+                </div>
+              </div>
+
+              {/* Biểu đồ cá nhân */}
+              <div className="fund-middle-grid" style={{ marginTop: 14 }}>
+                <div className="fund-chart-card">
+                  <h2>Chi phí của tôi theo loại</h2>
+                  {personalStats.myPieData.length === 0 ? (
+                    <div className="empty-inline">Bạn chưa có hóa đơn phân bổ nào.</div>
+                  ) : (
+                    <div className="pie-layout">
+                      <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                          <Pie data={personalStats.myPieData} dataKey="value" nameKey="name"
+                            innerRadius={54} outerRadius={86} paddingAngle={3}>
+                            {personalStats.myPieData.map((_, i) => (
+                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={v => fmt(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="pie-legend">
+                        {personalStats.myPieData.map((item, i) => (
+                          <div key={i} className="legend-item">
+                            <span className="dot" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                            <div><strong>{item.name}</strong><p>{fmt(item.value)}</p></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Giao dịch cá nhân gần nhất */}
+                <div className="fund-chart-card">
+                  <h2>Giao dịch gần nhất của tôi</h2>
+                  <HistoryTable
+                    rows={historyRows
+                      .filter(r => r.type === 'deposit' && r.label.includes(getMemberName(user)))
+                      .slice(0, 5)}
+                    onThumb={setLightboxSrc}
+                    compact
                   />
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Danh mục</label>
-                  <select
-                    value={transactionForm.category}
-                    onChange={(e) => setTransactionForm((prev) => ({ ...prev, category: e.target.value }))}
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group category-inline-add">
-                  <label>Tạo nhanh danh mục</label>
-                  <button
-                    type="button"
-                    className="btn-cancel"
-                    onClick={() => setShowCategoryModal(true)}
-                  >
-                    + Thêm danh mục mới
-                  </button>
-                </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════
+          MODALS
+      ══════════════════════════════════════════ */}
+
+      {/* Deposit modal */}
+      {showDeposit && (
+        <div className="modal-overlay" onClick={() => setShowDeposit(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><FontAwesomeIcon icon={faArrowUp} /> Nạp tiền vào quỹ</h2>
+              <button className="btn-close-modal" onClick={() => setShowDeposit(false)}><FontAwesomeIcon icon={faTimes} /></button>
+            </div>
+            <div className="modal-body">
+              {error && <div className="alert-error" style={{ marginBottom: 10 }}>{error}</div>}
+              <div className="form-group">
+                <label>Số tiền *</label>
+                <input type="number" min="1000" placeholder="500000"
+                  value={depositForm.amount}
+                  onChange={e => setDepositForm(p => ({ ...p, amount: e.target.value }))} />
               </div>
               <div className="form-group">
-                <label>Nội dung</label>
-                <input
-                  type="text"
-                  value={transactionForm.description}
-                  onChange={(e) => setTransactionForm((prev) => ({ ...prev, description: e.target.value }))}
-                  placeholder="Ví dụ: Đóng quỹ tháng 4 / Mua đồ vệ sinh"
-                />
+                <label>Ghi chú</label>
+                <input type="text" placeholder="Đóng quỹ tháng 4..."
+                  value={depositForm.description}
+                  onChange={e => setDepositForm(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label><FontAwesomeIcon icon={faCamera} /> Ảnh minh chứng (tối đa 3)</label>
+                {depositForm.proofImages.length < 3 && (
+                  <label className="proof-upload-area">
+                    <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleSelectProof} />
+                    <div className="proof-upload-inner">
+                      <FontAwesomeIcon icon={faCamera} className="proof-upload-icon" />
+                      <span>Chọn ảnh chuyển khoản</span>
+                      <small>JPG, PNG — tối đa 3</small>
+                    </div>
+                  </label>
+                )}
+                {depositForm.proofImages.length > 0 && (
+                  <div className="proof-preview-grid">
+                    {depositForm.proofImages.map((src, i) => (
+                      <div key={i} className="proof-preview-item">
+                        <img src={src} alt="proof" onClick={() => setLightboxSrc(src)} />
+                        <button className="proof-remove-btn"
+                          onClick={() => setDepositForm(p => ({ ...p, proofImages: p.proofImages.filter((_, j) => j !== i) }))}>
+                          <FontAwesomeIcon icon={faTimes} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="hint-text">{depositForm.proofImages.length}/3 ảnh</p>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowTransactionModal(false)}>
-                Hủy
-              </button>
-              <button className="btn-submit" onClick={handleCreateTransaction} disabled={submitting}>
-                {submitting ? 'Đang lưu...' : 'Lưu giao dịch'}
+              <button className="btn-cancel" onClick={() => setShowDeposit(false)} disabled={submitting}>Hủy</button>
+              <button className="btn-submit" onClick={handleSaveDeposit} disabled={submitting}>
+                {submitting ? 'Đang lưu...' : <><FontAwesomeIcon icon={faCheck} /> Xác nhận nạp</>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {showCategoryModal && (
-        <div className="modal-overlay" onClick={() => setShowCategoryModal(false)}>
-          <div className="modal-container small" onClick={(e) => e.stopPropagation()}>
+      {/* Withdraw modal */}
+      {showWithdraw && (
+        <div className="modal-overlay" onClick={() => setShowWithdraw(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Tạo danh mục quỹ</h2>
-              <button className="btn-close-modal" onClick={() => setShowCategoryModal(false)}>
-                ×
-              </button>
+              <h2><FontAwesomeIcon icon={faMoneyBillTransfer} /> Rút tiền từ quỹ</h2>
+              <button className="btn-close-modal" onClick={() => setShowWithdraw(false)}><FontAwesomeIcon icon={faTimes} /></button>
             </div>
             <div className="modal-body">
+              {error && <div className="alert-error" style={{ marginBottom: 10 }}>{error}</div>}
               <div className="form-group">
-                <label>Tên danh mục</label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Ví dụ: Ăn uống (nếu trùng sẽ cộng thêm)"
-                />
+                <span className="fund-balance-hint">Số dư hiện tại: <strong>{fmt(fundBalance)}</strong></span>
               </div>
               <div className="form-group">
-                <label>Số tiền phân bổ từ quỹ</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newCategoryAmount}
-                  onChange={(e) => setNewCategoryAmount(e.target.value)}
-                  placeholder="Ví dụ: 300000"
-                />
+                <label>Số tiền rút *</label>
+                <input type="number" min="1000" placeholder="200000"
+                  value={withdrawForm.amount}
+                  onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>Lý do rút *</label>
+                <input type="text" placeholder="Mua đồ vệ sinh / chi phí chung..."
+                  value={withdrawForm.description}
+                  onChange={e => setWithdrawForm(p => ({ ...p, description: e.target.value }))} />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowCategoryModal(false)}>
-                Hủy
-              </button>
-              <button className="btn-submit" onClick={handleAddCategory} disabled={submitting}>
-                Lưu danh mục
+              <button className="btn-cancel" onClick={() => setShowWithdraw(false)} disabled={submitting}>Hủy</button>
+              <button className="btn-submit btn-withdraw" onClick={handleSaveWithdraw} disabled={submitting}>
+                {submitting ? 'Đang lưu...' : <><FontAwesomeIcon icon={faArrowDown} /> Xác nhận rút</>}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* History modal (từ nút Lịch sử của tab cá nhân) */}
+      {showHistory && (
+        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+          <div className="modal-container modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><FontAwesomeIcon icon={faClockRotateLeft} /> Lịch sử quỹ của tôi</h2>
+              <button className="btn-close-modal" onClick={() => setShowHistory(false)}><FontAwesomeIcon icon={faTimes} /></button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <HistoryTable
+                rows={historyRows.filter(r =>
+                  r.type === 'deposit' && r.label.includes(getMemberName(user))
+                )}
+                onThumb={setLightboxSrc}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div className="lightbox-overlay" onClick={() => setLightboxSrc(null)}>
+          <div className="lightbox-content" onClick={e => e.stopPropagation()}>
+            <button className="lightbox-close" onClick={() => setLightboxSrc(null)}><FontAwesomeIcon icon={faTimes} /></button>
+            <img src={lightboxSrc} alt="Minh chứng" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── HistoryTable sub-component ─── */
+const HistoryTable = ({ rows, onThumb, compact }) => {
+  if (!rows || rows.length === 0) return <div className="empty-inline">Không có dữ liệu.</div>;
+  return (
+    <div className="transaction-table-wrap">
+      <table className="transaction-table">
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th>Nội dung</th>
+            {!compact && <><th>Nạp</th><th>Trừ</th></>}
+            <th>Ảnh</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => (
+            <tr key={row.id + idx}>
+              <td className="td-date">{fmtDate(row.date)}</td>
+              <td>
+                <div className="tx-main-label">{row.label}</div>
+                {row.note && <div className="tx-note">{row.note}</div>}
+              </td>
+              {!compact && (
+                <>
+                  <td className="td-num">
+                    {row.type === 'deposit'
+                      ? <span className="tx-amount in">+{new Intl.NumberFormat('vi-VN').format(row.amount)}</span>
+                      : <span className="tx-dash">—</span>}
+                  </td>
+                  <td className="td-num">
+                    {row.type !== 'deposit'
+                      ? <span className="tx-amount out">−{new Intl.NumberFormat('vi-VN').format(row.amount)}</span>
+                      : <span className="tx-dash">—</span>}
+                  </td>
+                </>
+              )}
+              <td>
+                {row.proofImages?.length > 0 ? (
+                  <div className="tx-thumbs">
+                    {row.proofImages.map((src, i) => (
+                      <button key={i} className="tx-thumb-btn" onClick={() => onThumb(src)}>
+                        <img src={src} alt="proof" />
+                        <span className="tx-thumb-overlay"><FontAwesomeIcon icon={faExpand} /></span>
+                      </button>
+                    ))}
+                  </div>
+                ) : <span className="tx-dash">—</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

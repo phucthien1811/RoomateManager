@@ -11,6 +11,7 @@ import {
   faDownload,
   faMinus,
 } from '@fortawesome/free-solid-svg-icons';
+import * as XLSX from 'xlsx';
 import billService from '../services/bill.service.js';
 import fundService from '../services/fund.service.js';
 import '../styles/financial.report.css';
@@ -154,25 +155,47 @@ const FinancialReport = () => {
   const totalExpense = rows.filter((r) => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
   const finalBalance = rows.length > 0 ? rows[rows.length - 1].balance : 0;
 
-  /* Export CSV */
-  const exportCSV = () => {
-    const header = 'Ngày,Khoản mục,Danh mục,Thu (VND),Chi (VND),Số dư (VND),Ghi chú\n';
-    const body = rows.map((r) =>
-      [
-        fmtDate(r.date),
-        r.label,
-        r.category,
-        r.type === 'income'  ? r.amount : '',
-        r.type === 'expense' ? r.amount : '',
-        r.balance,
-        r.note,
-      ].join(',')
-    ).join('\n');
-    const blob = new Blob(['\uFEFF' + header + body], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `bao-cao-tai-chinh-${filterMonth}.csv`;
-    link.click();
+  /* Export Excel (.xlsx) — SheetJS, tiếng Việt hoàn hảo */
+  const exportXLSX = () => {
+    // Header row
+    const headerRow = ['STT', 'Ngày', 'Khoản mục', 'Danh mục', 'Thu (VND)', 'Chi (VND)', 'Số dư (VND)', 'Ghi chú'];
+
+    // Data rows
+    const dataRows = rows.map((r, idx) => [
+      idx + 1,
+      fmtDate(r.date),
+      r.label,
+      r.category,
+      r.type === 'income'  ? r.amount : '',
+      r.type === 'expense' ? r.amount : '',
+      r.balance,
+      r.note || '',
+    ]);
+
+    // Footer tổng kỳ
+    const footerRow = [
+      '', `Cộng kỳ ${filterMonth}`, '', '',
+      totalIncome, totalExpense, finalBalance, '',
+    ];
+
+    const wsData = [headerRow, ...dataRows, footerRow];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Độ rộng cột
+    ws['!cols'] = [
+      { wch: 5  },  // STT
+      { wch: 12 },  // Ngày
+      { wch: 24 },  // Khoản mục
+      { wch: 12 },  // Danh mục
+      { wch: 16 },  // Thu
+      { wch: 16 },  // Chi
+      { wch: 18 },  // Số dư
+      { wch: 28 },  // Ghi chú
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Tháng ${filterMonth}`);
+    XLSX.writeFile(wb, `bao-cao-tai-chinh-${filterMonth}.xlsx`);
   };
 
   return (
@@ -191,8 +214,8 @@ const FinancialReport = () => {
             value={filterMonth}
             onChange={(e) => setFilterMonth(e.target.value)}
           />
-          <button className="fr-btn-export" onClick={exportCSV} disabled={rows.length === 0}>
-            <FontAwesomeIcon icon={faDownload} /> Xuất CSV
+          <button className="fr-btn-export" onClick={exportXLSX} disabled={rows.length === 0}>
+            <FontAwesomeIcon icon={faDownload} /> Xuất Excel (.xlsx)
           </button>
         </div>
       </div>
