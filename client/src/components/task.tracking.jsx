@@ -6,9 +6,6 @@ import {
   faChevronRight,
   faClipboardCheck,
   faImage,
-  faPlus,
-  faTasks,
-  faTrash,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -274,12 +271,9 @@ const TaskTracking = () => {
     <div className="task-tracking-page">
       <div className="task-header">
         <div>
-          <h1>Công Việc Chung</h1>
-          <p>Tag thành viên, theo dõi nhiệm vụ từ lịch trực và xác nhận hoàn thành bằng ảnh minh chứng.</p>
+          <h1>Công Việc</h1>
+          <p>Theo dõi nhiệm vụ từ lịch trực và xác nhận hoàn thành bằng ảnh minh chứng.</p>
         </div>
-        <button type="button" className="btn-primary" onClick={openCreateModal} disabled={!selectedRoomId || saving}>
-          <FontAwesomeIcon icon={faPlus} /> Tạo công việc
-        </button>
       </div>
 
       <div className="week-toolbar">
@@ -331,140 +325,11 @@ const TaskTracking = () => {
             )}
           </section>
 
-          <section className="task-section">
-            <div className="section-title">
-              <FontAwesomeIcon icon={faTasks} /> Bảng công việc chung của phòng
-            </div>
-            {loading ? (
-              <div className="empty-box">Đang tải...</div>
-            ) : manualTasks.length === 0 ? (
-              <div className="empty-box">Chưa có công việc chung nào.</div>
-            ) : (
-              <div className="task-grid">
-                {manualTasks.map((task) => (
-                  <article key={task._id} className={`task-card ${task.status}`}>
-                    <h3>{task.title || task.note}</h3>
-                    <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')}</p>
-                    {task.start_hour && task.end_hour && <p>{task.start_hour}:00 - {task.end_hour}:00</p>}
-                    {task.note && <small>{task.note}</small>}
-                    <div className="tag-list">
-                      {(task.assigned_members || []).map((member) => (
-                        <span key={`${task._id}-${getEntityId(member)}`}>
-                          {memberNameById.get(getEntityId(member)) || member.name || 'Thành viên'}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="proof-list">
-                      {(task.proof_images || []).map((image, index) => (
-                        <img key={`${task._id}-manual-proof-${index}`} src={image} alt="proof" />
-                      ))}
-                    </div>
-                    <div className="task-actions">
-                      {task.status === 'completed' ? (
-                        <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
-                      ) : (
-                        <>
-                          {isMine(task) && (
-                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'manual', item: task })}>
-                              <FontAwesomeIcon icon={faImage} /> Hoàn thành
-                            </button>
-                          )}
-                          {canDelete(task) && (
-                            <button type="button" className="btn-danger" onClick={() => handleDeleteTask(task._id)}>
-                              <FontAwesomeIcon icon={faTrash} />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+
         </>
       )}
 
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={closeCreateModal}>
-          <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-head">
-              <h2>Tạo công việc chung</h2>
-              <button type="button" onClick={closeCreateModal}><FontAwesomeIcon icon={faXmark} /></button>
-            </div>
-            <div className="modal-body">
-              <label htmlFor="task-title">Tiêu đề *</label>
-              <input
-                id="task-title"
-                value={createForm.title}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="VD: Vệ sinh phòng khách"
-              />
-              <label htmlFor="task-date">Ngày thực hiện *</label>
-              <input
-                id="task-date"
-                type="date"
-                value={createForm.choreDate}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, choreDate: event.target.value }))}
-              />
-              <div className="time-grid">
-                <div>
-                  <label htmlFor="task-start">Giờ bắt đầu</label>
-                  <input
-                    id="task-start"
-                    type="number"
-                    min="1"
-                    max="23"
-                    value={createForm.startHour}
-                    onChange={(event) => setCreateForm((prev) => ({ ...prev, startHour: event.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="task-end">Giờ kết thúc</label>
-                  <input
-                    id="task-end"
-                    type="number"
-                    min="2"
-                    max="24"
-                    value={createForm.endHour}
-                    onChange={(event) => setCreateForm((prev) => ({ ...prev, endHour: event.target.value }))}
-                  />
-                </div>
-              </div>
-              <label htmlFor="task-note">Ghi chú</label>
-              <textarea
-                id="task-note"
-                rows="3"
-                value={createForm.note}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, note: event.target.value }))}
-              />
 
-              <label>Tag thành viên phụ trách *</label>
-              <div className="member-pick-list">
-                {members.map((member) => {
-                  const memberId = getEntityId(member);
-                  return (
-                    <label key={memberId} className="member-item">
-                      <input
-                        type="checkbox"
-                        checked={createForm.memberIds.includes(memberId)}
-                        onChange={() => toggleMember(memberId)}
-                      />
-                      <span>{member.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="modal-foot">
-              <button type="button" className="btn-ghost" onClick={closeCreateModal} disabled={saving}>Hủy</button>
-              <button type="button" className="btn-primary" onClick={handleCreateTask} disabled={saving}>
-                {saving ? 'Đang lưu...' : 'Lưu công việc'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showProofModal && (
         <div className="modal-overlay" onClick={() => !saving && setShowProofModal(false)}>
