@@ -59,6 +59,40 @@ const BILL_TYPES = [
 
 const getBillTypeMeta = (key) => BILL_TYPES.find((t) => t.key === key) || BILL_TYPES[4];
 
+const buildSplitParticipants = (members = [], awayIds = []) => {
+  const available = members.filter((m) => !awayIds.includes(String(m._id)));
+  const eq = available.length > 0 ? Math.floor((100 / available.length) * 100) / 100 : 0;
+
+  return members.map((m) => {
+    const isAway = awayIds.includes(String(m._id));
+    const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Thành viên');
+    if (isAway) {
+      return {
+        member_id: m._id,
+        name: displayName,
+        email: m.email || '',
+        selected: false,
+        split_mode: 'percent',
+        split_value: '',
+        isAway: true,
+      };
+    }
+
+    const idx = available.findIndex((a) => String(a._id) === String(m._id));
+    const isLast = idx === available.length - 1;
+    const pct = isLast ? Number((100 - eq * (available.length - 1)).toFixed(2)) : eq;
+    return {
+      member_id: m._id,
+      name: displayName,
+      email: m.email || '',
+      selected: true,
+      split_mode: 'percent',
+      split_value: String(pct),
+      isAway: false,
+    };
+  });
+};
+
 /* ─── Component ──────────────────────── */
 const BillManagement = () => {
   const { user, loading: authLoading } = useAuth();
@@ -75,6 +109,7 @@ const BillManagement = () => {
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
   // RM-8: Image upload state
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageModalBill, setImageModalBill] = useState(null);
@@ -147,6 +182,7 @@ const BillManagement = () => {
   };
 
   const fetchRoomParticipants = async (roomId) => {
+    setParticipantsLoading(true);
     try {
       const [members, reports] = await Promise.all([
         roomService.getRoomMembers(roomId),
@@ -169,6 +205,8 @@ const BillManagement = () => {
       setRoomMembers([]);
       setAwayMemberIds([]);
       setSplitParticipants([]);
+    } finally {
+      setParticipantsLoading(false);
     }
   };
 
@@ -190,20 +228,7 @@ const BillManagement = () => {
       description: '',
     });
 
-    const available = roomMembers.filter((m) => !awayMemberIds.includes(String(m._id)));
-    const eq = available.length > 0 ? Math.floor((100 / available.length) * 100) / 100 : 0;
-
-    setSplitParticipants(
-      roomMembers.map((m) => {
-        const isAway = awayMemberIds.includes(String(m._id));
-        const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Thành viên');
-        if (isAway) return { member_id: m._id, name: displayName, email: m.email || '', selected: false, split_mode: 'percent', split_value: '', isAway: true };
-        const idx = available.findIndex((a) => String(a._id) === String(m._id));
-        const isLast = idx === available.length - 1;
-        const pct = isLast ? Number((100 - eq * (available.length - 1)).toFixed(2)) : eq;
-        return { member_id: m._id, name: displayName, email: m.email || '', selected: true, split_mode: 'percent', split_value: String(pct), isAway: false };
-      })
-    );
+    setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds));
 
     setError('');
     setAutoPayWithFund(false);
@@ -313,6 +338,7 @@ const BillManagement = () => {
     const amount = parseInt(formData.total_amount);
     if (isNaN(amount) || amount < 1000) { setError('Tổng tiền phải lớn hơn 1.000 VNĐ'); return; }
     if (authLoading) { setError('Đang xác thực, vui lòng chờ...'); return; }
+    if (participantsLoading) { setError('Đang tải danh sách thành viên, vui lòng chờ...'); return; }
     if (!user) { setError('Vui lòng đăng nhập lại'); return; }
     const userId = user.id || user._id;
     if (!userId) { setError('Không thể xác định người dùng'); return; }
@@ -448,6 +474,18 @@ const BillManagement = () => {
   /* ─── derived data ─── */
   const selectedRoomName = rooms.find((r) => r._id === selectedRoomId)?.name || 'Chưa chọn phòng';
   const currentUserId = String(user?.id || user?._id || '');
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (splitParticipants.length > 0) return;
+    if (roomMembers.length === 0) return;
+
+    setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds));
+    setFormData((prev) => ({
+      ...prev,
+      payer_id: prev.payer_id || roomMembers[0]?._id || '',
+    }));
+  }, [showModal, splitParticipants.length, roomMembers, awayMemberIds]);
 
   const visibleBills = useMemo(() => {
     const filtered = bills.filter((bill) => {
@@ -794,7 +832,11 @@ const BillManagement = () => {
                   </button>
                 </div>
                 <div className="participant-list">
-                  {splitParticipants.length === 0 ? (
+                  {participantsLoading ? (
+                    <div style={{ padding: '12px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      Đang tải danh sách thành viên...
+                    </div>
+                  ) : splitParticipants.length === 0 ? (
                     <div style={{ padding: '12px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                       Không có thành viên trong phòng.
                     </div>

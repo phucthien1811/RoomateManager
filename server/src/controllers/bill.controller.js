@@ -109,6 +109,30 @@ const createBill = async (req, res) => {
   } catch (error) {
     // Lỗi trùng hóa đơn cùng loại trong tháng
     if (error.code === 11000) {
+      const keyPattern = error.keyPattern || {};
+      const legacyPatternHit =
+        keyPattern.room_id &&
+        keyPattern.bill_type &&
+        keyPattern.billing_month &&
+        !keyPattern.bill_type_other;
+
+      if (legacyPatternHit && req.body?.bill_type === "other") {
+        return sendResponse(
+          res,
+          409,
+          false,
+          "Database đang dùng unique index cũ (không tách bill_type_other). Hãy restart backend để sync index mới hoặc chạy script drop index cũ."
+        );
+      }
+
+      if (req.body?.bill_type === "other") {
+        return sendResponse(
+          res,
+          409,
+          false,
+          "Hóa đơn loại Khác với nội dung này trong tháng đã tồn tại"
+        );
+      }
       return sendResponse(res, 409, false, "Hóa đơn cùng loại cho phòng này trong tháng đã tồn tại");
     }
     console.error("[BillController] createBill error:", error.message);
