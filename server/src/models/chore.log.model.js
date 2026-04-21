@@ -16,10 +16,63 @@ const choreLogSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "assigned_to là bắt buộc"],
     },
+    assigned_members: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
+    created_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     // Ngày trực nhật
     chore_date: {
       type: Date,
       required: [true, "chore_date là bắt buộc"],
+    },
+    title: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 120,
+    },
+    start_hour: {
+      type: Number,
+      min: 1,
+      max: 23,
+      default: null,
+    },
+    end_hour: {
+      type: Number,
+      min: 2,
+      max: 24,
+      default: null,
+    },
+    source_type: {
+      type: String,
+      enum: ["manual", "duty"],
+      default: "manual",
+      index: true,
+    },
+    duty_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DutySchedule",
+      default: null,
+      index: true,
+    },
+    duty_day_label: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    week_start: {
+      type: Date,
+      default: null,
     },
     status: {
       type: String,
@@ -49,6 +102,19 @@ const choreLogSchema = new mongoose.Schema(
     collection: "chore_logs",
   }
 );
+
+choreLogSchema.pre("validate", function (next) {
+  if (!this.title && this.note) {
+    this.title = String(this.note).trim();
+  }
+  if ((!this.assigned_members || this.assigned_members.length === 0) && this.assigned_to) {
+    this.assigned_members = [this.assigned_to];
+  }
+  next();
+});
+
+choreLogSchema.index({ room_id: 1, source_type: 1, chore_date: 1 });
+choreLogSchema.index({ room_id: 1, duty_id: 1, assigned_to: 1 }, { unique: true, sparse: true });
 
 const ChoreLog = mongoose.model("ChoreLog", choreLogSchema);
 

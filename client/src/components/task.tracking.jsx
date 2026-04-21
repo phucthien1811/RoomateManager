@@ -1,389 +1,492 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPlus,
   faCheck,
+  faChevronLeft,
+  faChevronRight,
+  faClipboardCheck,
+  faImage,
+  faPlus,
+  faTasks,
   faTrash,
-  faTimes,
-  faCalendarAlt,
-  faBroom,
-  faUtensils,
-  faStar,
-  faFilter,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../context/AuthContext.jsx';
 import choreService from '../services/chore.service.js';
 import roomService from '../services/room.service.js';
 import '../styles/task.tracking.css';
 
+const formatDateOnly = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getWeekStart = (date = new Date()) => {
+  const value = new Date(date);
+  const day = value.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  value.setDate(value.getDate() + diffToMonday);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const getEntityId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value._id || value.id || '';
+};
+
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(new Error('Không thể đọc ảnh'));
+  reader.readAsDataURL(file);
+});
+
 const TaskTracking = () => {
-  const [tasks, setTasks] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [selectedRoomId, setSelectedRoomId] = useState('');
+  const { user } = useAuth();
+  const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const [displayWeekStart, setDisplayWeekStart] = useState(() => getWeekStart(new Date()));
+  const [members, setMembers] = useState([]);
+  const [manualTasks, setManualTasks] = useState([]);
+  const [dutyTasks, setDutyTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    room_id: '',
-    chore_date: '',
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [proofTarget, setProofTarget] = useState(null);
+  const [proofImages, setProofImages] = useState([]);
+  const [createForm, setCreateForm] = useState({
+    title: '',
+    choreDate: formatDateOnly(new Date()),
+    startHour: '',
+    endHour: '',
     note: '',
-    assigned_to: '',
+    memberIds: [],
   });
 
-  // Fetch rooms on mount
+  const displayWeekKey = useMemo(() => formatDateOnly(displayWeekStart), [displayWeekStart]);
+
   useEffect(() => {
-    fetchRooms();
+    const syncRoom = (event) => {
+      const roomId = event?.detail?.roomId || localStorage.getItem('currentRoomId') || '';
+      setSelectedRoomId(roomId);
+    };
+
+    syncRoom();
+    window.addEventListener('room-selected', syncRoom);
+    return () => window.removeEventListener('room-selected', syncRoom);
   }, []);
 
-  // Fetch tasks when room is selected
-  useEffect(() => {
-    if (selectedRoomId) {
-      fetchTasks();
-    }
-  }, [selectedRoomId]);
+  const memberNameById = useMemo(() => {
+    const map = new Map();
+    members.forEach((member) => map.set(getEntityId(member), member.name || member.email || 'Thành viên'));
+    return map;
+  }, [members]);
 
-  const fetchRooms = async () => {
-    try {
-      setLoading(true);
-      const data = await roomService.getRooms();
-      setRooms(data);
-      if (data.length > 0) {
-        setSelectedRoomId(data[0]._id);
-      }
-    } catch (err) {
-      console.error('Error fetching rooms:', err);
-      setError('Lỗi khi tải danh sách phòng');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const data = await choreService.getChoresByRoom(selectedRoomId);
-      // Ensure data is always an array
-      const tasksArray = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
-      setTasks(tasksArray);
-    } catch (err) {
-      console.error('Error fetching tasks:', err);
-      setError('Lỗi khi tải danh sách công việc');
-      setTasks([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOpenModal = () => {
-    setFormData({
-      room_id: selectedRoomId,
-      chore_date: '',
-      note: '',
-      assigned_to: '',
-    });
-    setError('');
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setFormData({
-      chore_date: '',
-      note: '',
-      assigned_to: '',
-    });
-    setError('');
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.room_id.trim() || !formData.chore_date.trim() || !formData.note.trim()) {
-      setError('Vui lòng điền tất cả các trường bắt buộc');
+  const fetchData = async () => {
+    if (!selectedRoomId) {
+      setMembers([]);
+      setManualTasks([]);
+      setDutyTasks([]);
       return;
     }
 
-    setSubmitting(true);
     try {
+      setLoading(true);
       setError('');
-      const choreData = {
-        room_id: formData.room_id,
-        chore_date: formData.chore_date,
-        note: formData.note,
-        assigned_to: formData.assigned_to || '',
-      };
-      await choreService.createChore(choreData);
-      await fetchTasks();
-      handleCloseModal();
+      const [roomMembers, chores, dutyItems] = await Promise.all([
+        roomService.getRoomMembers(selectedRoomId),
+        choreService.getChoresByRoom(selectedRoomId),
+        choreService.getMyDutyTasks(selectedRoomId, displayWeekKey),
+      ]);
+      setMembers(Array.isArray(roomMembers) ? roomMembers : []);
+      setManualTasks(Array.isArray(chores) ? chores : []);
+      setDutyTasks(Array.isArray(dutyItems) ? dutyItems : []);
     } catch (err) {
-      console.error('Error creating task:', err);
-      setError(err.message || 'Lỗi khi tạo công việc');
+      setError(err.message || 'Không thể tải dữ liệu công việc');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const handleComplete = async (id) => {
+  useEffect(() => {
+    fetchData();
+  }, [selectedRoomId, displayWeekKey]);
+
+  const openCreateModal = () => {
+    setCreateForm({
+      title: '',
+      choreDate: formatDateOnly(new Date()),
+      startHour: '',
+      endHour: '',
+      note: '',
+      memberIds: [],
+    });
+    setError('');
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    if (saving) return;
+    setShowCreateModal(false);
+  };
+
+  const toggleMember = (memberId) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      memberIds: prev.memberIds.includes(memberId)
+        ? prev.memberIds.filter((item) => item !== memberId)
+        : [...prev.memberIds, memberId],
+    }));
+  };
+
+  const handleCreateTask = async () => {
+    if (!selectedRoomId) {
+      setError('Bạn chưa chọn phòng');
+      return;
+    }
+    if (!createForm.title.trim()) {
+      setError('Vui lòng nhập tiêu đề công việc');
+      return;
+    }
+    if (!createForm.choreDate) {
+      setError('Vui lòng chọn ngày thực hiện');
+      return;
+    }
+    if (createForm.memberIds.length === 0) {
+      setError('Vui lòng tag ít nhất 1 thành viên');
+      return;
+    }
+    if ((createForm.startHour && !createForm.endHour) || (!createForm.startHour && createForm.endHour)) {
+      setError('Nếu dùng khung giờ thì cần nhập đủ giờ bắt đầu và kết thúc');
+      return;
+    }
+
     try {
-      await choreService.completeChore(id);
-      await fetchTasks();
+      setSaving(true);
+      setError('');
+      await choreService.createChore({
+        room_id: selectedRoomId,
+        title: createForm.title.trim(),
+        chore_date: createForm.choreDate,
+        note: createForm.note.trim(),
+        member_ids: createForm.memberIds,
+        start_hour: createForm.startHour ? Number(createForm.startHour) : null,
+        end_hour: createForm.endHour ? Number(createForm.endHour) : null,
+      });
+      setShowCreateModal(false);
+      await fetchData();
+      window.dispatchEvent(new CustomEvent('app-notification', {
+        detail: {
+          type: 'success',
+          title: 'Đã tạo công việc',
+          message: createForm.title.trim(),
+          meta: 'Công việc chung',
+        },
+      }));
     } catch (err) {
-      console.error('Error completing task:', err);
-      setError('Lỗi khi hoàn thành công việc');
+      setError(err.message || 'Không thể tạo công việc');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getTaskIcon = (note) => {
-    const normalizedNote = note?.toLowerCase() || '';
-    if (normalizedNote.includes('rửa') || normalizedNote.includes('bát') || normalizedNote.includes('bếp')) return faUtensils;
-    if (normalizedNote.includes('dọn') || normalizedNote.includes('vệ sinh') || normalizedNote.includes('quét')) return faBroom;
-    if (normalizedNote.includes('sạch') || normalizedNote.includes('lau')) return faStar;
-    return faBroom;
+  const openProofModal = (target) => {
+    setProofTarget(target);
+    setProofImages([]);
+    setError('');
+    setShowProofModal(true);
   };
 
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('vi-VN');
+  const handleSelectProofImages = async (event) => {
+    const files = Array.from(event.target.files || []).slice(0, 5);
+    if (files.length === 0) return;
+    try {
+      const urls = await Promise.all(files.map(fileToDataUrl));
+      setProofImages(urls);
+    } catch {
+      setError('Không đọc được ảnh minh chứng');
+    }
   };
 
-  const handleDeleteTask = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa công việc này?')) {
-      try {
-        await choreService.deleteChore(id);
-        await fetchTasks();
-      } catch (err) {
-        console.error('Error deleting task:', err);
-        setError('Lỗi khi xóa công việc');
+  const handleCompleteWithProof = async () => {
+    if (!proofTarget) return;
+    if (proofImages.length === 0) {
+      setError('Vui lòng chọn ít nhất 1 ảnh minh chứng');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError('');
+      if (proofTarget.type === 'manual') {
+        await choreService.completeChore(proofTarget.item._id, proofImages);
+      } else {
+        await choreService.completeDutyTask(proofTarget.item.duty_id, selectedRoomId, proofImages);
       }
+      setShowProofModal(false);
+      await fetchData();
+      window.dispatchEvent(new CustomEvent('app-notification', {
+        detail: {
+          type: 'success',
+          title: 'Đã hoàn thành nhiệm vụ',
+          message: proofTarget.item.title || 'Công việc',
+          meta: 'Có minh chứng ảnh',
+        },
+      }));
+    } catch (err) {
+      setError(err.message || 'Không thể cập nhật trạng thái hoàn thành');
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Bạn có chắc muốn xóa công việc này?')) return;
+    try {
+      setSaving(true);
+      await choreService.deleteChore(taskId);
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Không thể xóa công việc');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isMine = (task) => {
+    const userId = String(user?.id || '');
+    const assignedMembers = Array.isArray(task.assigned_members) ? task.assigned_members : [];
+    return assignedMembers.some((item) => String(getEntityId(item)) === userId)
+      || String(getEntityId(task.assigned_to)) === userId;
+  };
+
+  const canDelete = (task) => {
+    const creatorId = String(getEntityId(task.created_by));
+    return creatorId && creatorId === String(user?.id || '');
   };
 
   return (
     <div className="task-tracking-page">
-      {/* Header Section */}
       <div className="task-header">
-        <div className="header-content">
-          <h1>Trực Nhật</h1>
-          <p>Quản lý công việc chung và lịch trực nhật phòng</p>
+        <div>
+          <h1>Công Việc Chung</h1>
+          <p>Tag thành viên, theo dõi nhiệm vụ từ lịch trực và xác nhận hoàn thành bằng ảnh minh chứng.</p>
         </div>
-        <button
-          className="btn-add-task"
-          onClick={handleOpenModal}
-          disabled={submitting}
-          title="Thêm công việc mới"
-        >
-          <FontAwesomeIcon icon={faPlus} /> Thêm Công Việc
+        <button type="button" className="btn-primary" onClick={openCreateModal} disabled={!selectedRoomId || saving}>
+          <FontAwesomeIcon icon={faPlus} /> Tạo công việc
         </button>
       </div>
 
-      {error && (
-        <div className="alert alert-error">
-          {error}
+      <div className="week-toolbar">
+        <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7)))}>
+          <FontAwesomeIcon icon={faChevronLeft} /> Tuần trước
+        </button>
+        <strong>Tuần {displayWeekKey}</strong>
+        <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7)))}>
+          Tuần sau <FontAwesomeIcon icon={faChevronRight} />
+        </button>
+      </div>
+
+      {error && <div className="alert-error">{error}</div>}
+      {!selectedRoomId && <div className="empty-box">Vui lòng chọn phòng ở sidebar trước khi dùng trang này.</div>}
+
+      {selectedRoomId && (
+        <>
+          <section className="task-section">
+            <div className="section-title">
+              <FontAwesomeIcon icon={faClipboardCheck} /> Nhiệm vụ của tôi theo lịch trực
+            </div>
+            {loading ? (
+              <div className="empty-box">Đang tải...</div>
+            ) : dutyTasks.length === 0 ? (
+              <div className="empty-box">Tuần này bạn chưa được tag vào lịch trực nào.</div>
+            ) : (
+              <div className="task-grid">
+                {dutyTasks.map((task) => (
+                  <article key={task.duty_id || task._id} className={`task-card ${task.status}`}>
+                    <h3>{task.title}</h3>
+                    <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
+                    <p>{task.start_hour}:00 - {task.end_hour}:00</p>
+                    {task.note && <small>{task.note}</small>}
+                    <div className="proof-list">
+                      {(task.proof_images || []).map((image, index) => (
+                        <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+                      ))}
+                    </div>
+                    {task.status === 'completed' ? (
+                      <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                    ) : (
+                      <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
+                        <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="task-section">
+            <div className="section-title">
+              <FontAwesomeIcon icon={faTasks} /> Bảng công việc chung của phòng
+            </div>
+            {loading ? (
+              <div className="empty-box">Đang tải...</div>
+            ) : manualTasks.length === 0 ? (
+              <div className="empty-box">Chưa có công việc chung nào.</div>
+            ) : (
+              <div className="task-grid">
+                {manualTasks.map((task) => (
+                  <article key={task._id} className={`task-card ${task.status}`}>
+                    <h3>{task.title || task.note}</h3>
+                    <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')}</p>
+                    {task.start_hour && task.end_hour && <p>{task.start_hour}:00 - {task.end_hour}:00</p>}
+                    {task.note && <small>{task.note}</small>}
+                    <div className="tag-list">
+                      {(task.assigned_members || []).map((member) => (
+                        <span key={`${task._id}-${getEntityId(member)}`}>
+                          {memberNameById.get(getEntityId(member)) || member.name || 'Thành viên'}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="proof-list">
+                      {(task.proof_images || []).map((image, index) => (
+                        <img key={`${task._id}-manual-proof-${index}`} src={image} alt="proof" />
+                      ))}
+                    </div>
+                    <div className="task-actions">
+                      {task.status === 'completed' ? (
+                        <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                      ) : (
+                        <>
+                          {isMine(task) && (
+                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'manual', item: task })}>
+                              <FontAwesomeIcon icon={faImage} /> Hoàn thành
+                            </button>
+                          )}
+                          {canDelete(task) && (
+                            <button type="button" className="btn-danger" onClick={() => handleDeleteTask(task._id)}>
+                              <FontAwesomeIcon icon={faTrash} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={closeCreateModal}>
+          <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Tạo công việc chung</h2>
+              <button type="button" onClick={closeCreateModal}><FontAwesomeIcon icon={faXmark} /></button>
+            </div>
+            <div className="modal-body">
+              <label htmlFor="task-title">Tiêu đề *</label>
+              <input
+                id="task-title"
+                value={createForm.title}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="VD: Vệ sinh phòng khách"
+              />
+              <label htmlFor="task-date">Ngày thực hiện *</label>
+              <input
+                id="task-date"
+                type="date"
+                value={createForm.choreDate}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, choreDate: event.target.value }))}
+              />
+              <div className="time-grid">
+                <div>
+                  <label htmlFor="task-start">Giờ bắt đầu</label>
+                  <input
+                    id="task-start"
+                    type="number"
+                    min="1"
+                    max="23"
+                    value={createForm.startHour}
+                    onChange={(event) => setCreateForm((prev) => ({ ...prev, startHour: event.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="task-end">Giờ kết thúc</label>
+                  <input
+                    id="task-end"
+                    type="number"
+                    min="2"
+                    max="24"
+                    value={createForm.endHour}
+                    onChange={(event) => setCreateForm((prev) => ({ ...prev, endHour: event.target.value }))}
+                  />
+                </div>
+              </div>
+              <label htmlFor="task-note">Ghi chú</label>
+              <textarea
+                id="task-note"
+                rows="3"
+                value={createForm.note}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, note: event.target.value }))}
+              />
+
+              <label>Tag thành viên phụ trách *</label>
+              <div className="member-pick-list">
+                {members.map((member) => {
+                  const memberId = getEntityId(member);
+                  return (
+                    <label key={memberId} className="member-item">
+                      <input
+                        type="checkbox"
+                        checked={createForm.memberIds.includes(memberId)}
+                        onChange={() => toggleMember(memberId)}
+                      />
+                      <span>{member.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn-ghost" onClick={closeCreateModal} disabled={saving}>Hủy</button>
+              <button type="button" className="btn-primary" onClick={handleCreateTask} disabled={saving}>
+                {saving ? 'Đang lưu...' : 'Lưu công việc'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Filter Section */}
-      <div className="filter-section">
-        <div className="filter-group">
-          <label htmlFor="room-select">Chọn phòng:</label>
-          <select
-            id="room-select"
-            className="filter-select"
-            value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">-- Chọn phòng --</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Tasks Grid */}
-      <div className="tasks-section">
-        {loading ? (
-          <div className="empty-state">
-            <div className="spinner"></div>
-            <p>Đang tải dữ liệu...</p>
-          </div>
-        ) : tasks.length === 0 ? (
-          <div className="empty-state">
-            <FontAwesomeIcon icon={faBroom} className="empty-icon" />
-            <h3>Không có công việc nào</h3>
-            <p>{selectedRoomId ? 'Hãy thêm công việc mới' : 'Vui lòng chọn phòng'}</p>
-          </div>
-        ) : (
-          <div className="tasks-grid">
-            {tasks.map((task) => (
-              <div key={task._id} className={`task-card status-${task.status}`}>
-                {/* Card Header */}
-                <div className="task-card-header">
-                  <div className="task-title">
-                    <div className="task-icon-badge">
-                      <FontAwesomeIcon icon={getTaskIcon(task.note)} />
-                    </div>
-                    <div className="task-title-content">
-                      <h3>{task.note}</h3>
-                      <p className="assigned-to">
-                        {task.assigned_to
-                          ? `Gán cho: ${typeof task.assigned_to === 'object' ? task.assigned_to.name : task.assigned_to}`
-                          : 'Chưa gán người'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`status-badge ${task.status === 'completed' ? 'completed' : 'pending'}`}>
-                    {task.status === 'completed' ? (
-                      <>
-                        <FontAwesomeIcon icon={faCheck} /> Hoàn Thành
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faCalendarAlt} /> Chờ Thực Hiện
-                      </>
-                    )}
-                  </span>
-                </div>
-
-                {/* Card Body */}
-                <div className="task-card-body">
-                  <div className="detail-row">
-                    <span className="detail-label">Ngày thực hiện:</span>
-                    <span className="detail-value">{formatDate(task.chore_date)}</span>
-                  </div>
-                </div>
-
-                {/* Card Footer */}
-                <div className="task-card-footer">
-                  {task.status !== 'completed' && (
-                    <button
-                      className="btn-action btn-complete"
-                      onClick={() => handleComplete(task._id)}
-                      title="Hoàn thành công việc"
-                    >
-                      <FontAwesomeIcon icon={faCheck} /> Hoàn Thành
-                    </button>
-                  )}
-                  <button
-                    className="btn-action btn-delete"
-                    onClick={() => handleDeleteTask(task._id)}
-                    title="Xóa công việc"
-                  >
-                    <FontAwesomeIcon icon={faTrash} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Thêm Công Việc</h2>
-              <button
-                className="btn-close-modal"
-                onClick={handleCloseModal}
-                aria-label="Đóng"
-              >
-                <FontAwesomeIcon icon={faTimes} />
-              </button>
+      {showProofModal && (
+        <div className="modal-overlay" onClick={() => !saving && setShowProofModal(false)}>
+          <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Hoàn thành nhiệm vụ</h2>
+              <button type="button" onClick={() => !saving && setShowProofModal(false)}><FontAwesomeIcon icon={faXmark} /></button>
             </div>
-
             <div className="modal-body">
-              {error && (
-                <div className="alert alert-error" style={{ marginBottom: '15px' }}>
-                  {error}
-                </div>
-              )}
-
-              <div className="form-group">
-                <label htmlFor="room-task">Chọn phòng <span className="required">*</span></label>
-                <select
-                  id="room-task"
-                  name="room_id"
-                  value={formData.room_id}
-                  onChange={handleInputChange}
-                  disabled={submitting}
-                  className="form-input"
-                >
-                  <option value="">-- Chọn phòng --</option>
-                  {rooms.map((room) => (
-                    <option key={room._id} value={room._id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="chore-date">Ngày thực hiện <span className="required">*</span></label>
-                <input
-                  type="date"
-                  id="chore-date"
-                  name="chore_date"
-                  value={formData.chore_date}
-                  onChange={handleInputChange}
-                  disabled={submitting}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="note">Mô tả công việc <span className="required">*</span></label>
-                <textarea
-                  id="note"
-                  name="note"
-                  value={formData.note}
-                  onChange={handleInputChange}
-                  placeholder="VD: Rửa bát, dọn phòng, vệ sinh..."
-                  disabled={submitting}
-                  className="form-input"
-                  rows="3"
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="assigned-to">Gán cho thành viên</label>
-                <input
-                  type="text"
-                  id="assigned-to"
-                  name="assigned_to"
-                  value={formData.assigned_to}
-                  onChange={handleInputChange}
-                  placeholder="Tên thành viên (tuỳ chọn)"
-                  disabled={submitting}
-                  className="form-input"
-                />
+              <p className="proof-title">{proofTarget?.item?.title}</p>
+              <label htmlFor="proof-images">Ảnh minh chứng *</label>
+              <input id="proof-images" type="file" accept="image/*" multiple onChange={handleSelectProofImages} />
+              <div className="proof-preview-grid">
+                {proofImages.map((image, index) => (
+                  <img key={`preview-${index}`} src={image} alt="proof preview" />
+                ))}
               </div>
             </div>
-
-            <div className="modal-footer">
-              <button
-                className="btn-cancel"
-                onClick={handleCloseModal}
-                disabled={submitting}
-              >
-                Hủy
-              </button>
-              <button
-                className="btn-save"
-                onClick={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? 'Đang lưu...' : 'Lưu Công Việc'}
+            <div className="modal-foot">
+              <button type="button" className="btn-ghost" onClick={() => !saving && setShowProofModal(false)} disabled={saving}>Hủy</button>
+              <button type="button" className="btn-primary" onClick={handleCompleteWithProof} disabled={saving}>
+                {saving ? 'Đang cập nhật...' : 'Xác nhận hoàn thành'}
               </button>
             </div>
           </div>

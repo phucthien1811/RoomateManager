@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import notificationService from '../services/notification.service.js';
+import { useAuth } from './AuthContext.jsx';
 
 const NotificationContext = createContext(null);
 const NOTIFICATION_STORAGE_KEY = 'roommate_manager.notification_history';
+const buildStorageKey = (userId) => `${NOTIFICATION_STORAGE_KEY}.${String(userId || 'guest')}`;
 
 const isServerNotificationId = (id = '') => /^[a-fA-F0-9]{24}$/.test(String(id));
 
@@ -43,10 +45,10 @@ const mergeNotifications = (...collections) => {
   return Array.from(map.values()).sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
 };
 
-const getStoredNotifications = () => {
+const getStoredNotifications = (userId) => {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+    const raw = localStorage.getItem(buildStorageKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.map((item) => makeNotification(item)) : [];
@@ -57,9 +59,13 @@ const getStoredNotifications = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-  const [notifications, setNotifications] = useState(() => getStoredNotifications());
+  const { user } = useAuth();
+  const userId = user?.id || user?._id || null;
+  const storageKey = useMemo(() => buildStorageKey(userId), [userId]);
+  const [notifications, setNotifications] = useState([]);
 
-  const refreshNotifications = async () => {
+  const refreshNotifications = useCallback(async () => {
+    if (!userId) return;
     try {
       const data = await notificationService.getMyNotifications();
       const normalized = data.map((item) => makeNotification(item));
@@ -67,13 +73,22 @@ export const NotificationProvider = ({ children }) => {
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
+    if (!userId) {
+      setNotifications([]);
+      return;
+    }
+    setNotifications(getStoredNotifications(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
     refreshNotifications();
     const intervalId = setInterval(refreshNotifications, 10000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [refreshNotifications, userId]);
 
   useEffect(() => {
     const handleAppNotification = (event) => {
@@ -86,13 +101,13 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!userId || typeof window === 'undefined') return;
     try {
-      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
+      localStorage.setItem(storageKey, JSON.stringify(notifications));
     } catch (error) {
       console.error('Error saving notification history:', error);
     }
-  }, [notifications]);
+  }, [notifications, storageKey, userId]);
 
   const markAsRead = async (id) => {
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));

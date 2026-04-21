@@ -1,8 +1,21 @@
 const mongoose = require('mongoose');
 const Room = require('../models/room.model');
 const DutySchedule = require('../models/duty.schedule.model');
+const User = require('../models/user.model');
+const Notification = require('../models/notification.model');
 
 const isValidDateOnly = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+const dayOffsetMap = {
+  'Thứ 2': 0,
+  'Thứ 3': 1,
+  'Thứ 4': 2,
+  'Thứ 5': 3,
+  'Thứ 6': 4,
+  'Thứ 7': 5,
+  'Chủ nhật': 6,
+};
+
+const normalizeName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 const checkRoomAccess = async (roomId, userId) => {
   const room = await Room.findById(roomId).select('owner members');
@@ -32,6 +45,36 @@ const mapDuty = (duty) => ({
   created_at: duty.created_at,
   updated_at: duty.updated_at,
 });
+
+const resolveTaggedRecipients = async (room, members) => {
+  const roomUserIds = [room.owner, ...(room.members || [])].map((item) => item.toString());
+  const users = await User.find({ _id: { $in: roomUserIds } }).select('name');
+
+  const userByName = new Map();
+  users.forEach((user) => {
+    const key = normalizeName(user.name);
+    if (!userByName.has(key)) {
+      userByName.set(key, user._id.toString());
+    }
+  });
+
+  const taggedUserIds = new Set();
+  (members || []).forEach((memberName) => {
+    const userId = userByName.get(normalizeName(memberName));
+    if (userId) taggedUserIds.add(userId);
+  });
+
+  return Array.from(taggedUserIds);
+};
+
+const buildDutyDateTimeText = (weekStart, dayLabel, startHour, endHour) => {
+  const dutyDate = new Date(`${weekStart}T00:00:00.000Z`);
+  dutyDate.setUTCDate(dutyDate.getUTCDate() + (dayOffsetMap[dayLabel] || 0));
+
+  const dateLabel = dutyDate.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const timeLabel = `${startHour}:00 - ${endHour}:00`;
+  return `${timeLabel} ngày ${dateLabel}`;
+};
 
 const listByRoomAndWeek = async (req, res) => {
   try {
@@ -107,6 +150,30 @@ const createDuty = async (req, res) => {
     });
 
     await duty.populate('created_by', 'name');
+
+    const dateTimeText = buildDutyDateTimeText(week_start, day_label, Number(start_hour), Number(end_hour));
+    const taggedUserIds = await resolveTaggedRecipients(access.room, members);
+
+    const creatorNotification = {
+      recipient: userId,
+      type: 'success',
+      title: 'Đã thêm lịch trực thành công',
+      message: `Bạn đã thêm lịch trực "${String(title).trim()}" vào ${dateTimeText}.`,
+      meta: `${day_label} • ${start_hour}:00-${end_hour}:00`,
+    };
+
+    const assigneeNotifications = taggedUserIds
+      .filter((recipientId) => recipientId !== String(userId))
+      .map((recipientId) => ({
+        recipient: recipientId,
+        type: 'info',
+        title: 'Bạn được phân công lịch trực',
+        message: `Bạn được phân công lịch trực "${String(title).trim()}" vào ${dateTimeText}.`,
+        meta: `${day_label} • ${start_hour}:00-${end_hour}:00`,
+      }));
+
+    await Notification.insertMany([creatorNotification, ...assigneeNotifications]);
+
     return res.status(201).json({ message: 'Tạo lịch trực nhật thành công', duty: mapDuty(duty) });
   } catch (error) {
     return res.status(500).json({ message: 'Lỗi khi tạo lịch trực nhật', error: error.message });

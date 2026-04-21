@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const choreService = require("../services/chore.service");
 
 const sendResponse = (res, status, success, message, data = null) => {
@@ -6,73 +7,147 @@ const sendResponse = (res, status, success, message, data = null) => {
   return res.status(status).json(payload);
 };
 
-// POST /api/chores — Tạo lịch trực nhật
+const mapServiceError = (error) => {
+  const message = error.message || "Lỗi xử lý công việc";
+  if (
+    message.includes("không hợp lệ")
+    || message.includes("bắt buộc")
+    || message.includes("ít nhất")
+    || message.includes("khung giờ")
+    || message.includes("không tìm thấy")
+  ) {
+    return { status: 400, message };
+  }
+  if (message.includes("không có quyền") || message.includes("không được tag")) {
+    return { status: 403, message };
+  }
+  if (message.includes("không tồn tại")) {
+    return { status: 404, message };
+  }
+  return { status: 500, message: "Lỗi server khi xử lý công việc" };
+};
+
 const createChore = async (req, res) => {
   try {
-    const { room_id, assigned_to, chore_date, note } = req.body;
-
-    if (!room_id || !assigned_to || !chore_date) {
-      return sendResponse(res, 400, false, "Thiếu room_id, assigned_to hoặc chore_date");
+    const { room_id: roomId, title, chore_date: choreDate, note, member_ids: memberIds, start_hour: startHour, end_hour: endHour } = req.body;
+    if (!roomId || !mongoose.isValidObjectId(roomId)) {
+      return sendResponse(res, 400, false, "room_id không hợp lệ");
     }
 
-    const chore = await choreService.createChore({ room_id, assigned_to, chore_date, note });
-    return sendResponse(res, 201, true, "Tạo lịch trực nhật thành công", chore);
+    const chore = await choreService.createChore({
+      roomId,
+      userId: req.user.id,
+      title,
+      choreDate,
+      note,
+      memberIds,
+      startHour,
+      endHour,
+    });
+    return sendResponse(res, 201, true, "Tạo công việc thành công", chore);
   } catch (error) {
-    console.error("[ChoreController] createChore error:", error.message);
-    return sendResponse(res, 500, false, "Lỗi server khi tạo lịch trực nhật");
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
   }
 };
 
-// PATCH /api/chores/:choreId/complete — RM-19: Đánh dấu hoàn thành + ảnh minh chứng
+const getChoresByRoom = async (req, res) => {
+  try {
+    const { room_id: roomId } = req.query;
+    if (!roomId || !mongoose.isValidObjectId(roomId)) {
+      return sendResponse(res, 400, false, "room_id không hợp lệ");
+    }
+
+    const chores = await choreService.getChoresByRoom({ roomId, userId: req.user.id });
+    return sendResponse(res, 200, true, "Lấy danh sách công việc thành công", chores);
+  } catch (error) {
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
+  }
+};
+
+const getMyDutyTasks = async (req, res) => {
+  try {
+    const { room_id: roomId, week_start: weekStart } = req.query;
+    if (!roomId || !mongoose.isValidObjectId(roomId)) {
+      return sendResponse(res, 400, false, "room_id không hợp lệ");
+    }
+
+    const tasks = await choreService.getMyDutyTasks({
+      roomId,
+      userId: req.user.id,
+      weekStart,
+    });
+    return sendResponse(res, 200, true, "Lấy nhiệm vụ lịch trực thành công", tasks);
+  } catch (error) {
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
+  }
+};
+
 const completeChore = async (req, res) => {
   try {
     const { choreId } = req.params;
-
-    if (!choreId || !/^[a-fA-F0-9]{24}$/.test(choreId)) {
+    if (!choreId || !mongoose.isValidObjectId(choreId)) {
       return sendResponse(res, 400, false, "choreId không hợp lệ");
     }
 
-    const memberId = req.user?._id || req.body.member_id;
-
-    // proof_images là mảng URL ảnh, frontend upload lên storage rồi gửi URL về
-    // TODO: khi tích hợp Cloudinary thì xử lý upload ở middleware trước khi vào đây
-    const proofImages = req.body.proof_images || [];
-
-    const chore = await choreService.completeChore(choreId, memberId, proofImages);
-    return sendResponse(res, 200, true, "Đánh dấu hoàn thành trực nhật thành công", chore);
+    const chore = await choreService.completeChore({
+      choreId,
+      userId: req.user.id,
+      proofImages: req.body.proof_images || [],
+    });
+    return sendResponse(res, 200, true, "Hoàn thành công việc thành công", chore);
   } catch (error) {
-    const knownErrors = [
-      "Không tìm thấy lịch trực nhật",
-      "đã được đánh dấu hoàn thành rồi",
-      "không có quyền",
-    ];
-    if (knownErrors.some((msg) => error.message.includes(msg))) {
-      return sendResponse(res, 400, false, error.message);
-    }
-    console.error("[ChoreController] completeChore error:", error.message);
-    return sendResponse(res, 500, false, "Lỗi server khi cập nhật trực nhật");
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
   }
 };
 
-// GET /api/chores?room_id=... — Lấy danh sách trực nhật của phòng
-const getChoresByRoom = async (req, res) => {
+const completeDutyTask = async (req, res) => {
   try {
-    const { room_id } = req.query;
-
-    if (!room_id) {
-      return sendResponse(res, 400, false, "Thiếu room_id");
+    const { dutyId } = req.params;
+    const { room_id: roomId } = req.body;
+    if (!dutyId || !mongoose.isValidObjectId(dutyId)) {
+      return sendResponse(res, 400, false, "dutyId không hợp lệ");
+    }
+    if (!roomId || !mongoose.isValidObjectId(roomId)) {
+      return sendResponse(res, 400, false, "room_id không hợp lệ");
     }
 
-    const chores = await choreService.getChoresByRoom(room_id);
-    return sendResponse(res, 200, true, "Lấy danh sách trực nhật thành công", chores);
+    const task = await choreService.completeDutyTask({
+      roomId,
+      dutyId,
+      userId: req.user.id,
+      proofImages: req.body.proof_images || [],
+    });
+    return sendResponse(res, 200, true, "Xác nhận hoàn thành nhiệm vụ lịch trực thành công", task);
   } catch (error) {
-    console.error("[ChoreController] getChoresByRoom error:", error.message);
-    return sendResponse(res, 500, false, "Lỗi server khi lấy danh sách trực nhật");
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
+  }
+};
+
+const deleteChore = async (req, res) => {
+  try {
+    const { choreId } = req.params;
+    if (!choreId || !mongoose.isValidObjectId(choreId)) {
+      return sendResponse(res, 400, false, "choreId không hợp lệ");
+    }
+
+    await choreService.deleteChore({ choreId, userId: req.user.id });
+    return sendResponse(res, 200, true, "Xóa công việc thành công");
+  } catch (error) {
+    const mapped = mapServiceError(error);
+    return sendResponse(res, mapped.status, false, mapped.message);
   }
 };
 
 module.exports = {
   createChore,
-  completeChore,
   getChoresByRoom,
+  getMyDutyTasks,
+  completeChore,
+  completeDutyTask,
+  deleteChore,
 };
