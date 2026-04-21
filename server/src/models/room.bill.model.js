@@ -73,10 +73,10 @@ const roomBillSchema = new mongoose.Schema(
   }
 );
 
-// Mỗi phòng chỉ được có 1 hóa đơn cùng loại trong cùng tháng
+// Mỗi phòng chỉ được có 1 hóa đơn cùng loại trong cùng tháng (riêng loại 'khác' sẽ phân biệt bằng bill_type_other)
 roomBillSchema.index(
-  { room_id: 1, bill_type: 1, billing_month: 1 },
-  { unique: true, name: "unique_bill_per_room_per_month" }
+  { room_id: 1, bill_type: 1, bill_type_other: 1, billing_month: 1 },
+  { unique: true, name: "unique_bill_per_room_per_month_custom" }
 );
 
 const RoomBill = mongoose.model("RoomBill", roomBillSchema);

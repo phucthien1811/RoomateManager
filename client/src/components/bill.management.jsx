@@ -20,11 +20,14 @@ import {
   faCamera,
   faImages,
   faExpand,
+  faChevronDown,
+  faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
 import absenceService from '../services/absence.service.js';
+import fundService from '../services/fund.service.js';
 import PageHeader from './PageHeader.jsx';
 import '../styles/bill.management.css';
 
@@ -67,6 +70,8 @@ const BillManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedBillId, setSelectedBillId] = useState(null);
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
@@ -167,6 +172,8 @@ const BillManagement = () => {
     }
   };
 
+  const [autoPayWithFund, setAutoPayWithFund] = useState(false);
+
   const handleOpenModal = () => {
     if (!selectedRoomId) { setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn'); return; }
     const now = new Date();
@@ -199,10 +206,11 @@ const BillManagement = () => {
     );
 
     setError('');
+    setAutoPayWithFund(false);
     setShowModal(true);
   };
 
-  const handleCloseModal = () => { setShowModal(false); setError(''); };
+  const handleCloseModal = () => { setShowModal(false); setError(''); setAutoPayWithFund(false); };
 
   /* RM-8 — Image upload handlers */
   const handleOpenImageModal = (bill) => {
@@ -312,6 +320,15 @@ const BillManagement = () => {
     setSubmitting(true);
     try {
       setError('');
+      if (autoPayWithFund) {
+        const fundData = await fundService.getFundDetail(formData.room_id);
+        if ((fundData.balance || 0) < amount) {
+          setError(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const selected = splitParticipants.filter((p) => p.selected && !p.isAway);
       if (selected.length === 0) { setError('Vui lòng chọn ít nhất 1 thành viên cùng thanh toán'); setSubmitting(false); return; }
 
@@ -327,7 +344,7 @@ const BillManagement = () => {
         }
       }
 
-      await billService.createBill({
+      const res = await billService.createBill({
         room_id: formData.room_id,
         bill_type: formData.bill_type,
         bill_type_other: formData.bill_type === 'other' ? formData.bill_type_other.trim() : undefined,
@@ -339,6 +356,31 @@ const BillManagement = () => {
         member_ids: selected.map((p) => p.member_id),
         custom_splits: customSplits,
       });
+
+      if (autoPayWithFund) {
+         try {
+           const typeLabel = formData.bill_type === 'other' ? formData.bill_type_other.trim() : getBillTypeMeta(formData.bill_type).label;
+           await fundService.withdrawFund(
+             formData.room_id,
+             amount,
+             `Chi trả hóa đơn: ${typeLabel} (Tháng ${formData.billing_month})`,
+             'Hóa đơn chung'
+           );
+           
+           const newBillId = res.bill?._id || res._id;
+           const newDetails = res.details || [];
+           
+           for (const d of newDetails) {
+             if (d.status !== 'paid') {
+               await billService.confirmBillPayment(newBillId, d._id);
+             }
+           }
+         } catch (e) {
+           console.error("Auto fund payment failed:", e);
+           const errorMessage = e.response?.data?.message || e.message || 'Lỗi không xác định khi trích quỹ chung';
+           alert(`Hóa đơn đã được tạo nhưng KHÔNG THỂ trích quỹ chung (lỗi: ${errorMessage}). Vui lòng tự thanh toán lại bằng quỹ chung sau.`);
+         }
+      }
 
       await fetchBills();
       handleCloseModal();
@@ -359,13 +401,47 @@ const BillManagement = () => {
     }
   };
 
-  const handleConfirmPayment = async (billId, detailId, skipConfirm = false) => {
-    if (!skipConfirm && !window.confirm('Xác nhận thanh toán?')) return;
+  const handleConfirmPayment = async (billId, detailId) => {
     try {
+      if (!window.confirm('Xác nhận thành viên này đã đóng tiền?')) return;
       await billService.confirmBillPayment(billId, detailId);
       await fetchBills();
     } catch (err) {
-      setError(err.message || 'Không thể xác nhận thanh toán');
+      setError(err.message || 'Lỗi khi xác nhận thanh toán');
+    }
+  };
+
+  const handlePayWithFund = async (bill) => {
+    try {
+      if (!window.confirm(`Bạn có chắc chắn muốn trích quỹ chung để thanh toán toàn bộ "${bill.bill_type === 'other' ? bill.bill_type_other : getBillTypeMeta(bill.bill_type).label}"?`)) return;
+      
+      setSubmitting(true);
+      const fundData = await fundService.getFundDetail(selectedRoomId);
+      if ((fundData.balance || 0) < bill.total_amount) {
+        throw new Error(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
+      }
+
+      // 1. Rút tiền từ quỹ
+      await fundService.withdrawFund(
+        selectedRoomId,
+        bill.total_amount,
+        `Chi trả hóa đơn: ${bill.bill_type === 'other' ? bill.bill_type_other : getBillTypeMeta(bill.bill_type).label} (Tháng ${bill.billing_month})`,
+        'Hóa đơn chung'
+      );
+
+      // 2. Xác nhận toàn bộ thành viên đã trả
+      const pending = bill.details.filter((d) => d.status !== 'paid');
+      for (const d of pending) {
+        await billService.confirmBillPayment(bill._id, d._id);
+      }
+
+      await fetchBills();
+      alert('Đã thanh toán hóa đơn bằng quỹ chung thành công!');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -373,20 +449,17 @@ const BillManagement = () => {
   const selectedRoomName = rooms.find((r) => r._id === selectedRoomId)?.name || 'Chưa chọn phòng';
   const currentUserId = String(user?.id || user?._id || '');
 
-  const visibleBills = useMemo(() =>
-    bills.filter((bill) => {
+  const visibleBills = useMemo(() => {
+    const filtered = bills.filter((bill) => {
+      if (bill.billing_month !== filterMonth) return false;
       if (paymentStatusFilter === 'all') return true;
       if (!bill.details?.length) return false;
       return bill.details.some((d) => paymentStatusFilter === 'paid' ? d.status === 'paid' : d.status !== 'paid');
-    }),
-    [bills, paymentStatusFilter]
-  );
+    });
+    return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [bills, paymentStatusFilter, filterMonth]);
 
-  /* stats */
-  const totalBills     = bills.length;
-  const completedBills = bills.filter((b) => b.status === 'completed').length;
-  const pendingBills   = bills.filter((b) => b.status === 'pending').length;
-  const totalAmount    = bills.reduce((s, b) => s + (Number(b.total_amount) || 0), 0);
+  const selectedBill = useMemo(() => bills.find(b => b._id === selectedBillId), [bills, selectedBillId]);
 
   /* ─── render ─── */
   return (
@@ -395,35 +468,23 @@ const BillManagement = () => {
       <PageHeader
         title="Hóa Đơn Phòng"
         actions={
-          <button className="btn-create-bill" onClick={handleOpenModal} disabled={submitting}>
-            <FontAwesomeIcon icon={faPlus} /> Tạo Hóa Đơn Mới
-          </button>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input
+              type="month"
+              className="bm-month-input"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+            />
+            <button className="btn-create-bill" onClick={handleOpenModal} disabled={submitting}>
+              <FontAwesomeIcon icon={faPlus} /> Tạo Hóa Đơn Mới
+            </button>
+          </div>
         }
       />
 
       {error && <div className="alert alert-error"><FontAwesomeIcon icon={faExclamationTriangle} /> {error}</div>}
 
-      {/* STATS ROW */}
-      {selectedRoomId && (
-        <div className="bill-stats-row">
-          <div className="bm-stat">
-            <div className="bm-stat-icon blue"><FontAwesomeIcon icon={faReceipt} /></div>
-            <div className="bm-stat-body"><p>Tổng hóa đơn</p><strong>{totalBills}</strong></div>
-          </div>
-          <div className="bm-stat">
-            <div className="bm-stat-icon amber"><FontAwesomeIcon icon={faHourglassHalf} /></div>
-            <div className="bm-stat-body"><p>Chưa thanh toán</p><strong>{pendingBills}</strong></div>
-          </div>
-          <div className="bm-stat">
-            <div className="bm-stat-icon green"><FontAwesomeIcon icon={faCheckCircle} /></div>
-            <div className="bm-stat-body"><p>Đã hoàn tất</p><strong>{completedBills}</strong></div>
-          </div>
-          <div className="bm-stat">
-            <div className="bm-stat-icon purple"><FontAwesomeIcon icon={faChartPie} /></div>
-            <div className="bm-stat-body"><p>Tổng giá trị</p><strong>{formatCurrency(totalAmount)}</strong></div>
-          </div>
-        </div>
-      )}
+
 
       {/* FILTER */}
       <div className="filter-bar">
@@ -456,184 +517,186 @@ const BillManagement = () => {
         ) : visibleBills.length === 0 ? (
           <div className="empty-message">Không có hóa đơn phù hợp bộ lọc.</div>
         ) : (
-          <div className="bills-grid">
-            {visibleBills.map((bill) => {
-              const typeMeta = getBillTypeMeta(bill.bill_type);
-              const responsibleId = String(bill.payer_id?._id || bill.payer_id || bill.created_by?._id || bill.created_by || '');
-              const canConfirm = Boolean(currentUserId && responsibleId && currentUserId === responsibleId);
-
-              const visibleDetails = (bill.details || []).filter((d) =>
-                paymentStatusFilter === 'all' ? true
-                  : paymentStatusFilter === 'paid' ? d.status === 'paid'
-                  : d.status !== 'paid'
-              );
-
-              const paidCount = (bill.details || []).filter((d) => d.status === 'paid').length;
-              const totalCount = (bill.details || []).length;
-
-              return (
-                <div key={bill._id} className={`bill-card status-${bill.status}`}>
-                  {/* ── Card Header ── */}
-                  <div className="bill-card-header">
-                    <div className="bill-type-wrap">
-                      <div className={`bill-type-icon ${typeMeta.cls}`}>
+          <div className="split-view-container">
+            {/* LEFT: MASTER LIST */}
+            <div className="split-left">
+              {visibleBills.map((bill) => {
+                const typeMeta = getBillTypeMeta(bill.bill_type);
+                return (
+                  <div 
+                    key={bill._id} 
+                    className={`h-bill-card ${selectedBillId === bill._id ? 'selected' : ''}`}
+                    onClick={() => setSelectedBillId(bill._id)}
+                  >
+                    <div className="h-bill-left">
+                      <div className={`h-bill-icon ${typeMeta.cls}`}>
                         <FontAwesomeIcon icon={typeMeta.icon} />
                       </div>
-                      <div className="bill-type-text">
-                        <h3>
-                          {bill.bill_type === 'other'
-                            ? (bill.bill_type_other || 'Hóa đơn khác')
-                            : `Tiền ${typeMeta.label}`}
-                        </h3>
-                        <span>Tháng {bill.billing_month}</span>
+                      <div className="h-bill-info">
+                        <h4>{bill.bill_type === 'other' ? (bill.bill_type_other || 'Hóa đơn khác') : `Tiền ${typeMeta.label}`}</h4>
+                        <span>
+                          <span className={`status-dot ${bill.status === 'completed' ? 'completed' : bill.status === 'partial' ? 'partial' : 'pending'}`}></span>
+                          {formatDate(bill.bill_date || bill.created_at)}
+                        </span>
                       </div>
                     </div>
-                    <span className={`bill-status-badge ${bill.status === 'completed' ? 'completed' : bill.status === 'partial' ? 'partial' : 'pending'}`}>
-                      {bill.status === 'completed' && <><FontAwesomeIcon icon={faCheckCircle} /> Đã xong</>}
-                      {bill.status === 'partial'   && <><FontAwesomeIcon icon={faHourglassHalf} /> Một phần</>}
-                      {bill.status === 'pending'   && <><FontAwesomeIcon icon={faExclamationTriangle} /> Chưa trả</>}
-                    </span>
-                  </div>
-
-                  {/* ── Card Body ── */}
-                  <div className="bill-card-body">
-                    {/* Meta grid */}
-                    <div className="bill-meta-grid">
-                      <div className="bill-meta-item full">
-                        <span className="meta-label">Tổng tiền hóa đơn</span>
-                        <span className="meta-value large">{formatCurrency(bill.total_amount)}</span>
+                    <div className="h-bill-right">
+                      <span className="amount">{formatCurrency(bill.total_amount)}</span>
+                      <div className="avatar-stack" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
+                        {bill.details?.slice(0, 3).map((d, idx) => (
+                          <div key={idx} className={`avatar-stack-item ${d.status === 'paid' ? 'paid' : 'unpaid'}`} style={{ width: 22, height: 22, fontSize: 10 }} title={d.member_id?.name}>
+                            {getInitials(d.member_id?.name || `T${idx+1}`)}
+                          </div>
+                        ))}
+                        {bill.details?.length > 3 && (
+                          <div className="avatar-stack-item count" style={{ width: 22, height: 22, fontSize: 10 }}>+{bill.details.length - 3}</div>
+                        )}
                       </div>
-                      <div className="bill-meta-item">
-                        <span className="meta-label">Ngày hóa đơn</span>
-                        <span className="meta-value">{formatDate(bill.bill_date || bill.created_at || bill.createdAt)}</span>
-                      </div>
-                      <div className="bill-meta-item">
-                        <span className="meta-label">Người quản lý</span>
-                        <span className="meta-value">{bill.payer_id?.name || bill.created_by?.name || '—'}</span>
-                      </div>
-                      {bill.note && (
-                        <div className="bill-meta-item full">
-                          <span className="meta-label">Ghi chú</span>
-                          <span className="meta-value">{bill.note}</span>
-                        </div>
-                      )}
                     </div>
-
-                    {/* Member detail list */}
-                    {bill.details?.length > 0 && (
-                      <div className="bill-members-section">
-                        <p className="members-section-title">
-                          <FontAwesomeIcon icon={faUsers} />
-                          Chi tiết theo thành viên ({paidCount}/{totalCount} đã trả)
-                        </p>
-                        <div className="member-detail-list">
-                          {visibleDetails.map((detail, idx) => {
-                            const isPaid = detail.status === 'paid';
-                            return (
-                              <div key={detail._id || idx} className={`member-detail-row ${isPaid ? 'paid-row' : 'pending-row'}`}>
-                                <div className="member-name-col">
-                                  <div className="member-avatar">
-                                    {getInitials(detail.member_id?.name || `T${idx + 1}`)}
-                                  </div>
-                                  {detail.member_id?.name || `Thành viên ${idx + 1}`}
-                                </div>
-                                <div className="member-amount-col">
-                                  {formatCurrency(detail.amount_due)}
-                                </div>
-                                <div className="member-action-col">
-                                  {isPaid ? (
-                                    <span className="badge-paid"><FontAwesomeIcon icon={faCheck} /> Đã trả</span>
-                                  ) : canConfirm ? (
-                                    <button
-                                      className="btn-confirm-small"
-                                      onClick={() => handleConfirmPayment(bill._id, detail._id)}
-                                    >
-                                      <FontAwesomeIcon icon={faCheck} /> Xác nhận
-                                    </button>
-                                  ) : (
-                                    <span className="badge-view-only">Chờ trả</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Summary footer */}
-                        <div className="bill-summary-footer">
-                          <span>Tổng phân bổ</span>
-                          <strong>
-                            {formatCurrency(visibleDetails.reduce((s, d) => s + (Number(d.amount_due) || 0), 0))}
-                          </strong>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ── RM-8: Bill Images Thumbnails ── */}
-                    {(bill.bill_images?.length > 0) && (
-                      <div className="bill-images-section">
-                        <p className="members-section-title">
-                          <FontAwesomeIcon icon={faImages} />
-                          Ảnh hóa đơn thực tế ({bill.bill_images.length}/5)
-                        </p>
-                        <div className="bill-thumbnails">
-                          {bill.bill_images.map((src, idx) => (
-                            <button
-                              key={idx}
-                              className="thumbnail-btn"
-                              onClick={() => setImagePreviewSrc(src)}
-                              title="Xem ảnh"
-                            >
-                              <img src={src} alt={`Hóa đơn ${idx + 1}`} />
-                              <span className="thumb-overlay"><FontAwesomeIcon icon={faExpand} /></span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* ── Card Footer ── */}
-                  <div className="bill-card-footer">
-                    {canConfirm && bill.status !== 'completed' && bill.details?.length > 0 && (
-                      <button
-                        className="btn-confirm-all"
-                        onClick={async () => {
-                          if (!window.confirm('Xác nhận thanh toán cho tất cả các thành viên chưa trả?')) return;
-                          try {
-                            const pending = bill.details.filter((d) => d.status !== 'paid');
-                            for (const d of pending) {
-                              await billService.confirmBillPayment(bill._id, d._id);
-                            }
-                            await fetchBills();
-                          } catch (err) {
-                            setError(err.message || 'Không thể xác nhận toàn bộ');
-                          }
-                        }}
-                      >
-                        <FontAwesomeIcon icon={faCheckCircle} /> Xác nhận toàn bộ
-                      </button>
-                    )}
-                    {!canConfirm && (
-                      <span className="confirm-note">
-                        Chỉ {bill.payer_id?.name || bill.created_by?.name || 'người quản lý'} mới có thể xác nhận
-                      </span>
-                    )}
-                    {/* RM-8: Upload ảnh button */}
-                    <button
-                      className="btn-upload-img"
-                      onClick={() => handleOpenImageModal(bill)}
-                      title={bill.bill_images?.length > 0 ? 'Cập nhật ảnh hóa đơn' : 'Đính kèm ảnh hóa đơn'}
-                    >
-                      <FontAwesomeIcon icon={faCamera} />
-                      {bill.bill_images?.length > 0 ? bill.bill_images.length : ''}
-                    </button>
-                    <button className="btn-delete" onClick={() => handleDeleteBill(bill._id)} title="Xóa hóa đơn">
-                      <FontAwesomeIcon icon={faTrash} />
-                    </button>
-                  </div>
+            {/* RIGHT: DETAILS PANEL */}
+            <div className="split-right">
+              {!selectedBill ? (
+                <div className="detail-empty">
+                  <FontAwesomeIcon icon={faReceipt} />
+                  <p>Chọn một hóa đơn bên trái để xem chi tiết</p>
                 </div>
-              );
-            })}
+              ) : (
+                <>
+                  {(() => {
+                    const typeMeta = getBillTypeMeta(selectedBill.bill_type);
+                    const responsibleId = String(selectedBill.payer_id?._id || selectedBill.payer_id || selectedBill.created_by?._id || selectedBill.created_by || '');
+                    const canConfirm = Boolean(currentUserId && responsibleId && currentUserId === responsibleId);
+                    return (
+                      <>
+                        <div className="detail-header">
+                          <div className="detail-header-top">
+                            <h2>
+                               <div className={`h-bill-icon ${typeMeta.cls}`} style={{ width: 32, height: 32, fontSize: 14 }}>
+                                 <FontAwesomeIcon icon={typeMeta.icon} />
+                               </div>
+                               {selectedBill.bill_type === 'other' ? selectedBill.bill_type_other || 'Khác' : `Tiền ${typeMeta.label}`}
+                            </h2>
+                            <span className={`bill-status-badge ${selectedBill.status === 'completed' ? 'completed' : selectedBill.status === 'partial' ? 'partial' : 'pending'}`}>
+                              {selectedBill.status === 'completed' ? 'Đã xong' : selectedBill.status === 'partial' ? 'Một phần' : 'Chưa trả'}
+                            </span>
+                          </div>
+                          <div className="meta">
+                            Kỳ sử dụng: <strong>Tháng {selectedBill.billing_month}</strong><br/>
+                            Ngày chốt hóa đơn: {formatDate(selectedBill.bill_date || selectedBill.created_at)}<br/>
+                            Người quản lý: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
+                          </div>
+                        </div>
+
+                        <div className="detail-body">
+                          <div className="split-meta-row">
+                            <div className="split-meta-item">
+                              <span>Tổng hóa đơn</span>
+                              <strong style={{ fontSize: 20 }}>{formatCurrency(selectedBill.total_amount)}</strong>
+                            </div>
+                            <div className="split-meta-item">
+                              <span>Đã thu</span>
+                              <strong style={{ color: '#16a34a' }}>
+                                {formatCurrency(selectedBill.details?.filter(d => d.status === 'paid').reduce((s, d) => s + (Number(d.amount_due) || 0), 0) || 0)}
+                              </strong>
+                            </div>
+                            <div className="split-meta-item">
+                              <span>Ảnh chứng từ</span>
+                              {selectedBill.bill_images?.length > 0 ? (
+                                 <button className="btn-icon-secondary" style={{ padding: '4px 10px', marginTop: 4 }} onClick={() => setImagePreviewSrc(selectedBill.bill_images[0])}>
+                                   <FontAwesomeIcon icon={faImages} /> Xem ({selectedBill.bill_images.length})
+                                 </button>
+                              ) : (<span style={{ marginTop: 6 }}>Chưa có</span>)}
+                            </div>
+                          </div>
+
+                          {selectedBill.note && (
+                            <div style={{ marginBottom: 20, fontSize: 13, background: '#fffbeb', color: '#b45309', padding: 12, borderRadius: 8, border: '1px solid #fef3c7' }}>
+                              <strong>Ghi chú:</strong> {selectedBill.note}
+                            </div>
+                          )}
+
+                          <h4 style={{ margin: '0 0 12px 0', color: 'var(--color-primary)' }}>Phân bổ chi tiết ({selectedBill.details?.length || 0} người)</h4>
+                          <table className="ds-member-table">
+                            <thead>
+                              <tr>
+                                <th>Thành viên</th>
+                                <th>Số tiền</th>
+                                <th>Trạng thái</th>
+                                <th style={{ textAlign: 'right' }}>Thao tác</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedBill.details?.map((detail, idx) => {
+                                const isPaid = detail.status === 'paid';
+                                return (
+                                  <tr key={detail._id || idx}>
+                                    <td>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                         <div className="member-avatar" style={{ width: 24, height: 24, fontSize: 10 }}>{getInitials(detail.member_id?.name || `T${idx+1}`)}</div>
+                                         {detail.member_id?.name || `Thành viên ${idx + 1}`}
+                                      </div>
+                                    </td>
+                                    <td style={{ color: '#2f6fec', fontWeight: 700 }}>{formatCurrency(detail.amount_due)}</td>
+                                    <td>
+                                       {isPaid ? <span className="badge-paid"><FontAwesomeIcon icon={faCheck} /> Đã trả</span> : <span className="badge-view-only">Chưa trả</span>}
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      {!isPaid && canConfirm ? (
+                                        <button className="btn-confirm-small" onClick={() => handleConfirmPayment(selectedBill._id, detail._id)}>Xác nhận</button>
+                                      ) : null}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="detail-actions-bar">
+                           {canConfirm && selectedBill.status !== 'completed' && selectedBill.details?.some(d => d.status !== 'paid') && (
+                              <>
+                                <button className="btn-confirm-all" style={{ flex: 1 }} onClick={async () => {
+                                    if (!window.confirm('Xác nhận thanh toán toàn bộ từ tiền riêng?')) return;
+                                    try {
+                                       setSubmitting(true);
+                                       const pending = selectedBill.details.filter(d => d.status !== 'paid');
+                                       for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
+                                       await fetchBills();
+                                    } catch (e) { setError(e.message); } finally { setSubmitting(false); }
+                                }} disabled={submitting}>
+                                   <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
+                                </button>
+                                <button 
+                                  className="btn-confirm-all" 
+                                  style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 3px 10px rgba(180, 83, 9, 0.3)' }} 
+                                  onClick={() => handlePayWithFund(selectedBill)}
+                                  disabled={submitting}
+                                >
+                                   <FontAwesomeIcon icon={faWallet} /> Trả bằng Quỹ
+                                </button>
+                              </>
+                           )}
+                           <button className="btn-icon-secondary" onClick={() => handleOpenImageModal(selectedBill)}>
+                             <FontAwesomeIcon icon={faCamera} /> {selectedBill.bill_images?.length > 0 ? 'Cập nhật ảnh' : 'Đính kèm ảnh'}
+                           </button>
+                           <button className="btn-delete" style={{ marginLeft: 'auto' }} onClick={() => {
+                             setSelectedBillId(null);
+                             handleDeleteBill(selectedBill._id);
+                           }}>
+                             <FontAwesomeIcon icon={faTrash} />
+                           </button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -785,6 +848,23 @@ const BillManagement = () => {
                   placeholder="Nhập ghi chú (tuỳ chọn)"
                   rows="2"
                 />
+              </div>
+
+              {/* Tùy chọn Auto Pay with Fund */}
+              <div className="form-group" style={{ 
+                marginTop: '16px', background: '#fdfce8', padding: '12px', borderRadius: '10px', border: '1px solid #fef08a', display: 'flex', alignItems: 'center', gap: '8px'
+              }}>
+                <input 
+                  type="checkbox" 
+                  id="autoPayWithFund"
+                  checked={autoPayWithFund}
+                  onChange={(e) => setAutoPayWithFund(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="autoPayWithFund" style={{ margin: 0, fontSize: '14px', color: '#854d0e', cursor: 'pointer' }}>
+                  <FontAwesomeIcon icon={faWallet} style={{ marginRight: 6 }}/> 
+                  Trích quỹ chung để thanh toán luôn hóa đơn này
+                </label>
               </div>
             </div>
 
