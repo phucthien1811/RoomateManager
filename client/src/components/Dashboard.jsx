@@ -637,33 +637,37 @@ const Dashboard = () => {
                     <div className="empty-inline">Chưa có dữ liệu theo thành viên</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                      <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 10, left: 0, bottom: 35 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis 
                           dataKey="avatar" 
+                          axisLine={false}
+                          tickLine={false}
                           interval={0}
                           tick={({ x, y, payload }) => (
-                            <g transform={`translate(${x},${y})`}>
+                            <g transform={`translate(${x},${y + 12})`}>
                               <defs>
                                 <clipPath id={`clip-${payload.index}`}>
-                                  <circle cx="0" cy="15" r="12" />
+                                  <circle cx="0" cy="0" r="14" />
                                 </clipPath>
                               </defs>
+                              <circle cx="0" cy="0" r="15" fill="#fff" stroke="#e5e7eb" strokeWidth="1" />
                               <image
-                                x="-12"
-                                y="3"
-                                width="24"
-                                height="24"
+                                x="-14"
+                                y="-14"
+                                width="28"
+                                height="28"
                                 xlinkHref={payload.value}
                                 clipPath={`url(#clip-${payload.index})`}
+                                preserveAspectRatio="xMidYMid slice"
                               />
                             </g>
                           )}
                         />
-                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
+                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} axisLine={false} tickLine={false} />
                         <Tooltip 
-                          formatter={(value, name, props) => [formatCurrency(value), props.payload.name]} 
-                          labelStyle={{ display: 'none' }}
+                          cursor={{ fill: '#f3f4f6', opacity: 0.4 }}
+                          formatter={(value, name, props) => [formatCurrency(value), `Thành viên: ${props.payload.name}`]} 
                         />
                         <Bar
                           dataKey={memberChartMode}
