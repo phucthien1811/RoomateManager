@@ -20,7 +20,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -565,13 +564,8 @@ const Dashboard = () => {
         .map(([name, value]) => ({ name, value }))
         .filter((item) => item.value > 0),
       monthlyIncomeExpensePieData: [
-        { name: 'Thu', value: myMonthlyFundWithdraw },
-        {
-          name: 'Chi',
-          value:
-            Object.values(personalExpenseByTypeMap).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
-            + myMonthlyFundDeposit,
-        },
+        { name: 'Thu', value: myMonthlyFundWithdraw + myMonthlyFundDeposit },
+        { name: 'Chi', value: Object.values(personalExpenseByTypeMap).reduce((sum, amount) => sum + (Number(amount) || 0), 0) },
       ].filter((item) => item.value > 0),
       choreBarData: [
         { name: 'Đã hoàn thành', value: myCompletedChores.length },
@@ -1006,49 +1000,117 @@ const Dashboard = () => {
             </div>
           </div>
 
+          <div className="dashboard-charts">
+            <div className="section expense-overview-section">
+              <div className="section-header expense-header">
+                <div>
+                  <h2>Tổng quan chi tiêu cá nhân</h2>
+                  <p className="expense-subtitle">
+                    <span className="today-badge">Tháng đang xem</span> <strong>{computed.selectedMonthLabel}</strong>
+                  </p>
+                </div>
+                <div className="expense-header-controls">
+                  <select
+                    className="expense-month-selector"
+                    value={selectedBillingMonth}
+                    onChange={(e) => setSelectedBillingMonth(e.target.value)}
+                  >
+                    {computed.availableMonths.length === 0 ? (
+                      <option value={getCurrentMonthKey()}>{formatMonthLabel(getCurrentMonthKey())}</option>
+                    ) : (
+                      computed.availableMonths.map((month) => (
+                        <option key={month} value={month}>
+                          {formatMonthLabel(month)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="dashboard-content">
             <div className="section">
               <div className="section-header">
-                <h2>Chi tiêu cá nhân tháng này (Pie)</h2>
+                <h2>Chi tiêu cá nhân theo tháng</h2>
               </div>
               <div className="chart-wrap">
                 {personalComputed.personalExpensePieData.length === 0 ? (
-                  <div className="empty-inline">Bạn chưa có dữ liệu chi tiêu cá nhân tháng này</div>
+                  <div className="empty-inline">Bạn chưa có dữ liệu chi tiêu cá nhân trong tháng này</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie data={personalComputed.personalExpensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
-                        {personalComputed.personalExpensePieData.map((entry, index) => (
-                          <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="expense-distribution-layout">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={personalComputed.personalExpensePieData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={70}
+                          outerRadius={112}
+                          paddingAngle={3}
+                        >
+                          {personalComputed.personalExpensePieData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="expense-legend-list">
+                      {personalComputed.personalExpensePieData.map((item, index) => (
+                        <div key={`${item.name}-${index}`} className="expense-legend-item">
+                          <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p>{formatCurrency(item.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
 
             <div className="section">
               <div className="section-header">
-                <h2>Thu / Chi tháng này (Pie)</h2>
+                <h2>Thu / Chi theo tháng</h2>
               </div>
               <div className="chart-wrap">
                 {personalComputed.monthlyIncomeExpensePieData.length === 0 ? (
-                  <div className="empty-inline">Bạn chưa có dữ liệu thu/chi tháng này</div>
+                  <div className="empty-inline">Bạn chưa có dữ liệu thu/chi trong tháng này</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie data={personalComputed.monthlyIncomeExpensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
-                        {personalComputed.monthlyIncomeExpensePieData.map((entry, index) => (
-                          <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="expense-distribution-layout">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={personalComputed.monthlyIncomeExpensePieData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={70}
+                          outerRadius={112}
+                          paddingAngle={3}
+                        >
+                          {personalComputed.monthlyIncomeExpensePieData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="expense-legend-list">
+                      {personalComputed.monthlyIncomeExpensePieData.map((item, index) => (
+                        <div key={`${item.name}-${index}`} className="expense-legend-item">
+                          <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p>{formatCurrency(item.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
