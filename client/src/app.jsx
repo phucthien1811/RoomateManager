@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from './context/AuthContext.jsx';
@@ -27,6 +27,7 @@ const AppLayout = () => {
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { user, logout } = useAuth();
   const { unreadCount, refreshNotifications } = useNotifications();
+  const navigate = useNavigate();
 
   const currentUser = user || {
     name: 'Guest User',
@@ -48,7 +49,7 @@ const AppLayout = () => {
 
   const handleLogout = () => {
     logout();
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   const renderContent = () => {
