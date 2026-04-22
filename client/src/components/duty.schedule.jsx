@@ -14,7 +14,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const appTimezone = 'Asia/Ho_Chi_Minh';
-const defaultMembers = ['Duy Nguyễn', 'Iris Trần', 'An Phạm', 'Minh Trần'];
 const dayColumns = [
   { shortLabel: 'CN', dutyDay: 'Chủ nhật', offset: -1 },
   { shortLabel: 'THỨ 2', dutyDay: 'Thứ 2', offset: 0 },
@@ -96,6 +95,7 @@ const DutySchedule = () => {
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
   const [viewMode, setViewMode] = useState('week');
   const [loadingDuties, setLoadingDuties] = useState(false);
+  const [roomMembers, setRoomMembers] = useState([]);
   const [roomCreatedAt, setRoomCreatedAt] = useState(() => {
     const cached = localStorage.getItem('currentRoomCreatedAt');
     const parsed = cached ? new Date(cached) : null;
@@ -118,14 +118,19 @@ const DutySchedule = () => {
     const loadRoomCreatedAt = async (roomId) => {
       setSelectedRoomId(roomId || '');
       if (!roomId) {
+        setRoomMembers([]);
         setRoomCreatedAt(new Date(0));
         return;
       }
 
       try {
-        const room = await roomService.getRoomById(roomId);
+        const [room, members] = await Promise.all([
+          roomService.getRoomById(roomId),
+          roomService.getRoomMembers(roomId),
+        ]);
         const rawCreatedAt = room?.createdAt || room?.created_at || room?.createdDate;
         const parsed = rawCreatedAt ? new Date(rawCreatedAt) : new Date(0);
+        setRoomMembers(Array.isArray(members) ? members : []);
         if (Number.isNaN(parsed.getTime())) {
           setRoomCreatedAt(new Date(0));
           return;
@@ -133,6 +138,7 @@ const DutySchedule = () => {
         setRoomCreatedAt(parsed);
         localStorage.setItem('currentRoomCreatedAt', parsed.toISOString());
       } catch (error) {
+        setRoomMembers([]);
         setRoomCreatedAt(new Date(0));
       }
     };
@@ -160,12 +166,16 @@ const DutySchedule = () => {
   const displayWeekStart = useMemo(() => startOfWeekMonday(new Date(selectedDate)), [selectedDate]);
   const todayKey = getTodayKey();
   const memberOptions = useMemo(() => {
-    const uniqueMembers = new Set(defaultMembers);
+    const uniqueMembers = new Set(
+      (roomMembers || [])
+        .map((member) => String(member?.name || '').trim())
+        .filter(Boolean)
+    );
     if (user?.name && String(user.name).trim()) {
       uniqueMembers.add(String(user.name).trim());
     }
     return Array.from(uniqueMembers);
-  }, [user?.name]);
+  }, [roomMembers, user?.name]);
   const displayWeekKey = useMemo(() => toDateKey(displayWeekStart), [displayWeekStart]);
   const earliestWeekStart = useMemo(() => startOfWeekMonday(roomCreatedAt), [roomCreatedAt]);
   const earliestWeekKey = useMemo(() => toDateKey(earliestWeekStart), [earliestWeekStart]);
