@@ -44,6 +44,15 @@ const BILL_TYPE_LABELS = {
   rent: 'Tiền thuê',
   internet: 'Internet',
 };
+const DUTY_DAY_OFFSETS = {
+  'Thứ 2': 0,
+  'Thứ 3': 1,
+  'Thứ 4': 2,
+  'Thứ 5': 3,
+  'Thứ 6': 4,
+  'Thứ 7': 5,
+  'Chủ nhật': 6,
+};
 
 const formatCurrency = (amount = 0) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
@@ -74,13 +83,53 @@ const formatMonthLabel = (monthKey) => {
   return `Tháng ${parseInt(month, 10)} năm ${year}`;
 };
 
+const toDateKeyLocal = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const parseDateKey = (dateKey) => {
+  const [year, month, day] = String(dateKey || '').split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
 const startOfWeekMonday = (date) => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   const day = d.getDay();
   const offset = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + offset);
-  return d.toISOString().split('T')[0];
+  return toDateKeyLocal(d);
+};
+
+const getNextWeekStartKey = (weekStartKey) => {
+  const weekStartDate = parseDateKey(weekStartKey);
+  if (!weekStartDate) return weekStartKey;
+  weekStartDate.setDate(weekStartDate.getDate() + 7);
+  return toDateKeyLocal(weekStartDate);
+};
+
+const isValidDateValue = (value) => {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+const getDutyDate = (duty) => {
+  if (duty?.date) return duty.date;
+
+  if (!duty?.week_start || !duty?.day_label) return null;
+  const base = new Date(duty.week_start);
+  if (Number.isNaN(base.getTime())) return null;
+
+  const offset = DUTY_DAY_OFFSETS[duty.day_label] ?? 0;
+  base.setUTCDate(base.getUTCDate() + offset);
+  return base.toISOString();
+};
+
+const getDutyMemberLabel = (duty) => {
+  if (!Array.isArray(duty?.members) || duty.members.length === 0) return 'Thành viên';
+  return duty.members.join(', ');
 };
 
 const Dashboard = () => {
@@ -149,18 +198,27 @@ const Dashboard = () => {
         setLoading(true);
         setError('');
 
-        const [room, members, billHistory, chores, absences, fundResponse, duties] = await Promise.all([
+        const currentWeekStart = startOfWeekMonday(new Date());
+        const nextWeekStart = getNextWeekStartKey(currentWeekStart);
+
+        const [room, members, billHistory, chores, absences, fundResponse, dutyWeeks] = await Promise.all([
           roomService.getRoomById(selectedRoomId),
           roomService.getRoomMembers(selectedRoomId),
           billService.getBillHistory(selectedRoomId),
           choreService.getChoresByRoom(selectedRoomId),
           absenceService.getAbsenceReports(selectedRoomId),
           api.get(`/fund?room_id=${selectedRoomId}`),
-          dutyScheduleService.getWeekDuties(selectedRoomId, startOfWeekMonday(new Date())),
+          Promise.all([
+            dutyScheduleService.getWeekDuties(selectedRoomId, currentWeekStart),
+            dutyScheduleService.getWeekDuties(selectedRoomId, nextWeekStart),
+          ]),
         ]);
 
         const billsData = Array.isArray(billHistory) ? billHistory : billHistory?.bills || [];
         const fundData = fundResponse?.data?.data || {};
+        const duties = Array.isArray(dutyWeeks)
+          ? dutyWeeks.flat().filter((item) => item && item._id)
+          : [];
 
         setData({
           room,
@@ -199,8 +257,10 @@ const Dashboard = () => {
     // Tìm việc tiếp theo (có thể là Chore hoặc Duty)
     const allReminders = [
       ...pendingChores.map(c => ({ title: c.title, date: c.chore_date, member: getMemberName(c.assigned_to) })),
-      ...data.duties.map(d => ({ title: d.title, date: d.date, member: getMemberName(d.assigned_to) }))
-    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+      ...data.duties.map(d => ({ title: d.title, date: getDutyDate(d), member: getDutyMemberLabel(d) }))
+    ]
+      .filter((item) => isValidDateValue(item.date))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
     
     const nextPendingTask = allReminders[0];
 
@@ -319,9 +379,11 @@ const Dashboard = () => {
       .slice(0, 5);
 
     const upcomingChores = (() => {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1));
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const today = new Date();
+      const todayStr = toDateKeyLocal(today);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = toDateKeyLocal(tomorrow);
       
       const allUpcoming = [
         ...data.chores
@@ -337,16 +399,16 @@ const Dashboard = () => {
           .map(d => ({
             id: d._id,
             title: d.title,
-            date: d.date,
+            date: getDutyDate(d),
             type: 'duty',
-            member: getMemberName(d.assigned_to)
+            member: getDutyMemberLabel(d)
           }))
-      ];
+      ].filter((item) => isValidDateValue(item.date));
       
       return allUpcoming
         .sort((a, b) => new Date(a.date) - new Date(b.date))
         .map(item => {
-          const itemDateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
+          const itemDateStr = item.date ? toDateKeyLocal(item.date) : '';
           let dateLabel = new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
           if (itemDateStr === todayStr) dateLabel = 'Hôm nay';
           else if (itemDateStr === tomorrowStr) dateLabel = 'Ngày mai';
