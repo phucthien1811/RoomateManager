@@ -291,7 +291,21 @@ const Dashboard = () => {
       expensePieData,
       expenseTrendData,
       memberFinanceData,
-      availableMonths: [...new Set(data.bills.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse(),
+      availableMonths: (() => {
+        // Lấy danh sách tháng từ dữ liệu thật
+        const realMonths = data.bills.map((bill) => bill.billing_month).filter(Boolean);
+        
+        // Tạo danh sách 12 tháng gần nhất (tính từ tháng hiện tại)
+        const recentMonths = [];
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+        
+        // Gộp hai danh sách, loại bỏ trùng lặp và sắp xếp mới nhất lên đầu
+        return [...new Set([...realMonths, ...recentMonths])].sort().reverse();
+      })(),
       selectedMonthLabel: formatMonthLabel(monthToUse),
       pendingPayments,
       upcomingChores,
