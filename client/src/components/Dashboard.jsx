@@ -74,6 +74,15 @@ const formatMonthLabel = (monthKey) => {
   return `Tháng ${parseInt(month, 10)} năm ${year}`;
 };
 
+const startOfWeekMonday = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().split('T')[0];
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [rooms, setRooms] = useState([]);
@@ -147,7 +156,7 @@ const Dashboard = () => {
           choreService.getChoresByRoom(selectedRoomId),
           absenceService.getAbsenceReports(selectedRoomId),
           api.get(`/fund?room_id=${selectedRoomId}`),
-          dutyScheduleService.getWeekDuties(selectedRoomId, new Date().toISOString().split('T')[0]),
+          dutyScheduleService.getWeekDuties(selectedRoomId, startOfWeekMonday(new Date())),
         ]);
 
         const billsData = Array.isArray(billHistory) ? billHistory : billHistory?.bills || [];
@@ -186,7 +195,14 @@ const Dashboard = () => {
     const monthlyExpense = monthlyBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
 
     const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
-    const nextPendingChore = pendingChores.sort((a,b) => new Date(a.chore_date) - new Date(b.chore_date))[0];
+    
+    // Tìm việc tiếp theo (có thể là Chore hoặc Duty)
+    const allReminders = [
+      ...pendingChores.map(c => ({ title: c.title, date: c.chore_date, member: getMemberName(c.assigned_to) })),
+      ...data.duties.map(d => ({ title: d.title, date: d.date, member: getMemberName(d.assigned_to) }))
+    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const nextPendingTask = allReminders[0];
 
     const pendingAmount = monthlyBills.reduce((sum, bill) => {
       const details = Array.isArray(bill.details) ? bill.details : [];
@@ -368,7 +384,7 @@ const Dashboard = () => {
       monthlyExpense,
       pendingAmount,
       pendingChoreCount: pendingChores.length,
-      nextPendingChore,
+      nextPendingTask,
       pendingAbsenceCount: pendingAbsences.length,
       expensePieData,
       expenseTrendData,
@@ -586,14 +602,14 @@ const Dashboard = () => {
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Việc nhà cần làm</span>
-              <strong className="stat-value">{computed.pendingChoreCount}</strong>
+              <span className="stat-label">Việc cần làm</span>
+              <strong className="stat-value">{computed.pendingChoreCount || data.duties.length}</strong>
               <div className="stat-insight chore-insight">
-                {computed.nextPendingChore ? (
+                {computed.nextPendingTask ? (
                   <>
                     <span className="chore-reminder-label">Tiếp theo:</span>
-                    <span className="chore-reminder-task" title={`${computed.nextPendingChore.title} - ${getMemberName(computed.nextPendingChore.assigned_to)}`}>
-                      {computed.nextPendingChore.title}
+                    <span className="chore-reminder-task" title={`${computed.nextPendingTask.title} - ${computed.nextPendingTask.member}`}>
+                      {computed.nextPendingTask.title}
                     </span>
                   </>
                 ) : (
