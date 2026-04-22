@@ -54,15 +54,20 @@ const getEntityId = (value) => {
 };
 
 const getCurrentMonthKey = () => {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${now.getFullYear()}-${month}`;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getTodayFullDate = () => {
+  const d = new Date();
+  const days = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  return `${days[d.getDay()]}, ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 };
 
 const formatMonthLabel = (monthKey) => {
   if (!monthKey) return '';
   const [year, month] = monthKey.split('-');
-  return `Tháng ${month}/${year}`;
+  return `Tháng ${parseInt(month, 10)} năm ${year}`;
 };
 
 const Dashboard = () => {
@@ -463,7 +468,11 @@ const Dashboard = () => {
               <div className="section-header expense-header">
                 <div>
                   <h2>Tình hình thu chi</h2>
-                  <p className="expense-subtitle">{computed.selectedMonthLabel || 'Tháng hiện tại'}</p>
+                  <p className="expense-subtitle">
+                    <span className="today-badge">Hôm nay</span> {getTodayFullDate()} 
+                    <span className="divider">•</span> 
+                    <strong>{computed.selectedMonthLabel}</strong>
+                  </p>
                 </div>
                 <div className="expense-header-controls">
                   <select
