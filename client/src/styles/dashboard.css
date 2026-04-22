@@ -104,6 +104,35 @@
   font-size: 13px;
 }
 
+.stat-insight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.diff-badge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diff-badge.up {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.diff-badge.down {
+  background: #f0fdf4;
+  color: #22c55e;
+}
+
+.insight-text {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
 .dashboard-charts {
   display: block;
   margin-bottom: 16px;

@@ -239,11 +239,37 @@ const Dashboard = () => {
       });
     });
 
-    const memberFinanceData = Object.keys({ ...memberExpenseMap, ...memberIncomeMap }).map((name) => ({
-      name,
-      chi: memberExpenseMap[name] || 0,
-      thu: memberIncomeMap[name] || 0,
-    }));
+    // --- So sánh với tháng trước ---
+    const previousMonthKey = (() => {
+      const [year, month] = monthToUse.split('-').map(Number);
+      const d = new Date(year, month - 2, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    })();
+    const previousMonthBills = data.bills.filter((bill) => bill.billing_month === previousMonthKey);
+    const previousMonthExpense = previousMonthBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
+
+    const expenseDiff = monthlyExpense - previousMonthExpense;
+    const expenseDiffPercent = previousMonthExpense > 0 ? (expenseDiff / previousMonthExpense) * 100 : 0;
+
+    // --- Thống kê thành viên ---
+    const memberFinanceData = data.members.map((member) => {
+      const name = getMemberName(member);
+      const avatar = member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+      
+      // Tính chi (số tiền cần đóng)
+      const chi = monthlyBills.reduce((sum, bill) => {
+        const detail = bill.details?.find(d => getEntityId(d.member_id) === member._id);
+        return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
+      }, 0);
+
+      // Tính thu (số tiền thực tế đã đóng)
+      const thu = monthlyBills.reduce((sum, bill) => {
+        const detail = bill.details?.find(d => getEntityId(d.member_id) === member._id && d.status === 'paid');
+        return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
+      }, 0);
+
+      return { name, avatar, chi, thu };
+    });
 
     const pendingPayments = monthlyBills
       .flatMap((bill) => {
@@ -291,6 +317,8 @@ const Dashboard = () => {
       expensePieData,
       expenseTrendData,
       memberFinanceData,
+      expenseDiff,
+      expenseDiffPercent,
       availableMonths: (() => {
         // Lấy danh sách tháng từ dữ liệu thật
         const realMonths = data.bills.map((bill) => bill.billing_month).filter(Boolean);
@@ -457,9 +485,19 @@ const Dashboard = () => {
             <div className="stat-card">
               <span className="stat-label">Chi tiêu tháng này</span>
               <strong className="stat-value">{formatCurrency(computed.monthlyExpense)}</strong>
-              <span className="stat-meta">
-                <FontAwesomeIcon icon={faMoneyBillWave} /> Theo hóa đơn tháng hiện tại
-              </span>
+              <div className="stat-insight">
+                {computed.expenseDiffPercent !== 0 ? (
+                  <>
+                    <span className={`diff-badge ${computed.expenseDiffPercent > 0 ? 'up' : 'down'}`}>
+                      {computed.expenseDiffPercent > 0 ? '+' : ''}
+                      {computed.expenseDiffPercent.toFixed(1)}%
+                    </span>
+                    <span className="insight-text">so với tháng trước</span>
+                  </>
+                ) : (
+                  <span className="insight-text">Bằng tháng trước</span>
+                )}
+              </div>
             </div>
             <div className="stat-card">
               <span className="stat-label">Khoản còn phải thu</span>
@@ -601,9 +639,32 @@ const Dashboard = () => {
                     <ResponsiveContainer width="100%" height={240}>
                       <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <XAxis 
+                          dataKey="avatar" 
+                          interval={0}
+                          tick={({ x, y, payload }) => (
+                            <g transform={`translate(${x},${y})`}>
+                              <defs>
+                                <clipPath id={`clip-${payload.index}`}>
+                                  <circle cx="0" cy="15" r="12" />
+                                </clipPath>
+                              </defs>
+                              <image
+                                x="-12"
+                                y="3"
+                                width="24"
+                                height="24"
+                                xlinkHref={payload.value}
+                                clipPath={`url(#clip-${payload.index})`}
+                              />
+                            </g>
+                          )}
+                        />
+                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
+                        <Tooltip 
+                          formatter={(value, name, props) => [formatCurrency(value), props.payload.name]} 
+                          labelStyle={{ display: 'none' }}
+                        />
                         <Bar
                           dataKey={memberChartMode}
                           fill={memberChartMode === 'chi' ? '#74b7ff' : '#54c7a1'}
