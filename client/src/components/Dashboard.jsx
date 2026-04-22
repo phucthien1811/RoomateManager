@@ -42,6 +42,7 @@ const BILL_TYPE_LABELS = {
   water: 'Nước',
   rent: 'Tiền thuê',
   internet: 'Internet',
+  other: 'Khác',
 };
 const DUTY_DAY_OFFSETS = {
   'Thứ 2': 0,
@@ -134,6 +135,13 @@ const getDutyDate = (duty) => {
 const getDutyMemberLabel = (duty) => {
   if (!Array.isArray(duty?.members) || duty.members.length === 0) return 'Thành viên';
   return duty.members.join(', ');
+};
+
+const getBillTypeLabel = (bill) => {
+  if (bill?.bill_type === 'other') {
+    return String(bill?.bill_type_other || '').trim() || 'Khác';
+  }
+  return BILL_TYPE_LABELS[bill?.bill_type] || bill?.bill_type || 'Khác';
 };
 
 const Dashboard = () => {
@@ -283,13 +291,13 @@ const Dashboard = () => {
     const pendingAbsences = data.absences.filter((report) => report.status === 'pending');
 
     const expenseByTypeMap = monthlyBills.reduce((acc, bill) => {
-      const key = bill.bill_type || 'Khác';
+      const key = getBillTypeLabel(bill);
       acc[key] = (acc[key] || 0) + (Number(bill.total_amount) || 0);
       return acc;
     }, {});
 
     const expensePieData = Object.entries(expenseByTypeMap).map(([name, value]) => ({
-      name: BILL_TYPE_LABELS[name] || name,
+      name,
       value,
     }));
 
@@ -375,7 +383,7 @@ const Dashboard = () => {
           .filter((detail) => detail.status === 'pending')
           .map((detail) => ({
             id: `${bill._id}-${detail._id}`,
-            title: `${getMemberName(detail.member_id)} chưa đóng ${bill.bill_type}`,
+            title: `${getMemberName(detail.member_id)} chưa đóng ${getBillTypeLabel(bill)}`,
             amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
             date: formatMonthLabel(bill.billing_month),
           }));
@@ -436,7 +444,7 @@ const Dashboard = () => {
       })),
       ...data.bills.map((bill) => ({
         id: `bill-${bill._id}`,
-        label: `Tạo hóa đơn ${bill.bill_type}`,
+        label: `Tạo hóa đơn ${getBillTypeLabel(bill)}`,
         amount: Number(bill.total_amount) || 0,
         createdAt: bill.created_at,
       })),
@@ -488,12 +496,12 @@ const Dashboard = () => {
       const details = Array.isArray(bill.details) ? bill.details : [];
       return details
         .filter((detail) => getEntityId(detail.member_id) === userId && detail.status === 'pending')
-        .map((detail) => ({
-          id: `${bill._id}-${detail._id}`,
-          billType: bill.bill_type,
-          amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
-          month: bill.billing_month,
-        }));
+          .map((detail) => ({
+            id: `${bill._id}-${detail._id}`,
+            billType: getBillTypeLabel(bill),
+            amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
+            month: bill.billing_month,
+          }));
     });
 
     const myPaidPayments = monthlyBills.flatMap((bill) => {
@@ -508,9 +516,7 @@ const Dashboard = () => {
       const myDetail = details.find((detail) => getEntityId(detail.member_id) === userId);
       if (!myDetail) return acc;
 
-      const key = bill.bill_type === 'other' && bill.bill_type_other
-        ? bill.bill_type_other
-        : (BILL_TYPE_LABELS[bill.bill_type] || bill.bill_type || 'Khác');
+      const key = getBillTypeLabel(bill);
       const amount = Number(myDetail.actual_amount) || Number(myDetail.amount_due) || 0;
       acc[key] = (acc[key] || 0) + amount;
       return acc;
