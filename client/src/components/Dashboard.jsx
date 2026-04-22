@@ -115,6 +115,11 @@ const isValidDateValue = (value) => {
   return !Number.isNaN(date.getTime());
 };
 
+const isInMonthKey = (value, monthKey) => {
+  if (!monthKey || !isValidDateValue(value)) return false;
+  return toDateKeyLocal(value).slice(0, 7) === monthKey;
+};
+
 const getDutyDate = (duty) => {
   if (duty?.date) return duty.date;
 
@@ -499,6 +504,35 @@ const Dashboard = () => {
         .map((detail) => Number(detail.actual_amount) || Number(detail.amount_due) || 0);
     });
 
+    const personalExpenseByTypeMap = monthlyBills.reduce((acc, bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      const myDetail = details.find((detail) => getEntityId(detail.member_id) === userId);
+      if (!myDetail) return acc;
+
+      const key = bill.bill_type === 'other' && bill.bill_type_other
+        ? bill.bill_type_other
+        : (BILL_TYPE_LABELS[bill.bill_type] || bill.bill_type || 'Khác');
+      const amount = Number(myDetail.actual_amount) || Number(myDetail.amount_due) || 0;
+      acc[key] = (acc[key] || 0) + amount;
+      return acc;
+    }, {});
+
+    const myMonthlyFundDeposit = data.transactions
+      .filter((transaction) => (
+        transaction.type === 'deposit'
+        && getEntityId(transaction.performed_by) === userId
+        && isInMonthKey(transaction.created_at, monthToUse)
+      ))
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+    const myMonthlyFundWithdraw = data.transactions
+      .filter((transaction) => (
+        transaction.type === 'withdraw'
+        && getEntityId(transaction.performed_by) === userId
+        && isInMonthKey(transaction.created_at, monthToUse)
+      ))
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
     const myUpcomingChores = data.chores
       .filter((chore) => getEntityId(chore.assigned_to) === userId && chore.status !== 'completed')
       .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
@@ -526,6 +560,18 @@ const Dashboard = () => {
       paymentPieData: [
         { name: 'Đã thanh toán', value: myPaidPayments.reduce((sum, amount) => sum + amount, 0) },
         { name: 'Còn phải đóng', value: myPendingPayments.reduce((sum, item) => sum + item.amount, 0) },
+      ].filter((item) => item.value > 0),
+      personalExpensePieData: Object.entries(personalExpenseByTypeMap)
+        .map(([name, value]) => ({ name, value }))
+        .filter((item) => item.value > 0),
+      monthlyIncomeExpensePieData: [
+        { name: 'Thu', value: myMonthlyFundWithdraw },
+        {
+          name: 'Chi',
+          value:
+            Object.values(personalExpenseByTypeMap).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
+            + myMonthlyFundDeposit,
+        },
       ].filter((item) => item.value > 0),
       choreBarData: [
         { name: 'Đã hoàn thành', value: myCompletedChores.length },
@@ -925,26 +971,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="section">
-              <div className="section-header">
-                <h2>Thành viên phòng</h2>
-              </div>
-              <div className="members-list">
-                {data.members.length === 0 ? (
-                  <div className="empty-inline">Chưa có thành viên</div>
-                ) : (
-                  data.members.map((member) => (
-                    <div key={member._id} className="member-item">
-                      <div className="member-avatar">{getMemberName(member).slice(0, 2).toUpperCase()}</div>
-                      <div>
-                        <strong>{getMemberName(member)}</strong>
-                        <p>{member.email || 'Không có email'}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
         </>
       ) : (
@@ -980,19 +1006,19 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="dashboard-charts">
+          <div className="dashboard-content">
             <div className="section">
               <div className="section-header">
-                <h2>Tiến độ thanh toán cá nhân (Pie)</h2>
+                <h2>Chi tiêu cá nhân tháng này (Pie)</h2>
               </div>
               <div className="chart-wrap">
-                {personalComputed.paymentPieData.length === 0 ? (
-                  <div className="empty-inline">Bạn chưa có dữ liệu thanh toán tháng này</div>
+                {personalComputed.personalExpensePieData.length === 0 ? (
+                  <div className="empty-inline">Bạn chưa có dữ liệu chi tiêu cá nhân tháng này</div>
                 ) : (
                   <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
-                      <Pie data={personalComputed.paymentPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
-                        {personalComputed.paymentPieData.map((entry, index) => (
+                      <Pie data={personalComputed.personalExpensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
+                        {personalComputed.personalExpensePieData.map((entry, index) => (
                           <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
@@ -1006,18 +1032,24 @@ const Dashboard = () => {
 
             <div className="section">
               <div className="section-header">
-                <h2>Trực nhật của bạn (Bar)</h2>
+                <h2>Thu / Chi tháng này (Pie)</h2>
               </div>
               <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={personalComputed.choreBarData} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {personalComputed.monthlyIncomeExpensePieData.length === 0 ? (
+                  <div className="empty-inline">Bạn chưa có dữ liệu thu/chi tháng này</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie data={personalComputed.monthlyIncomeExpensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
+                        {personalComputed.monthlyIncomeExpensePieData.map((entry, index) => (
+                          <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
