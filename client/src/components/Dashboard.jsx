@@ -33,6 +33,7 @@ import billService from '../services/bill.service.js';
 import choreService from '../services/chore.service.js';
 import absenceService from '../services/absence.service.js';
 import api from '../services/api.js';
+import dutyScheduleService from '../services/duty.schedule.service.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/dashboard.css';
 
@@ -91,6 +92,7 @@ const Dashboard = () => {
     absences: [],
     transactions: [],
     fundBalance: 0,
+    duties: [],
   });
 
   useEffect(() => {
@@ -138,13 +140,14 @@ const Dashboard = () => {
         setLoading(true);
         setError('');
 
-        const [room, members, billHistory, chores, absences, fundResponse] = await Promise.all([
+        const [room, members, billHistory, chores, absences, fundResponse, duties] = await Promise.all([
           roomService.getRoomById(selectedRoomId),
           roomService.getRoomMembers(selectedRoomId),
           billService.getBillHistory(selectedRoomId),
           choreService.getChoresByRoom(selectedRoomId),
           absenceService.getAbsenceReports(selectedRoomId),
           api.get(`/fund?room_id=${selectedRoomId}`),
+          dutyScheduleService.getWeekDuties(selectedRoomId, new Date().toISOString().split('T')[0]),
         ]);
 
         const billsData = Array.isArray(billHistory) ? billHistory : billHistory?.bills || [];
@@ -158,6 +161,7 @@ const Dashboard = () => {
           absences: Array.isArray(absences) ? absences : [],
           transactions: Array.isArray(fundData.transactions) ? fundData.transactions : [],
           fundBalance: Number(fundData.balance) || 0,
+          duties: Array.isArray(duties) ? duties : [],
         });
 
         const billMonths = [...new Set(billsData.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse();
@@ -180,6 +184,9 @@ const Dashboard = () => {
     const monthToUse = selectedBillingMonth || getCurrentMonthKey();
     const monthlyBills = data.bills.filter((bill) => bill.billing_month === monthToUse);
     const monthlyExpense = monthlyBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
+
+    const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
+    const nextPendingChore = pendingChores.sort((a,b) => new Date(a.chore_date) - new Date(b.chore_date))[0];
 
     const pendingAmount = monthlyBills.reduce((sum, bill) => {
       const details = Array.isArray(bill.details) ? bill.details : [];
@@ -297,25 +304,46 @@ const Dashboard = () => {
       .slice(0, 5);
 
     const upcomingChores = (() => {
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1));
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
       
-      return data.chores
-        .filter(chore => chore.status !== 'completed')
-        .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
-        .map(chore => {
-          const cDate = chore.chore_date ? new Date(chore.chore_date).toISOString().split('T')[0] : '';
-          let dateLabel = new Date(chore.chore_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-          if (cDate === today) dateLabel = 'Hôm nay';
-          else if (cDate === tomorrow) dateLabel = 'Ngày mai';
+      const allUpcoming = [
+        ...data.chores
+          .filter(c => c.status !== 'completed')
+          .map(c => ({
+            id: c._id,
+            title: c.title,
+            date: c.chore_date,
+            type: 'chore',
+            member: getMemberName(c.assigned_to)
+          })),
+        ...data.duties
+          .map(d => ({
+            id: d._id,
+            title: d.title,
+            date: d.date,
+            type: 'duty',
+            member: getMemberName(d.assigned_to)
+          }))
+      ];
+      
+      return allUpcoming
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .map(item => {
+          const itemDateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : '';
+          let dateLabel = new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+          if (itemDateStr === todayStr) dateLabel = 'Hôm nay';
+          else if (itemDateStr === tomorrowStr) dateLabel = 'Ngày mai';
           
           return {
-            ...chore,
+            ...item,
             dateDisplay: dateLabel,
-            memberName: getMemberName(chore.assigned_to)
+            isToday: itemDateStr === todayStr,
+            isTomorrow: itemDateStr === tomorrowStr
           };
         })
-        .slice(0, 4);
+        .slice(0, 6);
     })();
 
     const recentHistory = [
@@ -341,6 +369,7 @@ const Dashboard = () => {
       monthlyExpense,
       pendingAmount,
       pendingChoreCount: pendingChores.length,
+      nextPendingChore,
       pendingAbsenceCount: pendingAbsences.length,
       expensePieData,
       expenseTrendData,
@@ -558,11 +587,20 @@ const Dashboard = () => {
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Việc nhà chưa hoàn thành</span>
+              <span className="stat-label">Việc nhà cần làm</span>
               <strong className="stat-value">{computed.pendingChoreCount}</strong>
-              <span className="stat-meta">
-                <FontAwesomeIcon icon={faCalendarCheck} /> {computed.memberCount} thành viên trong phòng
-              </span>
+              <div className="stat-insight chore-insight">
+                {computed.nextPendingChore ? (
+                  <>
+                    <span className="chore-reminder-label">Tiếp theo:</span>
+                    <span className="chore-reminder-task" title={`${computed.nextPendingChore.title} - ${getMemberName(computed.nextPendingChore.assigned_to)}`}>
+                      {computed.nextPendingChore.title}
+                    </span>
+                  </>
+                ) : (
+                  <span className="insight-text">Đã hoàn thành hết!</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -742,17 +780,49 @@ const Dashboard = () => {
                 {computed.upcomingChores.length === 0 ? (
                   <div className="empty-inline">Hôm nay và sắp tới chưa có lịch trực</div>
                 ) : (
-                  computed.upcomingChores.map((chore) => (
-                    <div key={chore._id} className="duty-item">
-                      <div className={`duty-date-tag ${chore.dateDisplay === 'Hôm nay' ? 'today' : ''}`}>
-                        {chore.dateDisplay}
+                  <>
+                    {/* Nhóm Hôm nay */}
+                    {computed.upcomingChores.some(c => c.isToday) && (
+                      <div className="duty-group-header">Hôm nay</div>
+                    )}
+                    {computed.upcomingChores.filter(c => c.isToday).map((item) => (
+                      <div key={item.id} className="duty-item today">
+                        <div className="duty-info">
+                          <strong>{item.title}</strong>
+                          <p>{item.member}</p>
+                        </div>
+                        <div className="duty-type-tag">{item.type === 'duty' ? 'Trực nhật' : 'Việc nhà'}</div>
                       </div>
-                      <div className="duty-info">
-                        <strong>{chore.title}</strong>
-                        <p>{chore.memberName}</p>
+                    ))}
+
+                    {/* Nhóm Ngày mai */}
+                    {computed.upcomingChores.some(c => c.isTomorrow) && (
+                      <div className="duty-group-header">Ngày mai</div>
+                    )}
+                    {computed.upcomingChores.filter(c => c.isTomorrow).map((item) => (
+                      <div key={item.id} className="duty-item tomorrow">
+                        <div className="duty-info">
+                          <strong>{item.title}</strong>
+                          <p>{item.member}</p>
+                        </div>
+                        <div className="duty-type-tag">{item.type === 'duty' ? 'Trực nhật' : 'Việc nhà'}</div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+
+                    {/* Các ngày khác */}
+                    {computed.upcomingChores.filter(c => !c.isToday && !c.isTomorrow).length > 0 && (
+                      <div className="duty-group-header">Sắp tới</div>
+                    )}
+                    {computed.upcomingChores.filter(c => !c.isToday && !c.isTomorrow).map((item) => (
+                      <div key={item.id} className="duty-item">
+                        <div className="duty-date-tag">{item.dateDisplay}</div>
+                        <div className="duty-info">
+                          <strong>{item.title}</strong>
+                          <p>{item.member}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             </div>
