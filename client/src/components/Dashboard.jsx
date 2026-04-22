@@ -707,6 +707,7 @@ const Dashboard = () => {
             </div>
           </div>
 
+          <div className="dashboard-content">
             <div className="section">
               <div className="section-header">
                 <h2>Lịch trực sắp tới</h2>
