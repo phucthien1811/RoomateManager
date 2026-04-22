@@ -32,7 +32,17 @@ const AppLayout = () => {
     name: 'Guest User',
     email: 'guest@gmail.com',
   };
+  useEffect(() => {
+    const handleChangeMenu = (e) => {
+      if (e.detail?.menu) {
+        setActiveMenu(e.detail.menu);
+        window.scrollTo(0, 0);
+      }
+    };
 
+    window.addEventListener('change-menu', handleChangeMenu);
+    return () => window.removeEventListener('change-menu', handleChangeMenu);
+  }, []);
 
 
 

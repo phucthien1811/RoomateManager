@@ -11,6 +11,9 @@ import {
   faChartPie,
   faUser,
   faUsers,
+  faPlus,
+  faUserSlash,
+  faPiggyBank,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   Bar,
@@ -478,6 +481,29 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="header-actions">
+          <div className="quick-actions">
+            <button 
+              className="quick-action-btn fund" 
+              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'expenses' } }))}
+              title="Đóng quỹ phòng"
+            >
+              <FontAwesomeIcon icon={faPiggyBank} /> Đóng quỹ
+            </button>
+            <button 
+              className="quick-action-btn bill" 
+              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'bills' } }))}
+              title="Tạo hóa đơn mới"
+            >
+              <FontAwesomeIcon icon={faPlus} /> Hóa đơn
+            </button>
+            <button 
+              className="quick-action-btn absence" 
+              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'absence' } }))}
+              title="Khái báo vắng mặt"
+            >
+              <FontAwesomeIcon icon={faUserSlash} /> Báo vắng
+            </button>
+          </div>
           <div className="dashboard-mode-switch">
             <button
               className={dashboardMode === 'room' ? 'active' : ''}
