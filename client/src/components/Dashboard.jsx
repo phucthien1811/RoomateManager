@@ -200,7 +200,6 @@ const Dashboard = () => {
       );
     }, 0);
 
-    const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
     const pendingAbsences = data.absences.filter((report) => report.status === 'pending');
 
     const expenseByTypeMap = monthlyBills.reduce((acc, bill) => {
