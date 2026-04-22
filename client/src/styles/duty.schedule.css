@@ -72,6 +72,29 @@
   font-size: 14px;
 }
 
+.view-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #b8c5d6;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.view-mode-toggle button {
+  border: none;
+  background: #fff;
+  color: #27435d;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.view-mode-toggle button.active {
+  background: #0f4c81;
+  color: #fff;
+}
+
 .toolbar-actions {
   margin-left: auto;
   display: flex;
@@ -103,6 +126,70 @@
   border-radius: 0;
   border: 1px solid #dfe3ea;
   overflow-x: auto;
+}
+
+.duty-list-wrap {
+  background: #fff;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.duty-list {
+  display: grid;
+  gap: 12px;
+}
+
+.duty-list-item {
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.duty-list-main h3 {
+  margin: 0 0 4px;
+  color: #17324d;
+  font-size: 16px;
+}
+
+.duty-list-main p {
+  margin: 3px 0;
+  color: #4c6078;
+  font-size: 13px;
+}
+
+.duty-list-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.duty-list-actions button {
+  border: 1px solid #c7d4e4;
+  background: #f6f9fd;
+  color: #17324d;
+  border-radius: 6px;
+  height: 34px;
+  padding: 0 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.duty-list-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.duty-list-empty {
+  color: #607488;
+  text-align: center;
+  padding: 18px 10px;
+  border: 1px dashed #c8d5e3;
+  border-radius: 8px;
 }
 
 .duty-grid {
@@ -492,6 +579,14 @@
 
   .toolbar-actions {
     margin-left: 0;
+  }
+
+  .view-mode-toggle {
+    width: 100%;
+  }
+
+  .view-mode-toggle button {
+    flex: 1;
   }
 
   .form-row {
