@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const RoomBill = require("../models/room.bill.model");
 const BillDetail = require("../models/bill.detail.model");
+const Room = require("../models/room.model");
 const { BILL_STATUS, BILL_DETAIL_STATUS } = require("../constants/bill.constant");
 
 const splitAmountByLargestRemainder = (totalAmount, memberCount) => {
@@ -314,11 +315,38 @@ const uploadBillImages = async (billId, images, requesterId) => {
   return bill;
 };
 
+// Xóa hóa đơn và toàn bộ chi tiết liên quan
+const deleteBill = async (billId, requesterId) => {
+  const bill = await RoomBill.findById(billId).select("room_id payer_id created_by");
+  if (!bill) {
+    throw new Error("Không tìm thấy hóa đơn");
+  }
+
+  const room = await Room.findById(bill.room_id).select("owner");
+  const requester = requesterId?.toString();
+  const isRoomOwner = room?.owner && room.owner.toString() === requester;
+  const isPayer = bill.payer_id && bill.payer_id.toString() === requester;
+  const isCreator = bill.created_by && bill.created_by.toString() === requester;
+
+  if (!isRoomOwner && !isPayer && !isCreator) {
+    throw new Error("Bạn không có quyền xóa hóa đơn này");
+  }
+
+  const detailDeleteResult = await BillDetail.deleteMany({ bill_id: bill._id });
+  await RoomBill.deleteOne({ _id: bill._id });
+
+  return {
+    bill_id: bill._id,
+    deleted_details: detailDeleteResult.deletedCount || 0,
+  };
+};
+
 module.exports = {
   createBillWithSplit,
   confirmPayment,
   getBillWithDetails,
   getBillHistory,
   uploadBillImages,
+  deleteBill,
   splitAmountByLargestRemainder,
 };

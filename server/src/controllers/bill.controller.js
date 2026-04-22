@@ -231,10 +231,38 @@ const getBillHistory = async (req, res) => {
   }
 };
 
+// DELETE /api/bills/:billId — Xóa hóa đơn
+const deleteBill = async (req, res) => {
+  try {
+    const { billId } = req.params;
+    if (!billId || !/^[a-fA-F0-9]{24}$/.test(billId)) {
+      return sendResponse(res, 400, false, "billId không hợp lệ");
+    }
+
+    const requesterId = req.user?._id;
+    if (!requesterId) {
+      return sendResponse(res, 401, false, "Chưa xác thực");
+    }
+
+    const result = await billService.deleteBill(billId, requesterId);
+    return sendResponse(res, 200, true, "Xóa hóa đơn thành công", result);
+  } catch (error) {
+    if (error.message.includes("không có quyền")) {
+      return sendResponse(res, 403, false, error.message);
+    }
+    if (error.message.includes("Không tìm thấy")) {
+      return sendResponse(res, 404, false, error.message);
+    }
+    console.error("[BillController] deleteBill error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi xóa hóa đơn");
+  }
+};
+
 module.exports = {
   createBill,
   confirmPayment,
   getBillDetail,
   getBillHistory,
   uploadBillImages,
+  deleteBill,
 };
