@@ -210,14 +210,22 @@ const Dashboard = () => {
       acc[month] = (acc[month] || 0) + (Number(bill.total_amount) || 0);
       return acc;
     }, {});
-    const expenseTrendData = Object.entries(monthlyExpenseMap)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-6)
-      .map(([month, value]) => ({
-        month,
-        label: formatMonthLabel(month),
-        chiTieu: value,
-      }));
+    
+    // Tạo danh sách 6 tháng liên tiếp kết thúc tại tháng đang chọn
+    const expenseTrendData = (() => {
+      const trend = [];
+      const [selYear, selMonth] = monthToUse.split('-').map(Number);
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(selYear, selMonth - 1 - i, 1);
+        const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        trend.push({
+          month: mKey,
+          label: formatMonthLabel(mKey).replace(' năm ', '/'),
+          chiTieu: monthlyExpenseMap[mKey] || 0,
+        });
+      }
+      return trend;
+    })();
 
     const memberExpenseMap = {};
     const memberIncomeMap = {};
@@ -285,10 +293,27 @@ const Dashboard = () => {
       })
       .slice(0, 5);
 
-    const upcomingChores = pendingChores
-      .slice()
-      .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
-      .slice(0, 5);
+    const upcomingChores = (() => {
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0];
+      
+      return data.chores
+        .filter(chore => chore.status !== 'completed')
+        .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
+        .map(chore => {
+          const cDate = chore.chore_date ? new Date(chore.chore_date).toISOString().split('T')[0] : '';
+          let dateLabel = new Date(chore.chore_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+          if (cDate === today) dateLabel = 'Hôm nay';
+          else if (cDate === tomorrow) dateLabel = 'Ngày mai';
+          
+          return {
+            ...chore,
+            dateDisplay: dateLabel,
+            memberName: getMemberName(chore.assigned_to)
+          };
+        })
+        .slice(0, 4);
+    })();
 
     const recentHistory = [
       ...data.transactions.map((transaction) => ({
@@ -495,7 +520,7 @@ const Dashboard = () => {
                     <span className="insight-text">so với tháng trước</span>
                   </>
                 ) : (
-                  <span className="insight-text">Bằng tháng trước</span>
+                  <span className="insight-text">Tháng đầu tiên</span>
                 )}
               </div>
             </div>
@@ -682,7 +707,29 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="dashboard-content">
+            <div className="section">
+              <div className="section-header">
+                <h2>Lịch trực sắp tới</h2>
+              </div>
+              <div className="duty-list">
+                {computed.upcomingChores.length === 0 ? (
+                  <div className="empty-inline">Hôm nay và sắp tới chưa có lịch trực</div>
+                ) : (
+                  computed.upcomingChores.map((chore) => (
+                    <div key={chore._id} className="duty-item">
+                      <div className={`duty-date-tag ${chore.dateDisplay === 'Hôm nay' ? 'today' : ''}`}>
+                        {chore.dateDisplay}
+                      </div>
+                      <div className="duty-info">
+                        <strong>{chore.title}</strong>
+                        <p>{chore.memberName}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="section">
               <div className="section-header">
                 <h2>Lịch sử gần đây</h2>
