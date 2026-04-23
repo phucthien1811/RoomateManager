@@ -190,7 +190,7 @@
 .duty-list-actions {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .duty-list-actions button {
@@ -430,6 +430,7 @@
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 700;
+  margin-left: auto;
 }
 
 .duty-status-inline.completed {

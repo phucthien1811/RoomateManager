@@ -586,7 +586,6 @@ const DutySchedule = () => {
                         >
                           <div className="duty-card" title={duty.note || ''}>
                             <strong>{duty.title}</strong>
-                            <span className={`duty-status-badge ${statusMeta.className}`}>{statusMeta.label}</span>
                             <p className="duty-time">{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
                             <div className="duty-member-tags">
                               {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
@@ -618,6 +617,7 @@ const DutySchedule = () => {
                                   </button>
                                 </>
                               )}
+                              <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
                             </div>
                           </div>
                         </td>
@@ -652,7 +652,6 @@ const DutySchedule = () => {
                   <div className="duty-list-item" key={duty.id}>
                     <div className="duty-list-main">
                       <h3>{duty.title}</h3>
-                      <span className={`duty-status-badge ${statusMeta.className}`}>{statusMeta.label}</span>
                       <p>
                         {duty.day}, {formatDutyDateLabel(displayWeekStart, duty.day)}
                       </p>
@@ -679,6 +678,7 @@ const DutySchedule = () => {
                           </button>
                         </>
                       )}
+                      <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
                     </div>
                   </div>
                 );
