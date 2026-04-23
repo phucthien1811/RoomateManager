@@ -1,4 +1,4 @@
-﻿.task-tracking-page {
+.task-tracking-page {
   padding: 24px;
   background: #f6f8fb;
   min-height: 100%;
@@ -182,6 +182,33 @@
   font-weight: 700;
   color: #334155;
   font-size: 12px;
+}
+
+.task-progress-bar {
+  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+  transition: width 0.4s ease-out;
 }
 
 .task-status-chip {

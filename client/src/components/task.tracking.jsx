@@ -178,37 +178,53 @@ const TaskTracking = () => {
   const renderDutyTaskCard = (task) => {
     const taskDateKey = toDateKeyLocal(task.chore_date);
     const isFutureTask = task.status !== 'completed' && taskDateKey > todayKey;
+    
+    // Calculate progress display
+    const total = task.total_assigned || 1;
+    const completed = task.completed_count || 0;
+    const isAllDone = completed >= total;
 
     return (
-    <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
-      <div className="task-card-head">
-        <h3>{task.title}</h3>
-        <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : isFutureTask ? 'upcoming' : 'pending'}`}>
-          {task.status === 'completed' ? 'Đã xong' : isFutureTask ? 'Sắp tới' : 'Chưa xong'}
-        </span>
-      </div>
-      <p className="task-time">
-        {Number.isFinite(task.start_hour) && Number.isFinite(task.end_hour)
-          ? `${task.start_hour}:00 - ${task.end_hour}:00`
-          : 'Không đặt khung giờ'}
-      </p>
-      {task.note && <small>{task.note}</small>}
-      <div className="proof-list">
-        {(task.proof_images || []).map((image, index) => (
-          <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
-        ))}
-      </div>
-      {task.status === 'completed' ? (
-        <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
-      ) : isFutureTask ? (
-        <span className="status upcoming">Sắp tới</span>
-      ) : (
-        <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: 'duty', item: task })}>
-          <FontAwesomeIcon icon={faCheck} /> Hoàn thành
-        </button>
-      )}
-    </article>
-  );
+      <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+        <div className="task-card-head">
+          <h3>{task.title}</h3>
+          <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : isFutureTask ? 'upcoming' : 'pending'}`}>
+            {task.status === 'completed' ? 'Bạn đã xong' : isFutureTask ? 'Sắp tới' : 'Chưa xong'}
+          </span>
+        </div>
+        
+        <div className="task-progress-bar">
+           <div className="progress-text">
+             Tiến độ: {completed}/{total} {isAllDone ? '✓' : ''}
+           </div>
+           <div className="progress-track">
+             <div className="progress-fill" style={{ width: `${(completed / total) * 100}%` }}></div>
+           </div>
+        </div>
+
+        <p className="task-time">
+          {Number.isFinite(task.start_hour) && Number.isFinite(task.end_hour)
+            ? `${task.start_hour}:00 - ${task.end_hour}:00`
+            : 'Không đặt khung giờ'}
+        </p>
+        {task.note && <small>{task.note}</small>}
+        <div className="proof-list">
+          {(task.proof_images || []).map((image, index) => (
+            <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+          ))}
+        </div>
+        
+        {task.status === 'completed' ? (
+          <span className="status done"><FontAwesomeIcon icon={faCheck} /> Bạn đã hoàn thành</span>
+        ) : isFutureTask ? (
+          <span className="status upcoming">Sắp tới</span>
+        ) : (
+          <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: task.source_type || 'duty', item: task })}>
+            <FontAwesomeIcon icon={faCheck} /> Hoàn thành phần của tôi
+          </button>
+        )}
+      </article>
+    );
   };
 
 
