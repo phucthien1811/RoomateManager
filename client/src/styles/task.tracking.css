@@ -63,6 +63,23 @@
   margin-bottom: 20px;
 }
 
+.task-group-list {
+  display: grid;
+  gap: 14px;
+}
+
+.task-group {
+  display: grid;
+  gap: 8px;
+}
+
+.task-group-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #334155;
+}
+
 .section-title {
   display: flex;
   align-items: center;

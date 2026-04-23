@@ -28,6 +28,12 @@ const getWeekStart = (date = new Date()) => {
   return value;
 };
 
+const toDateKeyLocal = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatDateOnly(date);
+};
+
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(reader.result);
@@ -80,6 +86,44 @@ const TaskTracking = () => {
   useEffect(() => {
     fetchData();
   }, [selectedRoomId, displayWeekKey]);
+
+  const groupedDutyTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const yesterdayKey = formatDateOnly(yesterday);
+    const todayKey = formatDateOnly(today);
+    const tomorrowKey = formatDateOnly(tomorrow);
+
+    const groups = {
+      yesterday: [],
+      today: [],
+      tomorrow: [],
+      remaining: [],
+    };
+
+    [...dutyTasks]
+      .sort((a, b) => {
+        const dateDiff = new Date(a.chore_date) - new Date(b.chore_date);
+        if (dateDiff !== 0) return dateDiff;
+        return Number(a.start_hour || 0) - Number(b.start_hour || 0);
+      })
+      .forEach((task) => {
+        const key = toDateKeyLocal(task.chore_date);
+        if (key === yesterdayKey) groups.yesterday.push(task);
+        else if (key === todayKey) groups.today.push(task);
+        else if (key === tomorrowKey) groups.tomorrow.push(task);
+        else groups.remaining.push(task);
+      });
+
+    return groups;
+  }, [dutyTasks]);
 
   const openProofModal = (target) => {
     setProofTarget(target);
@@ -152,27 +196,126 @@ const TaskTracking = () => {
             ) : dutyTasks.length === 0 ? (
               <div className="empty-box">Tuần này bạn chưa được tag vào lịch trực nào.</div>
             ) : (
-              <div className="task-grid">
-                {dutyTasks.map((task) => (
-                  <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
-                    <h3>{task.title}</h3>
-                    <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
-                    <p>{task.start_hour}:00 - {task.end_hour}:00</p>
-                    {task.note && <small>{task.note}</small>}
-                    <div className="proof-list">
-                      {(task.proof_images || []).map((image, index) => (
-                        <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+              <div className="task-group-list">
+                <div className="task-group">
+                  <h3 className="task-group-title">Hôm qua</h3>
+                  {groupedDutyTasks.yesterday.length === 0 ? (
+                    <div className="empty-box">Không có công việc được tag.</div>
+                  ) : (
+                    <div className="task-grid">
+                      {groupedDutyTasks.yesterday.map((task) => (
+                        <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+                          <h3>{task.title}</h3>
+                          <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
+                          <p>{task.start_hour}:00 - {task.end_hour}:00</p>
+                          {task.note && <small>{task.note}</small>}
+                          <div className="proof-list">
+                            {(task.proof_images || []).map((image, index) => (
+                              <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+                            ))}
+                          </div>
+                          {task.status === 'completed' ? (
+                            <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                          ) : (
+                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
+                              <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
+                            </button>
+                          )}
+                        </article>
                       ))}
                     </div>
-                    {task.status === 'completed' ? (
-                      <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
-                    ) : (
-                      <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
-                        <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
-                      </button>
-                    )}
-                  </article>
-                ))}
+                  )}
+                </div>
+
+                <div className="task-group">
+                  <h3 className="task-group-title">Hôm nay</h3>
+                  {groupedDutyTasks.today.length === 0 ? (
+                    <div className="empty-box">Không có công việc được tag.</div>
+                  ) : (
+                    <div className="task-grid">
+                      {groupedDutyTasks.today.map((task) => (
+                        <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+                          <h3>{task.title}</h3>
+                          <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
+                          <p>{task.start_hour}:00 - {task.end_hour}:00</p>
+                          {task.note && <small>{task.note}</small>}
+                          <div className="proof-list">
+                            {(task.proof_images || []).map((image, index) => (
+                              <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+                            ))}
+                          </div>
+                          {task.status === 'completed' ? (
+                            <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                          ) : (
+                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
+                              <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
+                            </button>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="task-group">
+                  <h3 className="task-group-title">Ngày mai</h3>
+                  {groupedDutyTasks.tomorrow.length === 0 ? (
+                    <div className="empty-box">Không có công việc được tag.</div>
+                  ) : (
+                    <div className="task-grid">
+                      {groupedDutyTasks.tomorrow.map((task) => (
+                        <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+                          <h3>{task.title}</h3>
+                          <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
+                          <p>{task.start_hour}:00 - {task.end_hour}:00</p>
+                          {task.note && <small>{task.note}</small>}
+                          <div className="proof-list">
+                            {(task.proof_images || []).map((image, index) => (
+                              <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+                            ))}
+                          </div>
+                          {task.status === 'completed' ? (
+                            <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                          ) : (
+                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
+                              <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
+                            </button>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="task-group">
+                  <h3 className="task-group-title">Các ngày còn lại trong tuần</h3>
+                  {groupedDutyTasks.remaining.length === 0 ? (
+                    <div className="empty-box">Không có công việc được tag.</div>
+                  ) : (
+                    <div className="task-grid">
+                      {groupedDutyTasks.remaining.map((task) => (
+                        <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+                          <h3>{task.title}</h3>
+                          <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
+                          <p>{task.start_hour}:00 - {task.end_hour}:00</p>
+                          {task.note && <small>{task.note}</small>}
+                          <div className="proof-list">
+                            {(task.proof_images || []).map((image, index) => (
+                              <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+                            ))}
+                          </div>
+                          {task.status === 'completed' ? (
+                            <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+                          ) : (
+                            <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
+                              <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
+                            </button>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </section>
