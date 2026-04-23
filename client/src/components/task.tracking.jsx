@@ -154,7 +154,7 @@ const TaskTracking = () => {
             ) : (
               <div className="task-grid">
                 {dutyTasks.map((task) => (
-                  <article key={task.duty_id || task._id} className={`task-card ${task.status}`}>
+                  <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
                     <h3>{task.title}</h3>
                     <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
                     <p>{task.start_hour}:00 - {task.end_hour}:00</p>

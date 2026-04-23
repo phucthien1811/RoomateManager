@@ -251,10 +251,10 @@ const getMyDutyTasks = async ({ roomId, userId, weekStart }) => {
 
     if (!completedLog) {
       return {
-        _id: `duty-${duty._id}`,
+        _id: `duty-${String(duty._id)}`,
         room_id: duty.room_id,
         source_type: "duty",
-        duty_id: duty._id,
+        duty_id: String(duty._id),
         title: duty.title,
         note: duty.note || "",
         chore_date: choreDate,
@@ -271,6 +271,7 @@ const getMyDutyTasks = async ({ roomId, userId, weekStart }) => {
 
     return {
       ...mapChore(completedLog),
+      duty_id: String(duty._id),
       members: duty.members || [],
       duty_day_label: duty.day_label,
       start_hour: duty.start_hour,

@@ -156,6 +156,31 @@
   font-size: 16px;
 }
 
+.duty-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.duty-status-badge.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.duty-status-badge.partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.duty-status-badge.pending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .duty-list-main p {
   margin: 3px 0;
   color: #4c6078;
@@ -318,6 +343,11 @@
   text-overflow: ellipsis;
 }
 
+.duty-card .duty-status-badge {
+  margin-top: 2px;
+  margin-bottom: 3px;
+}
+
 .duty-card p {
   margin: 2px 0 0;
   color: #e8f4ff;
@@ -373,6 +403,7 @@
   display: flex;
   gap: 4px;
   margin-top: 4px;
+  align-items: center;
 }
 
 .duty-card-actions button {
@@ -390,6 +421,30 @@
 .duty-card-actions button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.duty-status-inline {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.duty-status-inline.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.duty-status-inline.partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.duty-status-inline.pending {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .schedule-summary {

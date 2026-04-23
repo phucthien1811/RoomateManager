@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Room = require('../models/room.model');
 const DutySchedule = require('../models/duty.schedule.model');
+const ChoreLog = require('../models/chore.log.model');
 const User = require('../models/user.model');
 const Notification = require('../models/notification.model');
 
@@ -30,7 +31,7 @@ const checkRoomAccess = async (roomId, userId) => {
   return { ok: true, room };
 };
 
-const mapDuty = (duty) => ({
+const mapDuty = (duty, completion = {}) => ({
   _id: duty._id,
   room_id: duty.room_id,
   week_start: duty.week_start,
@@ -44,6 +45,9 @@ const mapDuty = (duty) => ({
   created_by_name: duty.created_by?.name || '',
   created_at: duty.created_at,
   updated_at: duty.updated_at,
+  completion_status: completion.status || 'pending',
+  completion_completed: completion.completed || 0,
+  completion_total: completion.total || 0,
 });
 
 const resolveTaggedRecipients = async (room, members) => {
@@ -101,7 +105,68 @@ const listByRoomAndWeek = async (req, res) => {
       .sort({ day_label: 1, start_hour: 1 })
       .populate('created_by', 'name');
 
-    return res.json({ duties: duties.map(mapDuty) });
+    if (duties.length === 0) {
+      return res.json({ duties: [] });
+    }
+
+    const dutyIds = duties.map((duty) => duty._id);
+    const roomUserIds = [access.room.owner, ...(access.room.members || [])].map((item) => item.toString());
+    const users = await User.find({ _id: { $in: roomUserIds } }).select('name');
+
+    const idByName = new Map();
+    users.forEach((user) => {
+      const nameKey = normalizeName(user.name);
+      if (!idByName.has(nameKey)) {
+        idByName.set(nameKey, user._id.toString());
+      }
+    });
+
+    const taggedByDuty = new Map();
+    duties.forEach((duty) => {
+      const taggedUserIds = new Set();
+      (duty.members || []).forEach((memberName) => {
+        const userId = idByName.get(normalizeName(memberName));
+        if (userId) taggedUserIds.add(userId);
+      });
+      taggedByDuty.set(String(duty._id), taggedUserIds);
+    });
+
+    const completedLogs = await ChoreLog.find({
+      room_id: roomId,
+      source_type: 'duty',
+      duty_id: { $in: dutyIds },
+      status: 'completed',
+    }).select('duty_id assigned_to');
+
+    const completedByDuty = new Map();
+    completedLogs.forEach((log) => {
+      const dutyIdKey = String(log.duty_id);
+      if (!completedByDuty.has(dutyIdKey)) {
+        completedByDuty.set(dutyIdKey, new Set());
+      }
+      completedByDuty.get(dutyIdKey).add(String(log.assigned_to));
+    });
+
+    const dutiesWithCompletion = duties.map((duty) => {
+      const dutyIdKey = String(duty._id);
+      const taggedUserIds = taggedByDuty.get(dutyIdKey) || new Set();
+      const completedUserIds = completedByDuty.get(dutyIdKey) || new Set();
+
+      const total = taggedUserIds.size > 0 ? taggedUserIds.size : (duty.members || []).length;
+      const completed = total > 0
+        ? Array.from(completedUserIds).filter((userId) => taggedUserIds.size === 0 || taggedUserIds.has(userId)).length
+        : 0;
+
+      const status = total > 0 && completed >= total
+        ? 'completed'
+        : completed > 0
+          ? 'partial'
+          : 'pending';
+
+      return mapDuty(duty, { status, completed, total });
+    });
+
+    return res.json({ duties: dutiesWithCompletion });
   } catch (error) {
     return res.status(500).json({ message: 'Lỗi khi lấy lịch trực nhật', error: error.message });
   }

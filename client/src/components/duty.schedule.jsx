@@ -39,6 +39,19 @@ const formatHourLabel = (hour) => {
 };
 
 const getDutyTimeRange = (startHour, endHour) => `${formatHourLabel(startHour)} - ${formatHourLabel(endHour)}`;
+const getDutyStatusMeta = (duty) => {
+  const status = duty?.completionStatus || 'pending';
+  const completed = Number(duty?.completionCompleted) || 0;
+  const total = Number(duty?.completionTotal) || 0;
+
+  if (status === 'completed') {
+    return { label: 'Hoàn thành', className: 'completed' };
+  }
+  if (status === 'partial') {
+    return { label: `Đang làm ${completed}/${total}`, className: 'partial' };
+  }
+  return { label: total > 0 ? `Chưa xong ${completed}/${total}` : 'Chưa hoàn thành', className: 'pending' };
+};
 
 const formatDutyDateLabel = (weekStart, dayLabel) => {
   const offset = offsetByDutyDay[dayLabel] ?? 0;
@@ -215,6 +228,9 @@ const DutySchedule = () => {
           members: Array.isArray(item.members) ? item.members : [],
           note: item.note || '',
           createdByName: item.created_by_name || '',
+          completionStatus: item.completion_status || 'pending',
+          completionCompleted: Number(item.completion_completed) || 0,
+          completionTotal: Number(item.completion_total) || 0,
         }));
 
         setSchedules((prev) => {
@@ -376,6 +392,9 @@ const DutySchedule = () => {
         members: Array.isArray(savedDuty.members) ? savedDuty.members : [],
         note: savedDuty.note || '',
         createdByName: savedDuty.created_by_name || '',
+        completionStatus: savedDuty.completion_status || 'pending',
+        completionCompleted: Number(savedDuty.completion_completed) || 0,
+        completionTotal: Number(savedDuty.completion_total) || 0,
       };
 
       setSchedules((prev) => {
@@ -557,6 +576,7 @@ const DutySchedule = () => {
                     if (isCovered) return null;
 
                     if (duty) {
+                      const statusMeta = getDutyStatusMeta(duty);
                       return (
                         <td
                           key={`${day.dutyDay}-${timeSlot.slot}`}
@@ -566,6 +586,7 @@ const DutySchedule = () => {
                         >
                           <div className="duty-card" title={duty.note || ''}>
                             <strong>{duty.title}</strong>
+                            <span className={`duty-status-badge ${statusMeta.className}`}>{statusMeta.label}</span>
                             <p className="duty-time">{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
                             <div className="duty-member-tags">
                               {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
@@ -575,26 +596,30 @@ const DutySchedule = () => {
                             </div>
                             {duty.note && <p className="duty-note">{duty.note}</p>}
                             <div className="duty-card-actions">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty);
-                                }}
-                                disabled={isLocked}
-                              >
-                                <FontAwesomeIcon icon={faPenToSquare} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleDeleteDuty(duty.id);
-                                }}
-                                disabled={isLocked}
-                              >
-                                <FontAwesomeIcon icon={faTrash} />
-                              </button>
+                              {isLocked ? (
+                                <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty);
+                                    }}
+                                  >
+                                    <FontAwesomeIcon icon={faPenToSquare} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteDuty(duty.id);
+                                    }}
+                                  >
+                                    <FontAwesomeIcon icon={faTrash} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -624,10 +649,12 @@ const DutySchedule = () => {
                 const offset = offsetByDutyDay[duty.day] ?? 0;
                 const dutyStart = getCellDateTime(displayWeekStart, offset, duty.startHour);
                 const isLocked = dutyStart < roomCreatedAt || dutyStart < new Date();
+                const statusMeta = getDutyStatusMeta(duty);
                 return (
                   <div className="duty-list-item" key={duty.id}>
                     <div className="duty-list-main">
                       <h3>{duty.title}</h3>
+                      <span className={`duty-status-badge ${statusMeta.className}`}>{statusMeta.label}</span>
                       <p>
                         {duty.day}, {formatDutyDateLabel(displayWeekStart, duty.day)}
                       </p>
@@ -641,16 +668,21 @@ const DutySchedule = () => {
                       {duty.note && <p className="duty-note">{duty.note}</p>}
                     </div>
                     <div className="duty-list-actions">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenModal(duty.day, offset, duty.startHour, duty)}
-                        disabled={isLocked}
-                      >
-                        <FontAwesomeIcon icon={faPenToSquare} /> Sửa
-                      </button>
-                      <button type="button" onClick={() => handleDeleteDuty(duty.id)} disabled={isLocked}>
-                        <FontAwesomeIcon icon={faTrash} /> Xóa
-                      </button>
+                      {isLocked ? (
+                        <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModal(duty.day, offset, duty.startHour, duty)}
+                          >
+                            <FontAwesomeIcon icon={faPenToSquare} /> Sửa
+                          </button>
+                          <button type="button" onClick={() => handleDeleteDuty(duty.id)}>
+                            <FontAwesomeIcon icon={faTrash} /> Xóa
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
