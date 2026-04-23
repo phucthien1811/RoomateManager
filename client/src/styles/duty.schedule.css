@@ -628,6 +628,12 @@
   color: #fff;
 }
 
+.btn-save:disabled,
+.btn-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .duty-schedule {
     padding: 14px;

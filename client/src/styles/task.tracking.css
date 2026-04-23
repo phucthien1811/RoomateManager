@@ -245,6 +245,34 @@
   font-size: 12px;
 }
 
+.task-complete-btn {
+  width: 100%;
+  border: 1px solid #1d4ed8;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+}
+
+.task-complete-btn:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.task-complete-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+}
+
 .btn-primary,
 .btn-secondary,
 .btn-danger,

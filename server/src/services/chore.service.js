@@ -16,7 +16,13 @@ const dayOffsetMap = {
   "Chủ nhật": 6,
 };
 
-const normalizeName = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+const normalizeName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const getWeekStart = (date = new Date()) => {
   const result = new Date(date);

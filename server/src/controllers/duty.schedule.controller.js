@@ -16,7 +16,28 @@ const dayOffsetMap = {
   'Chủ nhật': 6,
 };
 
-const normalizeName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const normalizeName = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const hasOverlappingDuty = async ({ roomId, weekStart, dayLabel, startHour, endHour, excludeDutyId = null }) => {
+  const query = {
+    room_id: roomId,
+    week_start: weekStart,
+    day_label: dayLabel,
+    start_hour: { $lt: Number(endHour) },
+    end_hour: { $gt: Number(startHour) },
+  };
+  if (excludeDutyId) {
+    query._id = { $ne: excludeDutyId };
+  }
+  const existed = await DutySchedule.exists(query);
+  return Boolean(existed);
+};
 
 const checkRoomAccess = async (roomId, userId) => {
   const room = await Room.findById(roomId).select('owner members');
@@ -202,9 +223,21 @@ const createDuty = async (req, res) => {
       return res.status(access.status).json({ message: access.message });
     }
 
+    const weekStartDate = new Date(`${week_start}T00:00:00.000Z`);
+    const hasOverlap = await hasOverlappingDuty({
+      roomId,
+      weekStart: weekStartDate,
+      dayLabel: day_label,
+      startHour: Number(start_hour),
+      endHour: Number(end_hour),
+    });
+    if (hasOverlap) {
+      return res.status(409).json({ message: 'Khung giờ bị trùng với lịch trực khác trong cùng ngày' });
+    }
+
     const duty = await DutySchedule.create({
       room_id: roomId,
-      week_start: new Date(`${week_start}T00:00:00.000Z`),
+      week_start: weekStartDate,
       day_label,
       title: String(title).trim(),
       start_hour: Number(start_hour),
@@ -272,6 +305,18 @@ const updateDuty = async (req, res) => {
     const access = await checkRoomAccess(duty.room_id, userId);
     if (!access.ok) {
       return res.status(access.status).json({ message: access.message });
+    }
+
+    const hasOverlap = await hasOverlappingDuty({
+      roomId: duty.room_id,
+      weekStart: duty.week_start,
+      dayLabel: duty.day_label,
+      startHour: Number(start_hour),
+      endHour: Number(end_hour),
+      excludeDutyId: duty._id,
+    });
+    if (hasOverlap) {
+      return res.status(409).json({ message: 'Khung giờ bị trùng với lịch trực khác trong cùng ngày' });
     }
 
     duty.title = String(title).trim();

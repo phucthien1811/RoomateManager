@@ -108,6 +108,7 @@ const DutySchedule = () => {
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
   const [viewMode, setViewMode] = useState('week');
   const [loadingDuties, setLoadingDuties] = useState(false);
+  const [savingDuty, setSavingDuty] = useState(false);
   const [roomMembers, setRoomMembers] = useState([]);
   const [roomCreatedAt, setRoomCreatedAt] = useState(() => {
     const cached = localStorage.getItem('currentRoomCreatedAt');
@@ -325,6 +326,7 @@ const DutySchedule = () => {
   };
 
   const handleSaveDuty = async () => {
+    if (savingDuty) return;
     if (!formData.title.trim()) {
       alert('Vui lòng nhập tiêu đề.');
       return;
@@ -376,6 +378,7 @@ const DutySchedule = () => {
     };
 
     try {
+      setSavingDuty(true);
       let savedDuty;
       if (editingDutyId) {
         savedDuty = await dutyScheduleService.updateDuty(editingDutyId, payload);
@@ -423,6 +426,8 @@ const DutySchedule = () => {
         message: error?.message || 'Không thể lưu lịch trực nhật',
         meta: editingDay,
       });
+    } finally {
+      setSavingDuty(false);
     }
   };
 
@@ -783,8 +788,8 @@ const DutySchedule = () => {
               <button className="btn-cancel" type="button" onClick={handleCloseModal}>
                 Hủy
               </button>
-              <button className="btn-save" type="button" onClick={handleSaveDuty}>
-                <FontAwesomeIcon icon={faCheck} /> Lưu phân công
+              <button className="btn-save" type="button" onClick={handleSaveDuty} disabled={savingDuty}>
+                <FontAwesomeIcon icon={faCheck} /> {savingDuty ? 'Đang lưu...' : 'Lưu phân công'}
               </button>
             </div>
           </div>

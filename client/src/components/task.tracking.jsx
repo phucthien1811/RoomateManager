@@ -4,7 +4,6 @@ import {
   faCheck,
   faChevronLeft,
   faChevronRight,
-  faImage,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import choreService from '../services/chore.service.js';
@@ -198,8 +197,8 @@ const TaskTracking = () => {
       {task.status === 'completed' ? (
         <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
       ) : (
-        <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
-          <FontAwesomeIcon icon={faImage} /> Xác nhận hoàn thành
+        <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: 'duty', item: task })}>
+          <FontAwesomeIcon icon={faCheck} /> Hoàn thành
         </button>
       )}
     </article>
