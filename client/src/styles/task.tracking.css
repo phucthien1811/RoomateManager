@@ -63,21 +63,70 @@
   margin-bottom: 20px;
 }
 
-.task-group-list {
+.task-week-grid {
   display: grid;
-  gap: 14px;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
-.task-group {
+.task-day-column {
+  background: #fff;
+  border: 1px solid #d7e2f2;
+  border-radius: 10px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-day-header {
+  padding: 8px 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.task-day-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.task-day-number {
+  display: block;
+  margin-top: 6px;
+  font-size: 30px;
+  line-height: 1;
+  color: #111827;
+  font-weight: 500;
+}
+
+.task-day-number.selected {
+  width: 42px;
+  height: 42px;
+  line-height: 42px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  font-size: 28px;
+  background: #1a73e8;
+  color: #fff;
+}
+
+.task-day-content {
+  padding: 8px;
   display: grid;
   gap: 8px;
 }
 
-.task-group-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 800;
-  color: #334155;
+.task-day-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
 }
 
 .section-title {
@@ -90,7 +139,7 @@
 
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -327,6 +376,10 @@
 
   .member-pick-list,
   .time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-week-grid {
     grid-template-columns: 1fr;
   }
 }
