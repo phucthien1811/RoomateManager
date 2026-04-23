@@ -288,9 +288,6 @@ const completeDutyTask = async ({ roomId, dutyId, userId, proofImages }) => {
   if (!mongoose.isValidObjectId(dutyId)) {
     throw new Error("dutyId không hợp lệ");
   }
-  if (!Array.isArray(proofImages) || proofImages.length === 0) {
-    throw new Error("Vui lòng tải lên ít nhất 1 ảnh minh chứng");
-  }
 
   const duty = await DutySchedule.findById(dutyId);
   if (!duty || String(duty.room_id) !== String(roomId)) {
@@ -333,7 +330,8 @@ const completeDutyTask = async ({ roomId, dutyId, userId, proofImages }) => {
 
   completedLog.status = CHORE_STATUS.COMPLETED;
   completedLog.completed_at = new Date();
-  completedLog.proof_images = proofImages.map((item) => String(item)).filter(Boolean).slice(0, 5);
+  const proofList = Array.isArray(proofImages) ? proofImages : [];
+  completedLog.proof_images = proofList.map((item) => String(item)).filter(Boolean).slice(0, 5);
   await completedLog.save();
 
   const saved = await ChoreLog.findById(completedLog._id)

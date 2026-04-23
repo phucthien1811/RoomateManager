@@ -4,7 +4,6 @@ import {
   faCheck,
   faChevronLeft,
   faChevronRight,
-  faClipboardCheck,
   faImage,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
@@ -32,6 +31,12 @@ const toDateKeyLocal = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return formatDateOnly(date);
+};
+
+const formatDateVi = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('vi-VN');
 };
 
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
@@ -128,6 +133,10 @@ const TaskTracking = () => {
   }, [dutyTasks, weekDates]);
 
   const todayKey = useMemo(() => formatDateOnly(new Date()), []);
+  const weekRangeLabel = useMemo(() => {
+    if (!weekDates[0] || !weekDates[6]) return '';
+    return `${formatDateVi(weekDates[0])} - ${formatDateVi(weekDates[6])}`;
+  }, [weekDates]);
 
   const openProofModal = (target) => {
     setProofTarget(target);
@@ -149,10 +158,6 @@ const TaskTracking = () => {
 
   const handleCompleteWithProof = async () => {
     if (!proofTarget) return;
-    if (proofImages.length === 0) {
-      setError('Vui lòng chọn ít nhất 1 ảnh minh chứng');
-      return;
-    }
 
     try {
       setSaving(true);
@@ -173,8 +178,17 @@ const TaskTracking = () => {
 
   const renderDutyTaskCard = (task) => (
     <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
-      <h3>{task.title}</h3>
-      <p>{Number.isFinite(task.start_hour) && Number.isFinite(task.end_hour) ? `${task.start_hour}:00 - ${task.end_hour}:00` : 'Không đặt khung giờ'}</p>
+      <div className="task-card-head">
+        <h3>{task.title}</h3>
+        <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : 'pending'}`}>
+          {task.status === 'completed' ? 'Đã xong' : 'Chưa xong'}
+        </span>
+      </div>
+      <p className="task-time">
+        {Number.isFinite(task.start_hour) && Number.isFinite(task.end_hour)
+          ? `${task.start_hour}:00 - ${task.end_hour}:00`
+          : 'Không đặt khung giờ'}
+      </p>
       {task.note && <small>{task.note}</small>}
       <div className="proof-list">
         {(task.proof_images || []).map((image, index) => (
@@ -200,7 +214,7 @@ const TaskTracking = () => {
         <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7)))}>
           <FontAwesomeIcon icon={faChevronLeft} /> Tuần trước
         </button>
-        <strong>Tuần {displayWeekKey}</strong>
+        <strong>{weekRangeLabel}</strong>
         <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7)))}>
           Tuần sau <FontAwesomeIcon icon={faChevronRight} />
         </button>
@@ -212,13 +226,8 @@ const TaskTracking = () => {
       {selectedRoomId && (
         <>
           <section className="task-section">
-            <div className="section-title">
-              <FontAwesomeIcon icon={faClipboardCheck} /> Nhiệm vụ của tôi theo lịch trực
-            </div>
             {loading ? (
               <div className="empty-box">Đang tải...</div>
-            ) : dutyTasks.length === 0 ? (
-              <div className="empty-box">Tuần này bạn chưa được tag vào lịch trực nào.</div>
             ) : (
               <div className="task-week-grid">
                 {dayColumns.map((day, index) => {
@@ -235,7 +244,7 @@ const TaskTracking = () => {
                       </div>
                       <div className="task-day-content">
                         {dayTasks.length === 0 ? (
-                          <div className="task-day-empty">Không có việc được tag</div>
+                          <div className="task-day-empty">Không có việc cần làm</div>
                         ) : (
                           dayTasks.map((task) => renderDutyTaskCard(task))
                         )}
@@ -258,8 +267,9 @@ const TaskTracking = () => {
             </div>
             <div className="modal-body">
               <p className="proof-title">{proofTarget?.item?.title}</p>
-              <label htmlFor="proof-images">Ảnh minh chứng *</label>
+              <label htmlFor="proof-images">Ảnh minh chứng (tuỳ chọn)</label>
               <input id="proof-images" type="file" accept="image/*" multiple onChange={handleSelectProofImages} />
+              <small className="proof-note">Bạn có thể nộp có ảnh hoặc không ảnh đều được.</small>
               <div className="proof-preview-grid">
                 {proofImages.map((image, index) => (
                   <img key={`preview-${index}`} src={image} alt="proof preview" />
