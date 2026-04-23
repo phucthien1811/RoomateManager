@@ -175,12 +175,16 @@ const TaskTracking = () => {
     }
   };
 
-  const renderDutyTaskCard = (task) => (
+  const renderDutyTaskCard = (task) => {
+    const taskDateKey = toDateKeyLocal(task.chore_date);
+    const isFutureTask = task.status !== 'completed' && taskDateKey > todayKey;
+
+    return (
     <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
       <div className="task-card-head">
         <h3>{task.title}</h3>
-        <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : 'pending'}`}>
-          {task.status === 'completed' ? 'Đã xong' : 'Chưa xong'}
+        <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : isFutureTask ? 'upcoming' : 'pending'}`}>
+          {task.status === 'completed' ? 'Đã xong' : isFutureTask ? 'Sắp tới' : 'Chưa xong'}
         </span>
       </div>
       <p className="task-time">
@@ -196,6 +200,8 @@ const TaskTracking = () => {
       </div>
       {task.status === 'completed' ? (
         <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
+      ) : isFutureTask ? (
+        <span className="status upcoming">Sắp tới</span>
       ) : (
         <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: 'duty', item: task })}>
           <FontAwesomeIcon icon={faCheck} /> Hoàn thành
@@ -203,6 +209,7 @@ const TaskTracking = () => {
       )}
     </article>
   );
+  };
 
 
   return (
