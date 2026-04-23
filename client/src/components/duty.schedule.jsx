@@ -596,9 +596,7 @@ const DutySchedule = () => {
                             </div>
                             {duty.note && <p className="duty-note">{duty.note}</p>}
                             <div className="duty-card-actions">
-                              {isLocked ? (
-                                <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
-                              ) : (
+                              {!isLocked && (
                                 <>
                                   <button
                                     type="button"
@@ -668,9 +666,7 @@ const DutySchedule = () => {
                       {duty.note && <p className="duty-note">{duty.note}</p>}
                     </div>
                     <div className="duty-list-actions">
-                      {isLocked ? (
-                        <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
-                      ) : (
+                      {!isLocked && (
                         <>
                           <button
                             type="button"

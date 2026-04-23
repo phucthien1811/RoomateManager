@@ -23,13 +23,16 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
     { id: 'newsfeed', label: 'Bảng Tin Nội Bộ', icon: faBullhorn },
-    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
     { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
-    { id: 'members', label: 'Thành Viên', icon: faUsers },
-    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
     { id: 'tasks', label: 'Công Việc', icon: faTasks },
+    
+    
+    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    
     { id: 'expenses', label: 'Quỹ Tiền', icon: faPiggyBank },
     { id: 'rooms', label: 'Phòng', icon: faDoorOpen },
+    { id: 'members', label: 'Thành Viên', icon: faUsers },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 
