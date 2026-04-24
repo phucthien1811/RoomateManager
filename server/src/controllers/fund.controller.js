@@ -101,7 +101,7 @@ const withdraw = async (req, res) => {
       transaction,
     });
   } catch (error) {
-    const knownErrors = ["Số dư quỹ không đủ", "Không tìm thấy quỹ"];
+    const knownErrors = ["Số dư quỹ không đủ", "Không tìm thấy quỹ", "đã có yêu cầu trích quỹ đang chờ duyệt"];
     if (knownErrors.some((msg) => error.message.includes(msg))) {
       return sendResponse(res, 400, false, error.message);
     }

@@ -105,6 +105,19 @@ const withdraw = async ({ roomId, amount, performedBy, description, category, pr
     if (!Array.isArray(fund.categories)) fund.categories = ["Chưa phân loại"];
     if (!Array.isArray(fund.category_allocations)) fund.category_allocations = [];
 
+    // Với yêu cầu trích quỹ cho hóa đơn: chỉ cho phép tối đa 1 yêu cầu pending cho mỗi bill.
+    if (status === "pending" && related_bill) {
+      const existingPendingRequest = await FundTransaction.findOne({
+        fund_id: fund._id,
+        type: FUND_TRANSACTION_TYPES.WITHDRAW,
+        related_bill,
+        status: "pending",
+      }).session(session);
+      if (existingPendingRequest) {
+        throw new Error("Hóa đơn này đã có yêu cầu trích quỹ đang chờ duyệt");
+      }
+    }
+
     const categoryName = normalizeCategory(category);
     if (!fund.categories.includes(categoryName)) fund.categories.push(categoryName);
 
