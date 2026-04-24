@@ -1,4 +1,4 @@
-﻿@import './colors.css';
+@import './colors.css';
 
 .expense-sharing {
   background: var(--color-bg);
@@ -500,10 +500,60 @@
   .fund-overview-grid {
     grid-template-columns: 1fr;
   }
+}
 
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+/* --- Fund Pending/Approval Styles --- */
+.btn-confirm-mini, .btn-reject-mini {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-confirm-mini {
+  background: #059669;
+  color: #fff;
+}
+
+.btn-confirm-mini:hover {
+  background: #047857;
+}
+
+.btn-reject-mini {
+  background: #dc2626;
+  color: #fff;
+}
+
+.btn-reject-mini:hover {
+  background: #b91c1c;
+}
+
+.badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.fund-balance-hint {
+  display: block;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: #f0f9ff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
 }
 
 /* â”€â”€ NEW: Stats section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

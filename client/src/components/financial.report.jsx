@@ -50,6 +50,17 @@ const buildRows = (bills, fundTransactions) => {
 
   // Hóa đơn = chi tiêu
   (bills || []).forEach((bill) => {
+    // Skip if bill was paid by fund to avoid double counting with the withdrawal transaction
+    if (bill.is_paid_by_fund) return;
+    
+    // Heuristic for older data: if there's a withdrawal with same amount and related description
+    const isPaidByFundHeuristic = (fundTransactions || []).some(tx => 
+      tx.type === 'withdraw' && 
+      Math.abs(Number(tx.amount)) === Number(bill.total_amount) &&
+      (tx.description || '').includes(bill.bill_type === 'other' ? bill.bill_type_other : (BILL_TYPE_LABEL[bill.bill_type] || ''))
+    );
+    if (isPaidByFundHeuristic) return;
+
     rows.push({
       id:       bill._id,
       date:     new Date(bill.bill_date || bill.created_at || bill.createdAt),

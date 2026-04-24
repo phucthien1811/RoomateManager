@@ -396,10 +396,15 @@ const BillManagement = () => {
            const newBillId = res.bill?._id || res._id;
            const newDetails = res.details || [];
            
-           for (const d of newDetails) {
-             if (d.status !== 'paid') {
-               await billService.confirmBillPayment(newBillId, d._id);
-             }
+           // If member requests fund, the withdrawal is pending, so we don't confirm details yet.
+           // If owner requests, it's completed and we confirm details.
+           if (isRoomOwner) {
+              for (const d of newDetails) {
+                if (d.status !== 'paid') {
+                  await billService.confirmBillPayment(newBillId, d._id);
+                }
+              }
+              await billService.updateBill(newBillId, { is_paid_by_fund: true });
            }
          } catch (e) {
            console.error("Auto fund payment failed:", e);
@@ -447,22 +452,28 @@ const BillManagement = () => {
         throw new Error(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
       }
 
-      // 1. Rút tiền từ quỹ
-      await fundService.withdrawFund(
+      // 1. Gửi yêu cầu rút tiền từ quỹ (liên kết với bill)
+      const res = await fundService.withdrawFund(
         selectedRoomId,
         bill.total_amount,
         `Chi trả hóa đơn: ${bill.bill_type === 'other' ? bill.bill_type_other : getBillTypeMeta(bill.bill_type).label} (Tháng ${bill.billing_month})`,
-        'Hóa đơn chung'
+        'Hóa đơn chung',
+        [],
+        bill._id
       );
 
-      // 2. Xác nhận toàn bộ thành viên đã trả
-      const pending = bill.details.filter((d) => d.status !== 'paid');
-      for (const d of pending) {
-        await billService.confirmBillPayment(bill._id, d._id);
+      // 2. Nếu là chủ phòng (completed), xác nhận toàn bộ thành viên đã trả
+      if (isRoomOwner) {
+        const pending = bill.details.filter((d) => d.status !== 'paid');
+        for (const d of pending) {
+          await billService.confirmBillPayment(bill._id, d._id);
+        }
+        // 3. Đánh dấu bill là đã trả bằng quỹ
+        await billService.updateBill(bill._id, { is_paid_by_fund: true });
       }
 
       await fetchBills();
-      alert('Đã thanh toán hóa đơn bằng quỹ chung thành công!');
+      alert(res.message || 'Giao dịch đã được ghi nhận!');
     } catch (err) {
       console.error(err);
       setError(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.');
@@ -474,6 +485,8 @@ const BillManagement = () => {
   /* ─── derived data ─── */
   const selectedRoomName = rooms.find((r) => r._id === selectedRoomId)?.name || 'Chưa chọn phòng';
   const currentUserId = String(user?.id || user?._id || '');
+  const roomOwnerId = String(rooms.find(r => r._id === selectedRoomId)?.owner?._id || rooms.find(r => r._id === selectedRoomId)?.owner || '');
+  const isRoomOwner = Boolean(currentUserId && roomOwnerId && currentUserId === roomOwnerId);
 
   useEffect(() => {
     if (!showModal) return;
@@ -696,29 +709,30 @@ const BillManagement = () => {
                         </div>
 
                         <div className="detail-actions-bar">
-                           {canConfirm && selectedBill.status !== 'completed' && selectedBill.details?.some(d => d.status !== 'paid') && (
-                              <>
-                                <button className="btn-confirm-all" style={{ flex: 1 }} onClick={async () => {
-                                    if (!window.confirm('Xác nhận thanh toán toàn bộ từ tiền riêng?')) return;
-                                    try {
-                                       setSubmitting(true);
-                                       const pending = selectedBill.details.filter(d => d.status !== 'paid');
-                                       for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
-                                       await fetchBills();
-                                    } catch (e) { setError(e.message); } finally { setSubmitting(false); }
-                                }} disabled={submitting}>
-                                   <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
-                                </button>
-                                <button 
-                                  className="btn-confirm-all" 
-                                  style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 3px 10px rgba(180, 83, 9, 0.3)' }} 
-                                  onClick={() => handlePayWithFund(selectedBill)}
-                                  disabled={submitting}
-                                >
-                                   <FontAwesomeIcon icon={faWallet} /> Trả bằng Quỹ
-                                </button>
-                              </>
-                           )}
+                             {canConfirm && selectedBill.status !== 'completed' && selectedBill.details?.some(d => d.status !== 'paid') && (
+                                <>
+                                  <button className="btn-confirm-all" style={{ flex: 1 }} onClick={async () => {
+                                      if (!window.confirm('Xác nhận thanh toán toàn bộ từ tiền riêng?')) return;
+                                      try {
+                                         setSubmitting(true);
+                                         const pending = selectedBill.details.filter(d => d.status !== 'paid');
+                                         for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
+                                         await fetchBills();
+                                      } catch (e) { setError(e.message); } finally { setSubmitting(false); }
+                                  }} disabled={submitting}>
+                                     <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
+                                  </button>
+                                  
+                                  <button 
+                                    className="btn-confirm-all" 
+                                    style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 3px 10px rgba(180, 83, 9, 0.3)' }} 
+                                    onClick={() => handlePayWithFund(selectedBill)}
+                                    disabled={submitting}
+                                  >
+                                     <FontAwesomeIcon icon={faWallet} /> {isRoomOwner ? 'Trả bằng Quỹ' : 'Yêu cầu trích Quỹ'}
+                                  </button>
+                                </>
+                             )}
                            <button className="btn-icon-secondary" onClick={() => handleOpenImageModal(selectedBill)}>
                              <FontAwesomeIcon icon={faCamera} /> {selectedBill.bill_images?.length > 0 ? 'Cập nhật ảnh' : 'Đính kèm ảnh'}
                            </button>

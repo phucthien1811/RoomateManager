@@ -126,41 +126,17 @@ const ExpenseSharing = () => {
   useEffect(() => { fetchAll(); }, [selectedRoomId]); // eslint-disable-line
 
   /* ── Computed: room tab ── */
-  const roomStats = useMemo(() => {
-    // Tiền quỹ (cộng dồn toàn thời gian)
-    const totalDeposit  = transactions.filter(t => t.type === 'deposit') .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const totalWithdraw = transactions.filter(t => t.type === 'withdraw').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-
-    // Hóa đơn trong THÁNG NÀY (hiện tại)
-    const currentMonthStr = (() => {
-      const d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    })();
-    const thisMonthBills = bills.filter(b => b.billing_month === currentMonthStr);
-    const totalBillAmountMonth = thisMonthBills.reduce((s, b) => s + (Number(b.total_amount) || 0), 0);
-
-    /* Pie: chi theo loại hóa đơn trong THÁNG NÀY */
-    const byType = {};
-    thisMonthBills.forEach(bill => {
-      const label = bill.bill_type === 'other'
-        ? (bill.bill_type_other || 'Khác')
-        : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
-      byType[label] = (byType[label] || 0) + (Number(bill.total_amount) || 0);
-    });
-    const roomPieData = Object.entries(byType)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    const memberMap = new Map();
-    transactions.filter(t => t.type === 'deposit').forEach(t => {
-      const u = t.performed_by || {};
-      const key = u._id || u.email || 'unknown';
-      memberMap.set(key, { name: getMemberName(u), amount: (memberMap.get(key)?.amount || 0) + (Number(t.amount) || 0) });
-    });
-    const memberContribs = Array.from(memberMap.values()).sort((a, b) => b.amount - a.amount);
+    const pendingTransactions = transactions.filter(t => t.status === 'pending');
     
-    return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length };
+    return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length, pendingTransactions };
   }, [transactions, bills]);
+
+  const isRoomOwner = useMemo(() => {
+    const room = rooms.find(r => r._id === selectedRoomId);
+    if (!room) return false;
+    const ownerId = String(room.owner?._id || room.owner || '');
+    return currentUserId && ownerId && currentUserId === ownerId;
+  }, [rooms, selectedRoomId, currentUserId]);
 
   /* ── Computed: personal tab ── */
   const personalStats = useMemo(() => {
@@ -197,6 +173,7 @@ const ExpenseSharing = () => {
       note: tx.description || '',
       proofImages: tx.proof_images || [],
       userId: String(tx.performed_by?._id || tx.performed_by || ''),
+      status: tx.status,
     }));
     bills.forEach(bill => rows.push({
       id: 'bill-' + bill._id,
@@ -288,11 +265,35 @@ const ExpenseSharing = () => {
     if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
     try {
       setSubmitting(true); setError('');
-      await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ', withdrawForm.proofImages);
+      const res = await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ', withdrawForm.proofImages);
+      alert(res.message || 'Giao dịch đã được ghi nhận!');
       await fetchAll();
       setShowWithdraw(false);
       setWithdrawForm({ amount: '', description: '', proofImages: [] });
     } catch (err) { setError(err?.message || 'Không thể rút quỹ'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleApproveTx = async (txId) => {
+    if (!window.confirm('Xác nhận phê duyệt yêu cầu rút tiền này?')) return;
+    try {
+      setSubmitting(true);
+      await fundService.approveFundWithdraw(txId);
+      await fetchAll();
+      alert('Đã phê duyệt giao dịch thành công!');
+    } catch (err) { alert(err.message || 'Lỗi khi phê duyệt'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleRejectTx = async (txId) => {
+    const reason = window.prompt('Nhập lý do từ chối:');
+    if (reason === null) return;
+    try {
+      setSubmitting(true);
+      await fundService.rejectFundWithdraw(txId, reason);
+      await fetchAll();
+      alert('Đã từ chối giao dịch.');
+    } catch (err) { alert(err.message || 'Lỗi khi từ chối'); }
     finally { setSubmitting(false); }
   };
 
@@ -345,6 +346,46 @@ const ExpenseSharing = () => {
                   <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> {roomStats.thisMonthBillsCount} hóa đơn phát sinh</small>
                 </div>
               </div>
+
+              {/* Pending Transactions for Owner */}
+              {isRoomOwner && roomStats.pendingTransactions?.length > 0 && (
+                <div className="fund-chart-card full" style={{ marginBottom: 20, border: '1px solid #fde68a', background: '#fffbeb' }}>
+                  <h2 style={{ color: '#92400e' }}><FontAwesomeIcon icon={faClockRotateLeft} /> Yêu cầu rút quỹ đang chờ duyệt</h2>
+                  <div className="transaction-table-wrap">
+                    <table className="transaction-table">
+                      <thead>
+                        <tr>
+                          <th>Ngày</th>
+                          <th>Người yêu cầu</th>
+                          <th>Nội dung</th>
+                          <th>Số tiền</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roomStats.pendingTransactions.map(tx => (
+                          <tr key={tx._id}>
+                            <td className="td-date">{fmtDate(tx.created_at || tx.createdAt)}</td>
+                            <td>{getMemberName(tx.performed_by)}</td>
+                            <td>{tx.description}</td>
+                            <td className="td-num"><span className="tx-amount out">−{fmt(tx.amount)}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn-confirm-mini" onClick={() => handleApproveTx(tx._id)} disabled={submitting}>
+                                  <FontAwesomeIcon icon={faCheck} /> Duyệt
+                                </button>
+                                <button className="btn-reject-mini" onClick={() => handleRejectTx(tx._id)} disabled={submitting}>
+                                  <FontAwesomeIcon icon={faTimes} /> Từ chối
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Biểu đồ + Đóng góp thành viên — 2 cột */}
               <div className="fund-middle-grid">
@@ -697,7 +738,11 @@ const HistoryTable = ({ rows, onThumb, compact }) => {
             <tr key={row.id + idx}>
               <td className="td-date">{fmtDate(row.date)}</td>
               <td>
-                <div className="tx-main-label">{row.label}</div>
+                <div className="tx-main-label">
+                  {row.label}
+                  {row.status === 'pending' && <span className="badge-pending" style={{ marginLeft: 8, fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fcd34d' }}>Chờ duyệt</span>}
+                  {row.status === 'rejected' && <span className="badge-rejected" style={{ marginLeft: 8, fontSize: '10px', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca' }}>Từ chối</span>}
+                </div>
                 {row.note && <div className="tx-note">{row.note}</div>}
               </td>
               {!compact && (

@@ -66,6 +66,10 @@ const roomBillSchema = new mongoose.Schema(
       required: false,
       default: null,
     },
+    is_paid_by_fund: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

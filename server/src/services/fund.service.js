@@ -92,7 +92,7 @@ const deposit = async ({ roomId, amount, performedBy, description, category, pro
 };
 
 // Rút tiền từ quỹ (chi tiêu chung)
-const withdraw = async ({ roomId, amount, performedBy, description, category, proofImages }) => {
+const withdraw = async ({ roomId, amount, performedBy, description, category, proofImages, status = "completed", related_bill = null }) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -104,13 +104,15 @@ const withdraw = async ({ roomId, amount, performedBy, description, category, pr
     if (!Array.isArray(fund.categories)) fund.categories = ["Chưa phân loại"];
     if (!Array.isArray(fund.category_allocations)) fund.category_allocations = [];
 
-    fund.balance -= amount;
-    await fund.save({ session });
-
     const categoryName = normalizeCategory(category);
     if (!fund.categories.includes(categoryName)) fund.categories.push(categoryName);
-    fund.category_allocations = upsertAllocation(fund.category_allocations, categoryName, -amount);
-    await fund.save({ session });
+
+    // Chỉ trừ tiền nếu trạng thái là completed (chủ phòng rút trực tiếp)
+    if (status === "completed") {
+      fund.balance -= amount;
+      fund.category_allocations = upsertAllocation(fund.category_allocations, categoryName, -amount);
+      await fund.save({ session });
+    }
 
     const transaction = await FundTransaction.create(
       [
@@ -122,6 +124,8 @@ const withdraw = async ({ roomId, amount, performedBy, description, category, pr
           description,
           category: categoryName,
           proof_images: Array.isArray(proofImages) ? proofImages.slice(0, 5) : [],
+          status,
+          related_bill: related_bill,
         },
       ],
       { session }
@@ -135,6 +139,66 @@ const withdraw = async ({ roomId, amount, performedBy, description, category, pr
   } finally {
     session.endSession();
   }
+};
+
+const approveTransaction = async (transactionId, approverId) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const transaction = await FundTransaction.findById(transactionId).session(session);
+    if (!transaction) throw new Error("Không tìm thấy giao dịch");
+    if (transaction.status !== "pending") throw new Error("Giao dịch này không ở trạng thái chờ duyệt");
+
+    const fund = await Fund.findById(transaction.fund_id).session(session);
+    if (!fund) throw new Error("Không tìm thấy quỹ");
+
+    // Kiểm tra số dư một lần nữa trước khi rút thật
+    if (fund.balance < transaction.amount) throw new Error("Số dư quỹ hiện tại không đủ để thực hiện giao dịch này");
+
+    // Thực hiện rút tiền thật sự
+    fund.balance -= transaction.amount;
+    fund.category_allocations = upsertAllocation(fund.category_allocations, transaction.category, -transaction.amount);
+    await fund.save({ session });
+
+    // Cập nhật trạng thái giao dịch
+    transaction.status = "completed";
+    await transaction.save({ session });
+
+    // Nếu có bill liên quan, đánh dấu bill là đã thanh toán bằng quỹ
+    if (transaction.related_bill) {
+      const RoomBill = require("../models/room.bill.model");
+      const BillDetail = require("../models/bill.detail.model");
+      
+      await RoomBill.findByIdAndUpdate(transaction.related_bill, { 
+        status: "completed",
+        is_paid_by_fund: true 
+      }).session(session);
+
+      await BillDetail.updateMany(
+        { bill_id: transaction.related_bill },
+        { status: "paid", confirmed_by: approverId, paid_at: new Date() }
+      ).session(session);
+    }
+
+    await session.commitTransaction();
+    return { fund, transaction };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+const rejectTransaction = async (transactionId) => {
+  const transaction = await FundTransaction.findById(transactionId);
+  if (!transaction) throw new Error("Không tìm thấy giao dịch");
+  if (transaction.status !== "pending") throw new Error("Giao dịch này không ở trạng thái chờ duyệt");
+
+  transaction.status = "rejected";
+  await transaction.save();
+  return transaction;
 };
 
 // Lấy số dư + lịch sử giao dịch của quỹ
@@ -199,6 +263,8 @@ const createCategory = async ({ roomId, name, amount = 0 }) => {
 module.exports = {
   deposit,
   withdraw,
+  approveTransaction,
+  rejectTransaction,
   createCategory,
   getFundDetail,
   getOrCreateFund,

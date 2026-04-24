@@ -43,6 +43,16 @@ const fundTransactionSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    status: {
+      type: String,
+      enum: ["pending", "completed", "rejected"],
+      default: "completed",
+    },
+    related_bill: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RoomBill",
+      default: null,
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

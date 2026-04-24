@@ -258,6 +258,27 @@ const deleteBill = async (req, res) => {
   }
 };
 
+// PATCH /api/bills/:billId — Cập nhật thông tin hóa đơn
+const updateBill = async (req, res) => {
+  try {
+    const { billId } = req.params;
+    const updateData = req.body;
+
+    if (!billId || !/^[a-fA-F0-9]{24}$/.test(billId)) {
+      return sendResponse(res, 400, false, "billId không hợp lệ");
+    }
+
+    const bill = await billService.updateBill(billId, updateData);
+    return sendResponse(res, 200, true, "Cập nhật hóa đơn thành công", bill);
+  } catch (error) {
+    if (error.message.includes("Không tìm thấy")) {
+      return sendResponse(res, 404, false, error.message);
+    }
+    console.error("[BillController] updateBill error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi cập nhật hóa đơn");
+  }
+};
+
 module.exports = {
   createBill,
   confirmPayment,
@@ -265,4 +286,5 @@ module.exports = {
   getBillHistory,
   uploadBillImages,
   deleteBill,
+  updateBill,
 };

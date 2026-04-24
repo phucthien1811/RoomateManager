@@ -36,7 +36,7 @@ const fundService = {
   /**
    * Rút tiền từ quỹ
    */
-  withdrawFund: async (roomId, amount, reason, category = 'Chưa phân loại', proofImages = []) => {
+  withdrawFund: async (roomId, amount, reason, category = 'Chưa phân loại', proofImages = [], relatedBill = null) => {
     try {
       const response = await api.post(`/fund/withdraw`, {
         room_id: roomId,
@@ -44,8 +44,9 @@ const fundService = {
         description: reason,
         category,
         proof_images: proofImages,
+        related_bill: relatedBill,
       });
-      return response.data?.data?.transaction;
+      return response.data; // Trả về cả cục để lấy message
     } catch (error) {
       throw error.response?.data || error;
     }
@@ -97,7 +98,7 @@ const fundService = {
    */
   approveFundWithdraw: async (transactionId) => {
     try {
-      const response = await api.post(`/fund/transactions/${transactionId}/approve`);
+      const response = await api.patch(`/fund/transactions/${transactionId}/approve`);
       return response.data.transaction;
     } catch (error) {
       throw error.response?.data || error;
@@ -109,7 +110,7 @@ const fundService = {
    */
   rejectFundWithdraw: async (transactionId, reason) => {
     try {
-      const response = await api.post(`/fund/transactions/${transactionId}/reject`, {
+      const response = await api.patch(`/fund/transactions/${transactionId}/reject`, {
         reason,
       });
       return response.data.transaction;

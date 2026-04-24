@@ -341,6 +341,12 @@ const deleteBill = async (billId, requesterId) => {
   };
 };
 
+const updateBill = async (billId, updateData) => {
+  const bill = await RoomBill.findByIdAndUpdate(billId, updateData, { new: true });
+  if (!bill) throw new Error("Không tìm thấy hóa đơn");
+  return bill;
+};
+
 module.exports = {
   createBillWithSplit,
   confirmPayment,
@@ -348,5 +354,6 @@ module.exports = {
   getBillHistory,
   uploadBillImages,
   deleteBill,
+  updateBill,
   splitAmountByLargestRemainder,
 };

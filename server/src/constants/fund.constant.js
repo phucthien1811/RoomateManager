@@ -6,6 +6,13 @@ const FUND_TRANSACTION_TYPES = {
   WITHDRAW: "withdraw", // rút tiền từ quỹ (chi tiêu chung)
 };
 
+const FUND_TRANSACTION_STATUS = {
+  PENDING: "pending",
+  COMPLETED: "completed",
+  REJECTED: "rejected",
+};
+
 module.exports = {
   FUND_TRANSACTION_TYPES,
+  FUND_TRANSACTION_STATUS,
 };

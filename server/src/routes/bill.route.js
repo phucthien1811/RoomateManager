@@ -17,6 +17,7 @@ const authorizeAdmin = (req, res, next) => next();
 router.post("/", authenticate, authorizeAdmin, billController.createBill);
 router.get("/history/:roomId", authenticate, billController.getBillHistory);
 router.patch("/details/:detailId/confirm", authenticate, billController.confirmPayment);
+router.patch("/:billId", authenticate, billController.updateBill);
 router.post("/:bill_id/apply-absence", authenticate, billAbsenceController.applyAbsenceToBill);
 router.patch("/:billId/images", authenticate, billController.uploadBillImages);
 router.delete("/:billId", authenticate, billController.deleteBill);
