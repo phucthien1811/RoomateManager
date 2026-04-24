@@ -344,11 +344,10 @@ const ExpenseSharing = () => {
   };
 
   const handleRejectTx = async (txId) => {
-    const reason = window.prompt('Nhập lý do từ chối:');
-    if (reason === null) return;
+    if (!window.confirm('Xác nhận từ chối yêu cầu rút quỹ này?')) return;
     try {
       setSubmitting(true);
-      await fundService.rejectFundWithdraw(txId, reason);
+      await fundService.rejectFundWithdraw(txId);
       await fetchAll();
       alert('Đã từ chối giao dịch.');
     } catch (err) { alert(err.message || 'Lỗi khi từ chối'); }

@@ -14,6 +14,7 @@ const BILL_STATUS = {
   PENDING: "pending",     // chưa ai trả
   PARTIAL: "partial",     // có người trả rồi, chưa đủ
   COMPLETED: "completed", // tất cả đã trả
+  REJECTED: "rejected",   // yêu cầu trích quỹ bị từ chối
 };
 
 // Trạng thái của từng người trong hóa đơn

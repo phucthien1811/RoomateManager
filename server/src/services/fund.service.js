@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Fund = require("../models/fund.model");
 const FundTransaction = require("../models/fund.transaction.model");
 const { FUND_TRANSACTION_TYPES } = require("../constants/fund.constant");
+const { BILL_STATUS } = require("../constants/bill.constant");
 
 const normalizeCategory = (category) => {
   const value = String(category || "").trim();
@@ -192,13 +193,35 @@ const approveTransaction = async (transactionId, approverId) => {
 };
 
 const rejectTransaction = async (transactionId) => {
-  const transaction = await FundTransaction.findById(transactionId);
-  if (!transaction) throw new Error("Không tìm thấy giao dịch");
-  if (transaction.status !== "pending") throw new Error("Giao dịch này không ở trạng thái chờ duyệt");
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  transaction.status = "rejected";
-  await transaction.save();
-  return transaction;
+  try {
+    const transaction = await FundTransaction.findById(transactionId).session(session);
+    if (!transaction) throw new Error("Không tìm thấy giao dịch");
+    if (transaction.status !== "pending") throw new Error("Giao dịch này không ở trạng thái chờ duyệt");
+
+    transaction.status = "rejected";
+    await transaction.save({ session });
+
+    // Nếu yêu cầu rút quỹ này gắn với hóa đơn, đánh dấu hóa đơn bị từ chối.
+    if (transaction.related_bill) {
+      const RoomBill = require("../models/room.bill.model");
+      await RoomBill.findByIdAndUpdate(
+        transaction.related_bill,
+        { status: BILL_STATUS.REJECTED, is_paid_by_fund: false },
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+    return transaction;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 };
 
 // Lấy số dư + lịch sử giao dịch của quỹ

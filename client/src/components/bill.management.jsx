@@ -67,6 +67,13 @@ const BILL_TYPES = [
 
 const getBillTypeMeta = (key) => BILL_TYPES.find((t) => t.key === key) || BILL_TYPES[4];
 
+const getBillStatusMeta = (status) => {
+  if (status === 'completed') return { className: 'completed', label: 'Đã xong' };
+  if (status === 'partial') return { className: 'partial', label: 'Một phần' };
+  if (status === 'rejected') return { className: 'rejected', label: 'Bị từ chối' };
+  return { className: 'pending', label: 'Chưa trả' };
+};
+
 const buildSplitParticipants = (members = [], awayIds = []) => {
   const available = members.filter((m) => !awayIds.includes(String(m._id)));
   const eq = available.length > 0 ? Math.floor((100 / available.length) * 100) / 100 : 0;
@@ -582,6 +589,7 @@ const BillManagement = () => {
             <div className="split-left">
               {visibleBills.map((bill) => {
                 const typeMeta = getBillTypeMeta(bill.bill_type);
+                const statusMeta = getBillStatusMeta(bill.status);
                 return (
                   <div 
                     key={bill._id} 
@@ -595,7 +603,7 @@ const BillManagement = () => {
                       <div className="h-bill-info">
                         <h4>{bill.bill_type === 'other' ? (bill.bill_type_other || 'Hóa đơn khác') : `Tiền ${typeMeta.label}`}</h4>
                         <span>
-                          <span className={`status-dot ${bill.status === 'completed' ? 'completed' : bill.status === 'partial' ? 'partial' : 'pending'}`}></span>
+                          <span className={`status-dot ${statusMeta.className}`}></span>
                           {formatDate(bill.created_at || bill.createdAt || bill.bill_date)}
                         </span>
                       </div>
@@ -631,6 +639,7 @@ const BillManagement = () => {
                     const typeMeta = getBillTypeMeta(selectedBill.bill_type);
                     const responsibleId = String(selectedBill.payer_id?._id || selectedBill.payer_id || selectedBill.created_by?._id || selectedBill.created_by || '');
                     const canConfirm = Boolean(currentUserId && responsibleId && currentUserId === responsibleId);
+                    const selectedBillStatusMeta = getBillStatusMeta(selectedBill.status);
                     return (
                       <>
                         <div className="detail-header">
@@ -641,8 +650,8 @@ const BillManagement = () => {
                                </div>
                                {selectedBill.bill_type === 'other' ? selectedBill.bill_type_other || 'Khác' : `Tiền ${typeMeta.label}`}
                             </h2>
-                            <span className={`bill-status-badge ${selectedBill.status === 'completed' ? 'completed' : selectedBill.status === 'partial' ? 'partial' : 'pending'}`}>
-                              {selectedBill.status === 'completed' ? 'Đã xong' : selectedBill.status === 'partial' ? 'Một phần' : 'Chưa trả'}
+                            <span className={`bill-status-badge ${selectedBillStatusMeta.className}`}>
+                              {selectedBillStatusMeta.label}
                             </span>
                           </div>
                           <div className="meta">

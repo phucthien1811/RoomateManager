@@ -355,6 +355,12 @@
   border: 1px solid #bbf7d0;
 }
 
+.bill-status-badge.rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
 /* â”€â”€ CARD BODY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .bill-card-body {
   padding: 0 20px 18px;
@@ -1396,6 +1402,7 @@
 .status-dot.completed { background: #10b981; }
 .status-dot.pending { background: #f59e0b; }
 .status-dot.partial { background: #3b82f6; }
+.status-dot.rejected { background: #ef4444; }
 .h-bill-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .h-bill-right .amount { font-size: 16px; font-weight: 800; color: var(--color-primary); display: block; }
 .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 400px; color: var(--color-text-light); font-size: 15px; text-align: center; }

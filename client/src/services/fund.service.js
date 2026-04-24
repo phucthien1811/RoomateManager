@@ -108,11 +108,9 @@ const fundService = {
   /**
    * Từ chối rút tiền từ quỹ
    */
-  rejectFundWithdraw: async (transactionId, reason) => {
+  rejectFundWithdraw: async (transactionId) => {
     try {
-      const response = await api.patch(`/fund/transactions/${transactionId}/reject`, {
-        reason,
-      });
+      const response = await api.patch(`/fund/transactions/${transactionId}/reject`);
       return response.data.transaction;
     } catch (error) {
       throw error.response?.data || error;
