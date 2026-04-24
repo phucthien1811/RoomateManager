@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHouse, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBars, faHouse, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
 
 const PageHeader = ({ title, actions }) => {
@@ -32,6 +32,14 @@ const PageHeader = ({ title, actions }) => {
     <div className="shared-page-header">
       <div className="shared-page-header-left">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="shared-mobile-menu-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'))}
+            title="Mở menu"
+          >
+            <FontAwesomeIcon icon={faBars} />
+          </button>
           <svg xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" width="35" height="35" viewBox="0 0 35 35">
             <image id="Layer_1_copy" x="1" y="1" width="33" height="33" xlinkHref="/datalogo" />
           </svg>

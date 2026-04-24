@@ -24,6 +24,7 @@ import {
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
 import absenceService from '../services/absence.service.js';
@@ -151,6 +152,7 @@ const buildSplitParticipants = (members = [], awayIds = []) => {
 /* ─── Component ──────────────────────── */
 const BillManagement = () => {
   const { user, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const [bills, setBills] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState('');
@@ -366,12 +368,24 @@ const BillManagement = () => {
   const handleToggleParticipant = (memberId) => {
     setError('');
     setManualPercentMemberIds([]);
-    setSplitParticipants((prev) =>
-      prev.map((p) => {
+    setSplitParticipants((prev) => {
+      const toggled = prev.map((p) => {
         if (p.member_id !== memberId) return p;
         return { ...p, selected: !p.selected };
-      })
-    );
+      });
+
+      const selectedRows = toggled.filter((p) => p.selected);
+      if (selectedRows.length === 0) return toggled;
+
+      const eq = Math.floor((100 / selectedRows.length) * 100) / 100;
+      return toggled.map((p) => {
+        if (!p.selected) return p;
+        const idx = selectedRows.findIndex((s) => s.member_id === p.member_id);
+        const isLast = idx === selectedRows.length - 1;
+        const pct = isLast ? Number((100 - eq * (selectedRows.length - 1)).toFixed(2)) : eq;
+        return { ...p, split_mode: 'percent', split_value: String(pct) };
+      });
+    });
   };
 
   const handleSelectAllParticipants = () => {
@@ -542,14 +556,19 @@ const BillManagement = () => {
          } catch (e) {
            console.error("Auto fund payment failed:", e);
            const errorMessage = e.response?.data?.message || e.message || 'Lỗi không xác định khi trích quỹ chung';
-           alert(`Hóa đơn đã được tạo nhưng KHÔNG THỂ trích quỹ chung (lỗi: ${errorMessage}). Vui lòng tự thanh toán lại bằng quỹ chung sau.`);
-         }
-      }
+            showToast(
+              `Hóa đơn đã được tạo nhưng KHÔNG THỂ trích quỹ chung (lỗi: ${errorMessage}). Vui lòng tự thanh toán lại bằng quỹ chung sau.`,
+              { type: 'error', duration: 5000 }
+            );
+          }
+       }
 
       await fetchBills();
+      showToast('Tạo hóa đơn thành công', { type: 'success' });
       handleCloseModal();
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Lỗi khi lưu hóa đơn');
+      showToast(err.response?.data?.message || err.message || 'Lỗi khi lưu hóa đơn', { type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -560,8 +579,10 @@ const BillManagement = () => {
     try {
       await billService.deleteBill(id);
       await fetchBills();
+      showToast('Đã xóa hóa đơn thành công', { type: 'success' });
     } catch (err) {
       setError(err.message || 'Lỗi khi xóa hóa đơn');
+      showToast(err.message || 'Lỗi khi xóa hóa đơn', { type: 'error' });
     }
   };
 
@@ -570,8 +591,10 @@ const BillManagement = () => {
       if (!window.confirm('Xác nhận thành viên này đã đóng tiền?')) return;
       await billService.confirmBillPayment(billId, detailId);
       await fetchBills();
+      showToast('Đã xác nhận thanh toán cho thành viên', { type: 'success' });
     } catch (err) {
       setError(err.message || 'Lỗi khi xác nhận thanh toán');
+      showToast(err.message || 'Lỗi khi xác nhận thanh toán', { type: 'error' });
     }
   };
 
@@ -606,10 +629,11 @@ const BillManagement = () => {
       }
 
       await fetchBills();
-      alert(res.message || 'Giao dịch đã được ghi nhận!');
+      showToast(res.message || 'Giao dịch đã được ghi nhận!', { type: 'success' });
     } catch (err) {
       console.error(err);
       setError(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.');
+      showToast(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.', { type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -854,10 +878,14 @@ const BillManagement = () => {
                                          const pending = selectedBill.details.filter(d => d.status !== 'paid');
                                          for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
                                          await fetchBills();
-                                      } catch (e) { setError(e.message); } finally { setSubmitting(false); }
-                                  }} disabled={submitting}>
-                                     <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
-                                  </button>
+                                         showToast('Đã xác nhận thanh toán toàn bộ thành viên', { type: 'success' });
+                                      } catch (e) {
+                                        setError(e.message);
+                                        showToast(e.message || 'Lỗi khi xác nhận thanh toán', { type: 'error' });
+                                      } finally { setSubmitting(false); }
+                                   }} disabled={submitting}>
+                                      <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
+                                   </button>
                                   
                                   <button 
                                     className="btn-confirm-all" 

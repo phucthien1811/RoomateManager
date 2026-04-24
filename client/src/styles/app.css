@@ -36,10 +36,22 @@ body {
   background: #fff;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 10px 24px;
   gap: 16px;
   flex-shrink: 0;
+}
+
+.global-menu-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-primary);
+  display: none;
+  place-items: center;
+  cursor: pointer;
 }
 
 .global-header-right {
@@ -130,36 +142,31 @@ body {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .app {
-    flex-direction: column;
-  }
-
-  .sidebar {
-    width: 100%;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-  }
-
   .main-content {
-    height: calc(100vh - 220px);
+    height: calc(100vh - 64px);
     overflow-y: auto;
   }
 
   .global-header {
-    height: auto;
-    padding: 10px 14px;
-    flex-direction: column;
-    align-items: flex-start;
+    height: 64px;
+    padding: 8px 12px;
   }
 
   .global-header-right {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    justify-content: flex-end;
   }
 
   .global-user {
-    align-items: flex-start;
+    display: none;
+  }
+
+  .global-menu-btn {
+    display: grid;
+  }
+
+  .global-notification-modal {
+    padding: 76px 12px 12px;
   }
 }
 
@@ -198,4 +205,44 @@ body {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.shared-mobile-menu-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-primary);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .shared-page-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .shared-page-header-left h1 {
+    font-size: 20px;
+  }
+
+  .room-subtitle {
+    margin-left: 0;
+    font-size: 13px;
+  }
+
+  .shared-mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .shared-page-header-actions {
+    width: 100%;
+  }
 }

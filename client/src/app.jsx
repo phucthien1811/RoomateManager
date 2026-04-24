@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBars, faBell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from './context/AuthContext.jsx';
 import { useNotifications } from './context/NotificationContext.jsx';
 import Login from './pages/login.jsx';
@@ -25,6 +25,7 @@ import './styles/app.css';
 const AppLayout = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
   const { unreadCount, refreshNotifications } = useNotifications();
   const navigate = useNavigate();
@@ -37,12 +38,31 @@ const AppLayout = () => {
     const handleChangeMenu = (e) => {
       if (e.detail?.menu) {
         setActiveMenu(e.detail.menu);
+        setMobileSidebarOpen(false);
         window.scrollTo(0, 0);
       }
     };
 
     window.addEventListener('change-menu', handleChangeMenu);
     return () => window.removeEventListener('change-menu', handleChangeMenu);
+  }, []);
+
+  useEffect(() => {
+    const handleToggleSidebar = () => {
+      setMobileSidebarOpen((prev) => !prev);
+    };
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('toggle-mobile-sidebar', handleToggleSidebar);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('toggle-mobile-sidebar', handleToggleSidebar);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
 
@@ -82,9 +102,26 @@ const AppLayout = () => {
 
   return (
     <div className="app">
-      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+      <div
+        className={`sidebar-backdrop ${mobileSidebarOpen ? 'show' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+      <Sidebar
+        activeMenu={activeMenu}
+        setActiveMenu={setActiveMenu}
+        isMobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
       <div className="app-main">
         <header className="global-header">
+          <button
+            className="global-menu-btn"
+            onClick={() => setMobileSidebarOpen((prev) => !prev)}
+            type="button"
+            title="Mở menu"
+          >
+            <FontAwesomeIcon icon={faBars} />
+          </button>
 
           <div className="global-header-right">
             <div className="global-user">
