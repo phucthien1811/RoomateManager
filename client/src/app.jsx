@@ -121,11 +121,7 @@ const AppLayout = () => {
 };
 
 function App() {
-  const { checkAuth, isAuthenticated, loading } = useAuth();
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -139,8 +135,8 @@ function App() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/" replace /> : <Register />} />
 
       {/* Protected Routes */}
       {isAuthenticated ? (
