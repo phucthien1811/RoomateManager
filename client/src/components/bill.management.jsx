@@ -81,6 +81,11 @@ const getMoneySuggestions = (rawValue) => {
 
 const fmtSuggestion = (value) => new Intl.NumberFormat('vi-VN').format(value);
 
+const normalizePercent = (value) => {
+  if (!Number.isFinite(value)) return null;
+  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
+};
+
 const getBillStatusMeta = (status) => {
   if (status === 'completed') return { className: 'completed', label: 'Đã xong' };
   if (status === 'partial') return { className: 'partial', label: 'Một phần' };
@@ -138,6 +143,7 @@ const BillManagement = () => {
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
+  const [manualPercentMemberIds, setManualPercentMemberIds] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
   // RM-8: Image upload state
   const [showImageModal, setShowImageModal] = useState(false);
@@ -177,6 +183,7 @@ const BillManagement = () => {
       setRoomMembers([]);
       setAwayMemberIds([]);
       setSplitParticipants([]);
+      setManualPercentMemberIds([]);
     }
   }, [selectedRoomId]);
 
@@ -234,6 +241,7 @@ const BillManagement = () => {
       setRoomMembers([]);
       setAwayMemberIds([]);
       setSplitParticipants([]);
+      setManualPercentMemberIds([]);
     } finally {
       setParticipantsLoading(false);
     }
@@ -258,13 +266,19 @@ const BillManagement = () => {
     });
 
     setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds));
+    setManualPercentMemberIds([]);
 
     setError('');
     setAutoPayWithFund(false);
     setShowModal(true);
   };
 
-  const handleCloseModal = () => { setShowModal(false); setError(''); setAutoPayWithFund(false); };
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setError('');
+    setAutoPayWithFund(false);
+    setManualPercentMemberIds([]);
+  };
 
   /* RM-8 — Image upload handlers */
   const handleOpenImageModal = (bill) => {
@@ -324,6 +338,7 @@ const BillManagement = () => {
 
   const handleToggleParticipant = (memberId) => {
     setError('');
+    setManualPercentMemberIds([]);
     setSplitParticipants((prev) =>
       prev.map((p) => {
         if (p.member_id !== memberId) return p;
@@ -335,6 +350,7 @@ const BillManagement = () => {
 
   const handleSelectAllParticipants = () => {
     setError('');
+    setManualPercentMemberIds([]);
     setSplitParticipants((prev) => {
       const selectable = prev.filter((p) => !p.isAway);
       const eq = selectable.length > 0 ? Math.floor((100 / selectable.length) * 100) / 100 : 0;
@@ -349,9 +365,71 @@ const BillManagement = () => {
   };
 
   const handleParticipantSplitChange = (memberId, field, value) => {
-    setSplitParticipants((prev) =>
-      prev.map((p) => (p.member_id === memberId ? { ...p, [field]: value } : p))
-    );
+    if (field === 'split_mode' && value !== 'percent') {
+      setManualPercentMemberIds((prev) => prev.filter((id) => String(id) !== String(memberId)));
+    }
+
+    setSplitParticipants((prev) => {
+      const updated = prev.map((p) => (p.member_id === memberId ? { ...p, [field]: value } : p));
+
+      if (field === 'split_value') {
+        const selectedPercent = updated.filter((p) => p.selected && !p.isAway && p.split_mode === 'percent');
+        const current = selectedPercent.find((p) => String(p.member_id) === String(memberId));
+        const entered = Number(value);
+        const currentPct = normalizePercent(entered);
+        if (!current || currentPct === null) return updated;
+
+        const selectedIdSet = new Set(selectedPercent.map((p) => String(p.member_id)));
+        const manualSet = new Set(
+          [...manualPercentMemberIds.map(String), String(memberId)]
+            .filter((id) => selectedIdSet.has(id))
+        );
+
+        const getPct = (id) => {
+          const row = selectedPercent.find((p) => String(p.member_id) === String(id));
+          const pct = normalizePercent(Number(row?.split_value));
+          return pct ?? 0;
+        };
+
+        const otherManualIds = Array.from(manualSet).filter((id) => id !== String(memberId));
+        const otherManualSum = otherManualIds.reduce((sum, id) => sum + getPct(id), 0);
+        const safeCurrentPct = Math.min(currentPct, Math.max(0, Number((100 - otherManualSum).toFixed(2))));
+
+        const fixedValueMap = new Map(otherManualIds.map((id) => [id, getPct(id)]));
+        fixedValueMap.set(String(memberId), safeCurrentPct);
+
+        const autoRows = selectedPercent.filter((p) => !manualSet.has(String(p.member_id)));
+        const fixedSum = Array.from(fixedValueMap.values()).reduce((sum, pct) => sum + pct, 0);
+        const remain = Math.max(0, Number((100 - fixedSum).toFixed(2)));
+
+        if (autoRows.length > 0) {
+          const each = Number((remain / autoRows.length).toFixed(2));
+          let assigned = 0;
+          autoRows.forEach((p, index) => {
+            const isLast = index === autoRows.length - 1;
+            const valueForRow = isLast
+              ? Number((remain - assigned).toFixed(2))
+              : each;
+            assigned = Number((assigned + valueForRow).toFixed(2));
+            fixedValueMap.set(String(p.member_id), valueForRow);
+          });
+        } else if (fixedValueMap.size > 0 && fixedSum !== 100) {
+          const adjustedCurrent = Math.max(0, Number((100 - otherManualSum).toFixed(2)));
+          fixedValueMap.set(String(memberId), adjustedCurrent);
+        }
+
+        setManualPercentMemberIds(Array.from(manualSet));
+
+        return updated.map((p) => {
+          const key = String(p.member_id);
+          if (!selectedIdSet.has(key) || p.split_mode !== 'percent') return p;
+          if (!fixedValueMap.has(key)) return p;
+          return { ...p, split_value: String(fixedValueMap.get(key)) };
+        });
+      }
+
+      return updated;
+    });
   };
 
   const handleSaveBill = async () => {
@@ -524,6 +602,7 @@ const BillManagement = () => {
     if (roomMembers.length === 0) return;
 
     setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds));
+    setManualPercentMemberIds([]);
     setFormData((prev) => ({
       ...prev,
       payer_id: prev.payer_id || roomMembers[0]?._id || '',
