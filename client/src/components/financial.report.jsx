@@ -22,7 +22,22 @@ const fmt = (n) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n ?? 0);
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  d
+    ? new Date(d).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
+
+const toDateTime = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+};
 
 const BILL_TYPE_LABEL = {
   electricity: 'Tiền Điện',
@@ -78,7 +93,7 @@ const buildRows = (bills, fundTransactions) => {
 
     rows.push({
       id:       bill._id,
-      date:     new Date(bill.bill_date || bill.created_at || bill.createdAt),
+      date:     toDateTime(bill.created_at || bill.createdAt || bill.bill_date),
       label:    bill.bill_type === 'other'
                   ? (bill.bill_type_other || 'Hóa đơn khác')
                   : BILL_TYPE_LABEL[bill.bill_type] || 'Hóa đơn',
@@ -100,7 +115,7 @@ const buildRows = (bills, fundTransactions) => {
 
     rows.push({
       id:       tx._id,
-      date:     new Date(tx.created_at || tx.createdAt),
+      date:     toDateTime(tx.created_at || tx.createdAt),
       label:    tx.type === 'deposit' ? 'Nạp tiền quỹ' : 'Rút quỹ',
       category: 'Quỹ phòng',
       icon:     tx.type === 'deposit' ? faArrowUp : faArrowDown,
@@ -111,7 +126,8 @@ const buildRows = (bills, fundTransactions) => {
                 (tx.description ? ` - ${tx.description}` : ''),
       status:   tx.status || '',
       month:    (() => {
-        const d = new Date(tx.created_at || tx.createdAt);
+        const d = toDateTime(tx.created_at || tx.createdAt);
+        if (!d) return '';
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       })(),
     });
@@ -196,12 +212,11 @@ const FinancialReport = () => {
   /* Summary */
   const totalIncome  = rows.filter((r) => r.type === 'income').reduce((s, r) => s + r.amount, 0);
   const totalExpense = rows.filter((r) => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
-  const finalBalance = rows.length > 0 ? rows[0].balance : 0;
 
   /* Export Excel (.xlsx) — SheetJS, tiếng Việt hoàn hảo */
   const exportXLSX = () => {
     // Header row
-    const headerRow = ['STT', 'Ngày', 'Khoản mục', 'Danh mục', 'Thu (VND)', 'Chi (VND)', 'Số dư (VND)', 'Ghi chú'];
+    const headerRow = ['STT', 'Ngày giờ', 'Khoản mục', 'Danh mục', 'Thu (VND)', 'Chi (VND)', 'Số dư (VND)', 'Ghi chú'];
 
     // Data rows
     const dataRows = rows.map((r, idx) => [
@@ -218,7 +233,7 @@ const FinancialReport = () => {
     // Footer tổng kỳ
     const footerRow = [
       '', `Cộng kỳ ${filterMonth}`, '', '',
-      totalIncome, totalExpense, finalBalance, '',
+      totalIncome, totalExpense, '', '',
     ];
 
     const wsData = [headerRow, ...dataRows, footerRow];
@@ -227,7 +242,7 @@ const FinancialReport = () => {
     // Độ rộng cột
     ws['!cols'] = [
       { wch: 5  },  // STT
-      { wch: 12 },  // Ngày
+      { wch: 19 },  // Ngày giờ
       { wch: 24 },  // Khoản mục
       { wch: 12 },  // Danh mục
       { wch: 16 },  // Thu
@@ -286,13 +301,6 @@ const FinancialReport = () => {
               <div className="fr-stat-value c-expense">{fmt(totalExpense)}</div>
               <div className="fr-stat-strip expense-strip" />
             </div>
-            <div className="fr-stat-card">
-              <span className="fr-stat-label">Số Dư Cuối Kỳ</span>
-              <div className={`fr-stat-value ${finalBalance >= 0 ? 'c-balance' : 'c-expense'}`}>
-                {fmt(finalBalance)}
-              </div>
-              <div className="fr-stat-strip balance-strip" />
-            </div>
           </div>
 
           {/* ── BẢNG SỔ CÁI ── */}
@@ -304,7 +312,7 @@ const FinancialReport = () => {
                 <thead>
                   <tr>
                     <th className="col-stt">STT</th>
-                    <th className="col-date">Ngày</th>
+                    <th className="col-date">Ngày giờ</th>
                     <th className="col-label">Khoản mục</th>
                     <th className="col-cat">Danh mục</th>
                     <th className="col-num">Thu (VND)</th>
@@ -351,9 +359,7 @@ const FinancialReport = () => {
                     <td colSpan={4} className="tfoot-label">Cộng kỳ {filterMonth}</td>
                     <td className="col-num tr fw c-income">{fmt(totalIncome)}</td>
                     <td className="col-num tr fw c-expense">{fmt(totalExpense)}</td>
-                    <td className={`col-num tr fw ${finalBalance >= 0 ? 'c-balance' : 'c-expense'}`}>
-                      {fmt(finalBalance)}
-                    </td>
+                    <td className="col-num tr fw c-muted">—</td>
                     <td />
                   </tr>
                 </tfoot>

@@ -185,13 +185,6 @@ const MemberManagement = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(amount);
-  };
-
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('vi-VN');
   };
@@ -235,7 +228,6 @@ const MemberManagement = () => {
                 <th>Điện Thoại</th>
                 <th>Phòng</th>
                 <th>Vai Trò</th>
-                <th>Nợ Tiền</th>
                 <th>Trạng Thái</th>
                 <th>Ngày Tham Gia</th>
                 <th>Hành Động</th>
@@ -269,15 +261,6 @@ const MemberManagement = () => {
                         <FontAwesomeIcon icon={faCrown} className="role-icon" />
                       )}
                       {member.role}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      className={`debt-cell ${
-                        member.totalDebt > 0 ? 'has-debt' : 'no-debt'
-                      }`}
-                    >
-                      {member.totalDebt > 0 ? formatCurrency(member.totalDebt) : '✓'}
                     </div>
                   </td>
                   <td>

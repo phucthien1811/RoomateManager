@@ -41,7 +41,15 @@ const fmt = (n = 0) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  d
+    ? new Date(d).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 
 const getMemberName = (u) => {
   if (u?.full_name) return u.full_name;
@@ -227,7 +235,7 @@ const ExpenseSharing = () => {
     }));
     bills.forEach(bill => rows.push({
       id: 'bill-' + bill._id,
-      date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+      date: new Date(bill.created_at || bill.createdAt || bill.bill_date),
       type: 'bill',
       label: bill.bill_type === 'other'
         ? (bill.bill_type_other || 'Hóa đơn khác')
@@ -272,7 +280,7 @@ const ExpenseSharing = () => {
       if (d) {
         rows.push({
           id: 'my-bill-' + bill._id,
-          date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+          date: new Date(bill.created_at || bill.createdAt || bill.bill_date),
           type: 'bill',
           label: bill.bill_type === 'other'
             ? (bill.bill_type_other || 'Hóa đơn khác (phần của tôi)')
@@ -405,7 +413,7 @@ const ExpenseSharing = () => {
                     <table className="transaction-table">
                       <thead>
                         <tr>
-                          <th>Ngày</th>
+                          <th>Ngày giờ</th>
                           <th>Người yêu cầu</th>
                           <th>Nội dung</th>
                           <th>Số tiền</th>
@@ -777,7 +785,7 @@ const HistoryTable = ({ rows, onThumb, compact }) => {
       <table className="transaction-table">
         <thead>
           <tr>
-            <th>Ngày</th>
+            <th>Ngày giờ</th>
             <th>Nội dung</th>
             {!compact && <><th>Nạp</th><th>Trừ</th></>}
             <th>Ảnh</th>

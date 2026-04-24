@@ -36,7 +36,15 @@ const formatCurrency = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
 const formatDate = (date) =>
-  date ? new Date(date).toLocaleDateString('vi-VN') : '—';
+  date
+    ? new Date(date).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 
 const getInitials = (name = '') =>
   name.trim().split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase() || '?';
@@ -588,7 +596,7 @@ const BillManagement = () => {
                         <h4>{bill.bill_type === 'other' ? (bill.bill_type_other || 'Hóa đơn khác') : `Tiền ${typeMeta.label}`}</h4>
                         <span>
                           <span className={`status-dot ${bill.status === 'completed' ? 'completed' : bill.status === 'partial' ? 'partial' : 'pending'}`}></span>
-                          {formatDate(bill.bill_date || bill.created_at)}
+                          {formatDate(bill.created_at || bill.createdAt || bill.bill_date)}
                         </span>
                       </div>
                     </div>
@@ -639,7 +647,7 @@ const BillManagement = () => {
                           </div>
                           <div className="meta">
                             Kỳ sử dụng: <strong>Tháng {selectedBill.billing_month}</strong><br/>
-                            Ngày chốt hóa đơn: {formatDate(selectedBill.bill_date || selectedBill.created_at)}<br/>
+                            Ngày chốt hóa đơn: {formatDate(selectedBill.created_at || selectedBill.createdAt || selectedBill.bill_date)}<br/>
                             Người quản lý: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
                           </div>
                         </div>
