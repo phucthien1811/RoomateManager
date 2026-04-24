@@ -86,6 +86,27 @@ const normalizePercent = (value) => {
   return Math.min(100, Math.max(0, Number(value.toFixed(2))));
 };
 
+const getAwayMemberIdsByBillDate = (reports = [], billDate) => {
+  const target = new Date(billDate);
+  if (Number.isNaN(target.getTime())) return [];
+
+  const dateOnly = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const awayIds = (Array.isArray(reports) ? reports : [])
+    .filter((r) => (r?.status || '') !== 'Từ chối')
+    .filter((r) => {
+      const start = new Date(r?.startDate);
+      const end = new Date(r?.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+      const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      return startOnly <= dateOnly && dateOnly <= endOnly;
+    })
+    .map((r) => String(r?.member?.user?._id || r?.member?.user || ''))
+    .filter(Boolean);
+
+  return [...new Set(awayIds)];
+};
+
 const getBillStatusMeta = (status) => {
   if (status === 'completed') return { className: 'completed', label: 'Đã xong' };
   if (status === 'partial') return { className: 'partial', label: 'Một phần' };
@@ -142,6 +163,7 @@ const BillManagement = () => {
   const [selectedBillId, setSelectedBillId] = useState(null);
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
+  const [absenceReports, setAbsenceReports] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
   const [manualPercentMemberIds, setManualPercentMemberIds] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
@@ -182,6 +204,7 @@ const BillManagement = () => {
       setBills([]);
       setRoomMembers([]);
       setAwayMemberIds([]);
+      setAbsenceReports([]);
       setSplitParticipants([]);
       setManualPercentMemberIds([]);
     }
@@ -225,21 +248,19 @@ const BillManagement = () => {
         absenceService.getAbsenceReports(roomId),
       ]);
       const memberList = Array.isArray(members) ? members : [];
+      const reportList = Array.isArray(reports) ? reports : [];
       setRoomMembers(memberList);
+      setAbsenceReports(reportList);
 
-      const now = new Date();
-      const awayIds = (Array.isArray(reports) ? reports : [])
-        .filter((r) => {
-          if ((r.reason || '').toLowerCase() !== 'về quê') return false;
-          const s = new Date(r.startDate), e = new Date(r.endDate);
-          return !isNaN(s) && !isNaN(e) && s <= now && now <= e;
-        })
-        .map((r) => String(r.member?.user?._id || r.member?.user))
-        .filter(Boolean);
-      setAwayMemberIds([...new Set(awayIds)]);
+      const awayIds = getAwayMemberIdsByBillDate(
+        reportList,
+        formData.bill_date || new Date().toISOString().slice(0, 10)
+      );
+      setAwayMemberIds(awayIds);
     } catch {
       setRoomMembers([]);
       setAwayMemberIds([]);
+      setAbsenceReports([]);
       setSplitParticipants([]);
       setManualPercentMemberIds([]);
     } finally {
@@ -265,7 +286,9 @@ const BillManagement = () => {
       description: '',
     });
 
-    setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds));
+    const defaultAwayIds = getAwayMemberIdsByBillDate(absenceReports, defaultDate);
+    setAwayMemberIds(defaultAwayIds);
+    setSplitParticipants(buildSplitParticipants(roomMembers, defaultAwayIds));
     setManualPercentMemberIds([]);
 
     setError('');
@@ -330,7 +353,11 @@ const BillManagement = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'bill_date') {
+      const nextAwayIds = getAwayMemberIdsByBillDate(absenceReports, value);
       setFormData((prev) => ({ ...prev, bill_date: value, billing_month: value ? value.slice(0, 7) : prev.billing_month }));
+      setAwayMemberIds(nextAwayIds);
+      setSplitParticipants(buildSplitParticipants(roomMembers, nextAwayIds));
+      setManualPercentMemberIds([]);
       return;
     }
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -342,7 +369,6 @@ const BillManagement = () => {
     setSplitParticipants((prev) =>
       prev.map((p) => {
         if (p.member_id !== memberId) return p;
-        if (p.isAway) { setError(`${p.name} đang về quê`); return p; }
         return { ...p, selected: !p.selected };
       })
     );
@@ -352,10 +378,9 @@ const BillManagement = () => {
     setError('');
     setManualPercentMemberIds([]);
     setSplitParticipants((prev) => {
-      const selectable = prev.filter((p) => !p.isAway);
+      const selectable = prev;
       const eq = selectable.length > 0 ? Math.floor((100 / selectable.length) * 100) / 100 : 0;
       return prev.map((p) => {
-        if (p.isAway) return { ...p, selected: false };
         const idx = selectable.findIndex((s) => s.member_id === p.member_id);
         const isLast = idx === selectable.length - 1;
         const pct = isLast ? Number((100 - eq * (selectable.length - 1)).toFixed(2)) : eq;
@@ -373,7 +398,7 @@ const BillManagement = () => {
       const updated = prev.map((p) => (p.member_id === memberId ? { ...p, [field]: value } : p));
 
       if (field === 'split_value') {
-        const selectedPercent = updated.filter((p) => p.selected && !p.isAway && p.split_mode === 'percent');
+        const selectedPercent = updated.filter((p) => p.selected && p.split_mode === 'percent');
         const current = selectedPercent.find((p) => String(p.member_id) === String(memberId));
         const entered = Number(value);
         const currentPct = normalizePercent(entered);
@@ -462,7 +487,7 @@ const BillManagement = () => {
         }
       }
 
-      const selected = splitParticipants.filter((p) => p.selected && !p.isAway);
+      const selected = splitParticipants.filter((p) => p.selected);
       if (selected.length === 0) { setError('Vui lòng chọn ít nhất 1 thành viên cùng thanh toán'); setSubmitting(false); return; }
 
       const hasCustom = selected.some((p) => String(p.split_value).trim() !== '');
@@ -992,13 +1017,13 @@ const BillManagement = () => {
                         >
                           <input type="checkbox" readOnly checked={p.selected} />
                           <span>{p.name}</span>
-                          {p.isAway && <small>Đang về quê</small>}
+                          {p.isAway && <small>Vắng mặt trong thời gian này</small>}
                         </button>
                         <div className="participant-split">
                           <select
                             value={p.split_mode}
                             onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_mode', e.target.value)}
-                            disabled={!p.selected || p.isAway}
+                            disabled={!p.selected}
                           >
                             <option value="percent">%</option>
                             <option value="amount">VNĐ</option>
@@ -1009,7 +1034,7 @@ const BillManagement = () => {
                             placeholder={p.split_mode === 'percent' ? 'VD: 25' : 'VD: 150000'}
                             value={p.split_value}
                             onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_value', e.target.value)}
-                            disabled={!p.selected || p.isAway}
+                            disabled={!p.selected}
                           />
                         </div>
                       </div>
