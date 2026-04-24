@@ -115,7 +115,11 @@ const ExpenseSharing = () => {
         billService.getBillsByRoom(selectedRoomId),
       ]);
       setFundBalance(Number(detail.balance) || 0);
-      setTransactions(Array.isArray(detail.transactions) ? detail.transactions : []);
+      // Deduplicate transactions by _id
+      const uniqueTransactions = Array.isArray(detail.transactions)
+        ? Array.from(new Map(detail.transactions.map(t => [t._id, t])).values())
+        : [];
+      setTransactions(uniqueTransactions);
       setBills(Array.isArray(billList) ? billList : []);
     } catch (err) {
       setError(err?.message || 'Không thể tải dữ liệu quỹ');
@@ -166,7 +170,13 @@ const ExpenseSharing = () => {
       .sort((a, b) => b.value - a.value);
 
     const totalBillAmountMonth = thisMonthBills.reduce((s, bill) => s + (Number(bill.total_amount) || 0), 0);
-    const pendingTransactions = transactions.filter(t => t.type === 'withdraw' && t.status === 'pending');
+    const pendingTransactions = Array.from(
+      new Map(
+        transactions
+          .filter(t => t.type === 'withdraw' && t.status === 'pending')
+          .map(t => [t._id, t])
+      ).values()
+    );
 
     return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length, pendingTransactions };
   }, [transactions, bills]);

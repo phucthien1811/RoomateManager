@@ -505,33 +505,46 @@
 /* --- Fund Pending/Approval Styles --- */
 .btn-confirm-mini, .btn-reject-mini {
   border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .btn-confirm-mini {
-  background: #059669;
+  background: #10b981;
   color: #fff;
 }
 
-.btn-confirm-mini:hover {
-  background: #047857;
+.btn-confirm-mini:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-confirm-mini:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-reject-mini {
-  background: #dc2626;
+  background: #ef4444;
   color: #fff;
 }
 
-.btn-reject-mini:hover {
-  background: #b91c1c;
+.btn-reject-mini:hover:not(:disabled) {
+  background: #dc2626;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-reject-mini:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .badge-pending {
