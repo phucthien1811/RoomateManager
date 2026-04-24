@@ -126,8 +126,48 @@ const ExpenseSharing = () => {
   useEffect(() => { fetchAll(); }, [selectedRoomId]); // eslint-disable-line
 
   /* ── Computed: room tab ── */
-    const pendingTransactions = transactions.filter(t => t.status === 'pending');
-    
+  const roomStats = useMemo(() => {
+    const totalDeposit = transactions
+      .filter(t => t.type === 'deposit')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    const totalWithdraw = transactions
+      .filter(t => t.type === 'withdraw' && t.status !== 'pending' && t.status !== 'rejected')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    const contribMap = {};
+    transactions
+      .filter(t => t.type === 'deposit')
+      .forEach(t => {
+        const name = getMemberName(t.performed_by);
+        contribMap[name] = (contribMap[name] || 0) + (Number(t.amount) || 0);
+      });
+    const memberContribs = Object.entries(contribMap)
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthBills = bills.filter((bill) => {
+      if (bill.billing_month) return bill.billing_month === currentMonthKey;
+      const d = new Date(bill.bill_date || bill.created_at || bill.createdAt);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+
+    const billTypeSums = {};
+    thisMonthBills.forEach((bill) => {
+      const label = bill.bill_type === 'other'
+        ? (bill.bill_type_other || 'Khác')
+        : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
+      billTypeSums[label] = (billTypeSums[label] || 0) + (Number(bill.total_amount) || 0);
+    });
+    const roomPieData = Object.entries(billTypeSums)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    const totalBillAmountMonth = thisMonthBills.reduce((s, bill) => s + (Number(bill.total_amount) || 0), 0);
+    const pendingTransactions = transactions.filter(t => t.type === 'withdraw' && t.status === 'pending');
+
     return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length, pendingTransactions };
   }, [transactions, bills]);
 
