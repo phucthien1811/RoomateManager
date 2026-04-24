@@ -59,6 +59,32 @@ const formatCurrency = (amount = 0) =>
     Number(amount) || 0
   );
 
+const THOUSAND = 1000;
+const MILLION = 1000000;
+const BILLION = 1000000000;
+const getYAxisUnit = (maxValue = 0) => {
+  const safe = Number(maxValue) || 0;
+  if (safe >= BILLION) return { suffix: 'B', divisor: BILLION };
+  if (safe >= MILLION) return { suffix: 'M', divisor: MILLION };
+  if (safe >= THOUSAND) return { suffix: 'K', divisor: THOUSAND };
+  return { suffix: '', divisor: 1 };
+};
+const roundUpToUnit = (value = 0, divisor = 1) => {
+  const safe = Number(value) || 0;
+  if (safe <= 0) return divisor;
+  return Math.ceil(safe / divisor) * divisor;
+};
+const formatYAxisTick = (value = 0, unit = { suffix: '', divisor: 1 }) => {
+  const scaled = Number(value) / unit.divisor;
+  const text = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace(/\.0$/, '');
+  return `${text}${unit.suffix}`;
+};
+const formatCompactMoney = (value = 0) => {
+  const safe = Number(value) || 0;
+  const unit = getYAxisUnit(Math.abs(safe));
+  return formatYAxisTick(safe, unit);
+};
+
 const getMemberName = (member) => member?.full_name || member?.name || member?.email || 'Thành viên';
 const getEntityId = (value) => {
   if (!value) return '';
@@ -357,21 +383,37 @@ const Dashboard = () => {
     const expenseDiffPercent = previousMonthExpense > 0 ? (expenseDiff / previousMonthExpense) * 100 : 0;
 
     // --- Thống kê thành viên ---
+    const monthlyTransactions = data.transactions.filter((transaction) => (
+      transaction?.status === 'completed' && isInMonthKey(transaction.created_at || transaction.createdAt, monthToUse)
+    ));
+
+    const nonFundBills = monthlyBills.filter((bill) => !bill.is_paid_by_fund);
+
     const memberFinanceData = data.members.map((member) => {
+      const memberId = String(member._id || member.id || '');
       const name = getMemberName(member);
       const avatar = member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
       
-      // Tính chi (số tiền cần đóng)
+      // Chi: lấy phần hóa đơn của từng user (API bill details)
       const chi = monthlyBills.reduce((sum, bill) => {
-        const detail = bill.details?.find(d => getEntityId(d.member_id) === member._id);
+        const detail = bill.details?.find((d) => String(getEntityId(d.member_id)) === memberId);
         return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
       }, 0);
 
-      // Tính thu (số tiền thực tế đã đóng)
-      const thu = monthlyBills.reduce((sum, bill) => {
-        const detail = bill.details?.find(d => getEntityId(d.member_id) === member._id && d.status === 'paid');
+      // Thu: nạp quỹ + phần hóa đơn KHÔNG trích quỹ
+      const depositToFund = monthlyTransactions
+        .filter((transaction) => (
+          transaction.type === 'deposit'
+          && String(getEntityId(transaction.performed_by)) === memberId
+        ))
+        .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+      const nonFundBillIncome = nonFundBills.reduce((sum, bill) => {
+        const detail = bill.details?.find((d) => String(getEntityId(d.member_id)) === memberId);
         return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
       }, 0);
+
+      const thu = depositToFund + nonFundBillIncome;
 
       return { name, avatar, chi, thu };
     });
@@ -486,6 +528,18 @@ const Dashboard = () => {
       recentHistory,
     };
   }, [data, selectedBillingMonth]);
+
+  const memberChartScale = useMemo(() => {
+    const maxValue = computed.memberFinanceData.reduce(
+      (max, item) => Math.max(max, Number(item[memberChartMode]) || 0),
+      0
+    );
+    const unit = getYAxisUnit(maxValue);
+    return {
+      unit,
+      yAxisMax: roundUpToUnit(maxValue, unit.divisor),
+    };
+  }, [computed.memberFinanceData, memberChartMode]);
 
   const personalComputed = useMemo(() => {
     const userId = user?.id;
@@ -876,10 +930,16 @@ const Dashboard = () => {
                             </g>
                           )}
                         />
-                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000)}k`} axisLine={false} tickLine={false} />
+                        <YAxis
+                          domain={[0, memberChartScale.yAxisMax]}
+                          tickFormatter={(value) => formatYAxisTick(value, memberChartScale.unit)}
+                          axisLine={false}
+                          tickLine={false}
+                        />
                         <Tooltip 
                           cursor={{ fill: '#f3f4f6', opacity: 0.4 }}
-                          formatter={(value, name, props) => [formatCurrency(value), `Thành viên: ${props.payload.name}`]} 
+                          labelFormatter={(_, payload) => `Thành viên: ${payload?.[0]?.payload?.name || '—'}`}
+                          formatter={(value) => [formatCompactMoney(value), memberChartMode === 'chi' ? 'Chi' : 'Thu']} 
                         />
                         <Bar
                           dataKey={memberChartMode}
