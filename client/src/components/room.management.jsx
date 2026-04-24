@@ -19,6 +19,28 @@ import {
 import roomService from '../services/room.service.js';
 import '../styles/room.management.css';
 
+const copyText = async (value) => {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textArea = document.createElement('textarea');
+  textArea.value = value;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'fixed';
+  textArea.style.top = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textArea);
+
+  if (!copied) {
+    throw new Error('COPY_FAILED');
+  }
+};
+
 const RoomManagement = () => {
   const [activeTab, setActiveTab] = useState('myRooms');
   const [rooms, setRooms] = useState([]);
@@ -146,12 +168,12 @@ const RoomManagement = () => {
     if (!roomCode) return;
 
     try {
-      await navigator.clipboard.writeText(roomCode);
+      await copyText(roomCode);
       const roomId = room._id || room.id;
       setCopiedRoomId(roomId);
       setTimeout(() => setCopiedRoomId(null), 1500);
     } catch (err) {
-      setError('Không thể sao chép mã phòng. Vui lòng thử lại.');
+      setError('Không thể sao chép mã phòng. Hãy dùng HTTPS hoặc cấp quyền clipboard cho trình duyệt.');
     }
   };
 
