@@ -882,6 +882,17 @@
   cursor: not-allowed;
 }
 
+.bill-management input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.bill-management input[type="number"]::-webkit-outer-spin-button,
+.bill-management input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-group select {
   cursor: pointer;
   appearance: none;
@@ -908,6 +919,28 @@
   font-size: 12px;
   color: var(--color-text-light);
   margin-top: 6px;
+}
+
+.money-suggest-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.money-suggest-btn {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.money-suggest-btn:hover {
+  background: #dbeafe;
 }
 
 /* Bill type selector cards */

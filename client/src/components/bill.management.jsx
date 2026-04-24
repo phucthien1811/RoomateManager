@@ -67,6 +67,20 @@ const BILL_TYPES = [
 
 const getBillTypeMeta = (key) => BILL_TYPES.find((t) => t.key === key) || BILL_TYPES[4];
 
+const getMoneySuggestions = (rawValue) => {
+  const numericText = String(rawValue || '').replace(/\D/g, '');
+  if (!numericText) return [];
+
+  const base = Number(numericText);
+  if (!Number.isFinite(base) || base <= 0) return [];
+
+  return [base * 1000, base * 10000, base * 100000]
+    .filter((value) => value >= 5000)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+};
+
+const fmtSuggestion = (value) => new Intl.NumberFormat('vi-VN').format(value);
+
 const getBillStatusMeta = (status) => {
   if (status === 'completed') return { className: 'completed', label: 'Đã xong' };
   if (status === 'partial') return { className: 'partial', label: 'Một phần' };
@@ -840,6 +854,20 @@ const BillManagement = () => {
                     placeholder="VD: 950000"
                     min="1000"
                   />
+                  {getMoneySuggestions(formData.total_amount).length > 0 && (
+                    <div className="money-suggest-list">
+                      {getMoneySuggestions(formData.total_amount).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className="money-suggest-btn"
+                          onClick={() => setFormData((prev) => ({ ...prev, total_amount: String(value) }))}
+                        >
+                          {fmtSuggestion(value)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <span className="hint-text">Tối thiểu 1.000 VNĐ</span>
                 </div>
               </div>

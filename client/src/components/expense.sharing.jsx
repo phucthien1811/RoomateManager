@@ -61,6 +61,20 @@ const getMemberName = (u) => {
 const getInitials = (name = '') =>
   name.trim().split(' ').slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
 
+const getMoneySuggestions = (rawValue) => {
+  const numericText = String(rawValue || '').replace(/\D/g, '');
+  if (!numericText) return [];
+
+  const base = Number(numericText);
+  if (!Number.isFinite(base) || base <= 0) return [];
+
+  return [base * 1000, base * 10000, base * 100000]
+    .filter((value) => value >= 5000)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+};
+
+const fmtSuggestion = (value) => new Intl.NumberFormat('vi-VN').format(value);
+
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -629,6 +643,20 @@ const ExpenseSharing = () => {
                 <input type="number" min="1000" placeholder="500000"
                   value={depositForm.amount}
                   onChange={e => setDepositForm(p => ({ ...p, amount: e.target.value }))} />
+                {getMoneySuggestions(depositForm.amount).length > 0 && (
+                  <div className="money-suggest-list">
+                    {getMoneySuggestions(depositForm.amount).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="money-suggest-btn"
+                        onClick={() => setDepositForm((p) => ({ ...p, amount: String(value) }))}
+                      >
+                        {fmtSuggestion(value)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Ghi chú</label>
@@ -692,6 +720,20 @@ const ExpenseSharing = () => {
                 <input type="number" min="1000" placeholder="200000"
                   value={withdrawForm.amount}
                   onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))} />
+                {getMoneySuggestions(withdrawForm.amount).length > 0 && (
+                  <div className="money-suggest-list">
+                    {getMoneySuggestions(withdrawForm.amount).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="money-suggest-btn"
+                        onClick={() => setWithdrawForm((p) => ({ ...p, amount: String(value) }))}
+                      >
+                        {fmtSuggestion(value)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Lý do rút *</label>
