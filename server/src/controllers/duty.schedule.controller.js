@@ -15,6 +15,28 @@ const dayOffsetMap = {
   'Thứ 7': 5,
   'Chủ nhật': 6,
 };
+const VIETNAM_UTC_OFFSET_HOURS = 7;
+
+const toWeekStartKey = (weekStartDate) => {
+  if (!weekStartDate) return '';
+  const d = new Date(weekStartDate);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
+const getDutyStartUtcMs = (weekStartKey, dayLabel, startHour) => {
+  if (!isValidDateOnly(weekStartKey)) return Number.NaN;
+  const [year, month, day] = weekStartKey.split('-').map(Number);
+  const offsetDays = dayOffsetMap[dayLabel] ?? 0;
+  const hour = Number(startHour);
+  return Date.UTC(year, month - 1, day + offsetDays, hour - VIETNAM_UTC_OFFSET_HOURS, 0, 0, 0);
+};
+
+const isDutyStartInPast = (weekStartKey, dayLabel, startHour) => {
+  const dutyStartMs = getDutyStartUtcMs(weekStartKey, dayLabel, startHour);
+  if (!Number.isFinite(dutyStartMs)) return true;
+  return dutyStartMs < Date.now();
+};
 
 const normalizeName = (value) =>
   String(value || '')
@@ -224,6 +246,9 @@ const createDuty = async (req, res) => {
     }
 
     const weekStartDate = new Date(`${week_start}T00:00:00.000Z`);
+    if (isDutyStartInPast(week_start, day_label, Number(start_hour))) {
+      return res.status(400).json({ message: 'Không thể tạo lịch trực ở mốc thời gian đã qua' });
+    }
     const hasOverlap = await hasOverlappingDuty({
       roomId,
       weekStart: weekStartDate,
@@ -302,6 +327,11 @@ const updateDuty = async (req, res) => {
       return res.status(404).json({ message: 'Lịch trực nhật không tồn tại' });
     }
 
+    const dutyWeekStartKey = toWeekStartKey(duty.week_start);
+    if (isDutyStartInPast(dutyWeekStartKey, duty.day_label, Number(start_hour))) {
+      return res.status(400).json({ message: 'Không thể chỉnh sửa lịch trực ở mốc thời gian đã qua' });
+    }
+
     const access = await checkRoomAccess(duty.room_id, userId);
     if (!access.ok) {
       return res.status(access.status).json({ message: access.message });
@@ -345,6 +375,11 @@ const deleteDuty = async (req, res) => {
     const duty = await DutySchedule.findById(dutyId);
     if (!duty) {
       return res.status(404).json({ message: 'Lịch trực nhật không tồn tại' });
+    }
+
+    const dutyWeekStartKey = toWeekStartKey(duty.week_start);
+    if (isDutyStartInPast(dutyWeekStartKey, duty.day_label, Number(duty.start_hour))) {
+      return res.status(400).json({ message: 'Không thể xóa lịch trực ở mốc thời gian đã qua' });
     }
 
     const access = await checkRoomAccess(duty.room_id, userId);

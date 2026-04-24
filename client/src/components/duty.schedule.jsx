@@ -86,6 +86,8 @@ const getCellDateTime = (weekStart, offset, hour) => {
   return result;
 };
 
+const getNowDateTime = () => dayjs().tz(appTimezone).toDate();
+
 const notify = ({ type, title, message, meta }) => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(
@@ -259,7 +261,7 @@ const DutySchedule = () => {
   );
 
   const handleOpenModal = (day, offset, hour, duty = null) => {
-    const now = new Date();
+    const now = getNowDateTime();
     const targetDateTime = getCellDateTime(displayWeekStart, offset, hour);
 
     if (!duty && (targetDateTime < roomCreatedAt || targetDateTime < now)) {
@@ -340,7 +342,7 @@ const DutySchedule = () => {
       return;
     }
 
-    const now = new Date();
+    const now = getNowDateTime();
     const targetStartDateTime = getCellDateTime(displayWeekStart, editingOffset, formData.startHour);
     if (targetStartDateTime < roomCreatedAt || targetStartDateTime < now) {
       alert('Không thể tạo hoặc chỉnh sửa lịch ở mốc thời gian đã khóa.');
@@ -437,7 +439,7 @@ const DutySchedule = () => {
 
     const offset = dayColumns.find((dayColumn) => dayColumn.dutyDay === duty.day)?.offset ?? 0;
     const dutyStart = getCellDateTime(displayWeekStart, offset, duty.startHour);
-    if (dutyStart < new Date() || dutyStart < roomCreatedAt) {
+    if (dutyStart < getNowDateTime() || dutyStart < roomCreatedAt) {
       notify({
         type: 'warning',
         title: 'Không thể xóa',
@@ -576,7 +578,7 @@ const DutySchedule = () => {
                       (item) => timeSlot.hour > item.startHour && timeSlot.hour < item.endHour
                     );
                     const cellDateTime = getCellDateTime(displayWeekStart, day.offset, timeSlot.hour);
-                    const isLocked = cellDateTime < roomCreatedAt || cellDateTime < new Date();
+                    const isLocked = cellDateTime < roomCreatedAt || cellDateTime < getNowDateTime();
 
                     if (isCovered) return null;
 
@@ -651,7 +653,7 @@ const DutySchedule = () => {
               {sortedCurrentDuties.map((duty) => {
                 const offset = offsetByDutyDay[duty.day] ?? 0;
                 const dutyStart = getCellDateTime(displayWeekStart, offset, duty.startHour);
-                const isLocked = dutyStart < roomCreatedAt || dutyStart < new Date();
+                const isLocked = dutyStart < roomCreatedAt || dutyStart < getNowDateTime();
                 const statusMeta = getDutyStatusMeta(duty);
                 return (
                   <div className="duty-list-item" key={duty.id}>
