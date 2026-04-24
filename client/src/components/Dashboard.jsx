@@ -387,7 +387,26 @@ const Dashboard = () => {
       transaction?.status === 'completed' && isInMonthKey(transaction.created_at || transaction.createdAt, monthToUse)
     ));
 
-    const nonFundBills = monthlyBills.filter((bill) => !bill.is_paid_by_fund);
+    const withdrawByBillId = data.transactions.reduce((map, transaction) => {
+      if (transaction?.type !== 'withdraw') return map;
+      const relatedBillId = String(transaction?.related_bill || '');
+      if (!relatedBillId) return map;
+
+      const existing = map.get(relatedBillId);
+      if (!existing || (existing.status !== 'completed' && transaction.status === 'completed')) {
+        map.set(relatedBillId, transaction);
+      }
+      return map;
+    }, new Map());
+
+    const nonFundBills = monthlyBills.filter((bill) => {
+      const relatedWithdraw = withdrawByBillId.get(String(bill?._id || ''));
+      if (bill.is_paid_by_fund) return false;
+      if (relatedWithdraw?.status === 'completed') return false;
+      // Có yêu cầu trích quỹ đang chờ duyệt: chưa tính vào thu cho tới khi xác nhận
+      if (relatedWithdraw?.status === 'pending') return false;
+      return true;
+    });
 
     const memberFinanceData = data.members.map((member) => {
       const memberId = String(member._id || member.id || '');
@@ -409,7 +428,9 @@ const Dashboard = () => {
         .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
 
       const nonFundBillIncome = nonFundBills.reduce((sum, bill) => {
-        const detail = bill.details?.find((d) => String(getEntityId(d.member_id)) === memberId);
+        const detail = bill.details?.find(
+          (d) => String(getEntityId(d.member_id)) === memberId && d.status === 'paid'
+        );
         return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
       }, 0);
 

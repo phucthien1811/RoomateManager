@@ -382,19 +382,20 @@ const BillManagement = () => {
         member_ids: selected.map((p) => p.member_id),
         custom_splits: customSplits,
       });
+      const newBillId = res.bill?._id || res._id;
 
       if (autoPayWithFund) {
          try {
            const typeLabel = formData.bill_type === 'other' ? formData.bill_type_other.trim() : getBillTypeMeta(formData.bill_type).label;
            await fundService.withdrawFund(
-             formData.room_id,
-             amount,
-             `Chi trả hóa đơn: ${typeLabel} (Tháng ${formData.billing_month})`,
-             'Hóa đơn chung'
-           );
-           
-           const newBillId = res.bill?._id || res._id;
-           const newDetails = res.details || [];
+              formData.room_id,
+              amount,
+              `Chi trả hóa đơn: ${typeLabel} (Tháng ${formData.billing_month})`,
+              'Hóa đơn chung',
+              [],
+              newBillId
+            );
+            const newDetails = res.details || [];
            
            // If member requests fund, the withdrawal is pending, so we don't confirm details yet.
            // If owner requests, it's completed and we confirm details.

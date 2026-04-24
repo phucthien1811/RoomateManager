@@ -47,19 +47,34 @@ const BILL_TYPE_ICON = {
  */
 const buildRows = (bills, fundTransactions) => {
   const rows = [];
+  const completedWithdrawTransactions = (fundTransactions || []).filter(
+    (tx) => tx?.type === 'withdraw' && tx?.status === 'completed'
+  );
+  const completedWithdrawByBill = new Set(
+    completedWithdrawTransactions
+      .map((tx) => String(tx?.related_bill || ''))
+      .filter(Boolean)
+  );
 
   // Hóa đơn = chi tiêu
   (bills || []).forEach((bill) => {
-    // Skip if bill was paid by fund to avoid double counting with the withdrawal transaction
-    if (bill.is_paid_by_fund) return;
-    
-    // Heuristic for older data: if there's a withdrawal with same amount and related description
-    const isPaidByFundHeuristic = (fundTransactions || []).some(tx => 
-      tx.type === 'withdraw' && 
-      Math.abs(Number(tx.amount)) === Number(bill.total_amount) &&
-      (tx.description || '').includes(bill.bill_type === 'other' ? bill.bill_type_other : (BILL_TYPE_LABEL[bill.bill_type] || ''))
+    const billId = String(bill?._id || '');
+    const billTypeLabel = bill.bill_type === 'other'
+      ? (bill.bill_type_other || 'Hóa đơn khác')
+      : (BILL_TYPE_LABEL[bill.bill_type] || 'Hóa đơn');
+    const billMonthText = bill.billing_month ? `(Tháng ${bill.billing_month})` : '';
+
+    // Tránh double count: bill đã thanh toán bằng quỹ (cờ trực tiếp, liên kết related_bill, hoặc dữ liệu cũ theo mô tả)
+    const isPaidByFund = Boolean(
+      bill.is_paid_by_fund
+      || (billId && completedWithdrawByBill.has(billId))
+      || completedWithdrawTransactions.some((tx) =>
+        Math.abs(Number(tx.amount) || 0) === (Number(bill.total_amount) || 0)
+        && (tx.description || '').includes(billTypeLabel)
+        && (!billMonthText || (tx.description || '').includes(billMonthText))
+      )
     );
-    if (isPaidByFundHeuristic) return;
+    if (isPaidByFund) return;
 
     rows.push({
       id:       bill._id,
@@ -80,6 +95,9 @@ const buildRows = (bills, fundTransactions) => {
   // Quỹ deposit = thu; withdraw = chi
   (fundTransactions || []).forEach((tx) => {
     if (!tx || !tx.type) return;
+    if (tx.type === 'withdraw' && tx.status !== 'completed') return;
+    if (tx.type === 'deposit' && tx.status && tx.status !== 'completed') return;
+
     rows.push({
       id:       tx._id,
       date:     new Date(tx.created_at || tx.createdAt),
@@ -101,17 +119,7 @@ const buildRows = (bills, fundTransactions) => {
 
   // Sắp xếp tăng dần theo ngày
   rows.sort((a, b) => a.date - b.date);
-
-  // Tính số dư lũy tiến
-  let balance = 0;
-  rows.forEach((row) => {
-    if (row.type === 'income')  balance += row.amount;
-    else                        balance -= row.amount;
-    row.balance = balance;
-  });
-
-  // Đảo ngược để mới nhất lên đầu
-  return rows.reverse();
+  return rows;
 };
 
 /* ─── Component ─── */
@@ -151,7 +159,13 @@ const FinancialReport = () => {
           fundService.getFundDetail(selectedRoomId),
         ]);
         setBills(Array.isArray(b) ? b : []);
-        setFundTx(Array.isArray(fd?.transactions) ? fd.transactions : []);
+        const txList = Array.isArray(fd?.transactions) ? fd.transactions : [];
+        const uniqueTx = Array.from(
+          new Map(
+            txList.map((tx) => [String(tx?._id || `${tx?.type}-${tx?.created_at}-${tx?.amount}`), tx])
+          ).values()
+        );
+        setFundTx(uniqueTx);
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu');
       } finally {
@@ -165,8 +179,18 @@ const FinancialReport = () => {
 
   /* Filter theo tháng */
   const rows = useMemo(() => {
-    if (!filterMonth) return allRows;
-    return allRows.filter((r) => r.month === filterMonth);
+    const filtered = !filterMonth
+      ? allRows
+      : allRows.filter((r) => r.month === filterMonth);
+
+    const sortedAsc = [...filtered].sort((a, b) => a.date - b.date);
+    let balance = 0;
+    const withBalance = sortedAsc.map((row) => {
+      balance += row.type === 'income' ? row.amount : -row.amount;
+      return { ...row, balance };
+    });
+
+    return withBalance.reverse();
   }, [allRows, filterMonth]);
 
   /* Summary */
