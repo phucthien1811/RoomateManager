@@ -275,6 +275,8 @@ const BillManagement = () => {
     if (!selectedRoomId) { setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn'); return; }
     const now = new Date();
     const defaultDate = now.toISOString().slice(0, 10);
+    const creatorId = String(user?.id || user?._id || '');
+    const defaultPayerId = roomMembers.find((m) => String(m._id) === creatorId)?._id || roomMembers[0]?._id || creatorId || '';
 
     setFormData({
       room_id: selectedRoomId,
@@ -282,7 +284,7 @@ const BillManagement = () => {
       bill_type_other: '',
       bill_date: defaultDate,
       total_amount: '',
-      payer_id: roomMembers[0]?._id || '',
+      payer_id: defaultPayerId,
       billing_month: defaultDate.slice(0, 7),
       description: '',
     });
@@ -653,9 +655,9 @@ const BillManagement = () => {
     setManualPercentMemberIds([]);
     setFormData((prev) => ({
       ...prev,
-      payer_id: prev.payer_id || roomMembers[0]?._id || '',
+      payer_id: prev.payer_id || roomMembers.find((m) => String(m._id) === currentUserId)?._id || roomMembers[0]?._id || currentUserId || '',
     }));
-  }, [showModal, splitParticipants.length, roomMembers, awayMemberIds]);
+  }, [showModal, splitParticipants.length, roomMembers, awayMemberIds, currentUserId]);
 
   const visibleBills = useMemo(() => {
     const filtered = bills.filter((bill) => {
@@ -798,7 +800,7 @@ const BillManagement = () => {
                           <div className="meta">
                             Kỳ sử dụng: <strong>Tháng {selectedBill.billing_month}</strong><br/>
                             Ngày chốt hóa đơn: {formatDate(selectedBill.created_at || selectedBill.createdAt || selectedBill.bill_date)}<br/>
-                            Người quản lý: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
+                            Người tạo hóa đơn: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
                           </div>
                         </div>
 
@@ -1004,9 +1006,9 @@ const BillManagement = () => {
               </div>
 
               <div className="form-group">
-                <label>Người quản lý / chịu trách nhiệm *</label>
+                <label>Người tạo hóa đơn *</label>
                 <select name="payer_id" value={formData.payer_id} onChange={handleInputChange}>
-                  <option value="">— Chọn người chịu trách nhiệm —</option>
+                  <option value="">— Chọn người tạo hóa đơn —</option>
                   {roomMembers.map((m) => (
                     <option key={m._id} value={m._id}>{m.name || (m.email ? m.email.split('@')[0] : 'Thành viên')}</option>
                   ))}
