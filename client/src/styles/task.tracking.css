@@ -294,7 +294,7 @@
 .task-complete-btn {
   width: 100%;
   border: 1px solid #1d4ed8;
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  background: #2563eb;
   color: #fff;
   border-radius: 10px;
   padding: 9px 10px;
@@ -305,18 +305,15 @@
   justify-content: center;
   gap: 6px;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .task-complete-btn:hover {
-  filter: brightness(1.03);
-  transform: translateY(-1px);
+  background: #1d4ed8;
 }
 
 .task-complete-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+  background: #1e40af;
 }
 
 .btn-primary,

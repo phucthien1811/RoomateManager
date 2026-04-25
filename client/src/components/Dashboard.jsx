@@ -710,20 +710,6 @@ const Dashboard = () => {
         <div className="header-actions">
           <div className="quick-actions">
             <button 
-              className="quick-action-btn fund" 
-              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'expenses' } }))}
-              title="Đóng quỹ phòng"
-            >
-              <FontAwesomeIcon icon={faPiggyBank} /> Đóng quỹ
-            </button>
-            <button 
-              className="quick-action-btn bill" 
-              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'bills' } }))}
-              title="Tạo hóa đơn mới"
-            >
-              <FontAwesomeIcon icon={faPlus} /> Hóa đơn
-            </button>
-            <button 
               className="quick-action-btn absence" 
               onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'absence' } }))}
               title="Khái báo vắng mặt"
@@ -754,14 +740,34 @@ const Dashboard = () => {
         <>
           <div className="stats-grid">
             <div className="stat-card">
-              <span className="stat-label">Số dư quỹ phòng</span>
+              <div className="stat-card-head">
+                <span className="stat-label">Số dư quỹ phòng</span>
+                <button
+                  type="button"
+                  className="stat-action-btn"
+                  onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'expenses' } }))}
+                  title="Đóng quỹ phòng"
+                >
+                  <FontAwesomeIcon icon={faPiggyBank} /> Đóng quỹ
+                </button>
+              </div>
               <strong className="stat-value">{formatCurrency(computed.fundBalance)}</strong>
               <span className="stat-meta">
                 <FontAwesomeIcon icon={faCoins} /> Quỹ hiện tại
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Chi tiêu tháng này</span>
+              <div className="stat-card-head">
+                <span className="stat-label">Chi tiêu tháng này</span>
+                <button
+                  type="button"
+                  className="stat-action-btn"
+                  onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'bills' } }))}
+                  title="Tạo hóa đơn mới"
+                >
+                  <FontAwesomeIcon icon={faPlus} /> Hóa đơn
+                </button>
+              </div>
               <strong className="stat-value">{formatCurrency(computed.monthlyExpense)}</strong>
               <div className="stat-insight">
                 {computed.expenseDiffPercent !== 0 ? (
