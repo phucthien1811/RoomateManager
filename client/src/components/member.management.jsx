@@ -11,10 +11,12 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import memberService from '../services/member.service.js';
 import roomService from '../services/room.service.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import PageHeader from './PageHeader.jsx';
 import '../styles/member.management.css';
 
 const MemberManagement = () => {
+  const { user } = useAuth();
   const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('create');
@@ -30,6 +32,9 @@ const MemberManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const currentUserId = String(user?.id || user?._id || '');
+  const selectedRoom = rooms.find((room) => String(room._id || room.id) === String(selectedRoomId));
+  const isRoomOwner = String(selectedRoom?.owner?._id || selectedRoom?.owner || '') === currentUserId;
 
   useEffect(() => {
     fetchRooms();
@@ -86,6 +91,15 @@ const MemberManagement = () => {
   };
 
   const handleOpenModal = (type, member = null) => {
+    if (type === 'edit' && member) {
+      const memberId = String(member._id || member.id || '');
+      const canEdit = isRoomOwner || memberId === currentUserId;
+      if (!canEdit) {
+        setError('Bạn chỉ có thể chỉnh sửa thông tin của chính mình');
+        return;
+      }
+    }
+
     setModalType(type);
     setError('');
     if (type === 'edit' && member) {
@@ -171,6 +185,11 @@ const MemberManagement = () => {
   };
 
   const handleDeleteMember = async (id) => {
+    if (!isRoomOwner) {
+      setError('Chỉ chủ phòng mới có thể xóa thành viên');
+      return;
+    }
+
     if (window.confirm('Bạn có chắc chắn muốn xóa thành viên này?')) {
       try {
         const roomId = localStorage.getItem('currentRoomId');
@@ -271,20 +290,24 @@ const MemberManagement = () => {
                   <td className="date-cell">{formatDate(member.joinDate)}</td>
                   <td>
                     <div className="action-buttons">
-                      <button
-                        className="btn-table-action edit"
-                        onClick={() => handleOpenModal('edit', member)}
-                        title="Chỉnh sửa"
-                      >
-                        <FontAwesomeIcon icon={faEdit} />
-                      </button>
-                      <button
-                        className="btn-table-action delete"
-                        onClick={() => handleDeleteMember(member._id || member.id)}
-                        title="Xóa"
-                      >
-                        <FontAwesomeIcon icon={faTrash} />
-                      </button>
+                      {(isRoomOwner || String(member._id || member.id) === currentUserId) && (
+                        <button
+                          className="btn-table-action edit"
+                          onClick={() => handleOpenModal('edit', member)}
+                          title="Chỉnh sửa"
+                        >
+                          <FontAwesomeIcon icon={faEdit} />
+                        </button>
+                      )}
+                      {isRoomOwner && (
+                        <button
+                          className="btn-table-action delete"
+                          onClick={() => handleDeleteMember(member._id || member.id)}
+                          title="Xóa"
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

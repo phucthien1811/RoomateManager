@@ -302,10 +302,13 @@ exports.updateMember = async (req, res) => {
       });
     }
 
-    if (room.owner.toString() !== requesterId) {
+    const isRoomOwner = room.owner.toString() === requesterId;
+    const isSelfUpdate = String(memberId) === String(requesterId);
+
+    if (!isRoomOwner && !isSelfUpdate) {
       return res.status(403).json({
         success: false,
-        message: 'Chỉ chủ phòng mới có thể chỉnh sửa thành viên',
+        message: 'Bạn chỉ có thể chỉnh sửa thông tin của chính mình',
       });
     }
 
