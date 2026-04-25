@@ -197,6 +197,14 @@ exports.leaveRoom = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.user.id;
 
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Phòng không tồn tại',
+      });
+    }
+
     const member = await Member.findOne({
       room: roomId,
       user: userId,
@@ -219,6 +227,9 @@ exports.leaveRoom = async (req, res) => {
 
     member.status = 'left';
     await member.save();
+
+    room.members = (room.members || []).filter((memberId) => memberId.toString() !== userId.toString());
+    await room.save();
 
     res.status(200).json({
       success: true,

@@ -17,6 +17,7 @@ import {
   faHome,
 } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/room.management.css';
 
 const copyText = async (value) => {
@@ -42,6 +43,7 @@ const copyText = async (value) => {
 };
 
 const RoomManagement = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('myRooms');
   const [rooms, setRooms] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -61,6 +63,14 @@ const RoomManagement = () => {
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
   const [joining, setJoining] = useState(false);
+
+  const getEntityId = (entity) => {
+    if (!entity) return '';
+    if (typeof entity === 'string') return entity;
+    return entity._id || entity.id || '';
+  };
+
+  const currentUserId = String(user?.id || user?._id || '');
 
   // Fetch rooms on component mount
   useEffect(() => {
@@ -177,6 +187,34 @@ const RoomManagement = () => {
     }
   };
 
+  const handleLeaveRoom = async (room) => {
+    const roomId = room?._id || room?.id;
+    if (!roomId) return;
+
+    if (!window.confirm('Bạn có chắc chắn muốn rời khỏi phòng này?')) {
+      return;
+    }
+
+    try {
+      await roomService.leaveRoom(roomId);
+      const selectedRoomId = localStorage.getItem('currentRoomId') || '';
+      await fetchRooms();
+
+      if (selectedRoomId && selectedRoomId === roomId) {
+        const latestRooms = await roomService.getRooms();
+        const fallbackRoomId = latestRooms?.[0]?._id || latestRooms?.[0]?.id || '';
+        if (fallbackRoomId) {
+          localStorage.setItem('currentRoomId', fallbackRoomId);
+        } else {
+          localStorage.removeItem('currentRoomId');
+        }
+        window.dispatchEvent(new CustomEvent('room-selected', { detail: { roomId: fallbackRoomId } }));
+      }
+    } catch (err) {
+      setError(err.message || 'Không thể rời phòng');
+    }
+  };
+
   const handleJoinRoom = async (e) => {
     e.preventDefault();
     setJoinError('');
@@ -257,20 +295,32 @@ const RoomManagement = () => {
                   <div className="room-card-header">
                     <h3 className="room-name">{room.name}</h3>
                     <div className="room-actions">
-                      <button
-                        className="btn-action edit"
-                        onClick={() => handleOpenModal('edit', room)}
-                        title="Chỉnh sửa"
-                      >
-                        <FontAwesomeIcon icon={faEdit} />
-                      </button>
-                      <button
-                        className="btn-action delete"
-                        onClick={() => handleDeleteRoom(room._id || room.id)}
-                        title="Xóa"
-                      >
-                        <FontAwesomeIcon icon={faTrash} />
-                      </button>
+                      {String(getEntityId(room.owner)) === currentUserId ? (
+                        <>
+                          <button
+                            className="btn-action edit"
+                            onClick={() => handleOpenModal('edit', room)}
+                            title="Chỉnh sửa"
+                          >
+                            <FontAwesomeIcon icon={faEdit} />
+                          </button>
+                          <button
+                            className="btn-action delete"
+                            onClick={() => handleDeleteRoom(room._id || room.id)}
+                            title="Xóa"
+                          >
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn-action leave"
+                          onClick={() => handleLeaveRoom(room)}
+                          title="Rời phòng"
+                        >
+                          <FontAwesomeIcon icon={faDoorOpen} />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="room-card-body">

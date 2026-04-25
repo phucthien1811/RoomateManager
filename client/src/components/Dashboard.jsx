@@ -869,6 +869,7 @@ const Dashboard = () => {
                               nameKey="name"
                               innerRadius={70}
                               outerRadius={112}
+                              minAngle={2}
                               paddingAngle={3}
                             >
                               {computed.expensePieData.map((entry, index) => (
@@ -900,7 +901,7 @@ const Dashboard = () => {
                         <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
                         <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Bar dataKey="chiTieu" fill="#74b7ff" radius={[10, 10, 0, 0]} />
+                        <Bar dataKey="chiTieu" fill="#74b7ff" radius={[10, 10, 0, 0]} minPointSize={3} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -972,6 +973,7 @@ const Dashboard = () => {
                           dataKey={memberChartMode}
                           fill={memberChartMode === 'chi' ? '#74b7ff' : '#54c7a1'}
                           radius={[8, 8, 0, 0]}
+                          minPointSize={3}
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -1141,6 +1143,7 @@ const Dashboard = () => {
                           nameKey="name"
                           innerRadius={70}
                           outerRadius={112}
+                          minAngle={2}
                           paddingAngle={3}
                         >
                           {personalComputed.personalExpensePieData.map((entry, index) => (
@@ -1183,6 +1186,7 @@ const Dashboard = () => {
                           nameKey="name"
                           innerRadius={70}
                           outerRadius={112}
+                          minAngle={2}
                           paddingAngle={3}
                         >
                           {personalComputed.monthlyIncomeExpensePieData.map((entry, index) => (
