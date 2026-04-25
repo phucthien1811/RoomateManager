@@ -269,8 +269,6 @@ const BillManagement = () => {
     }
   };
 
-  const [autoPayWithFund, setAutoPayWithFund] = useState(false);
-
   const handleOpenModal = () => {
     if (!selectedRoomId) { setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn'); return; }
     const now = new Date();
@@ -295,14 +293,12 @@ const BillManagement = () => {
     setManualPercentMemberIds([]);
 
     setError('');
-    setAutoPayWithFund(false);
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setError('');
-    setAutoPayWithFund(false);
     setManualPercentMemberIds([]);
   };
 
@@ -493,15 +489,6 @@ const BillManagement = () => {
     setSubmitting(true);
     try {
       setError('');
-      if (autoPayWithFund) {
-        const fundData = await fundService.getFundDetail(formData.room_id);
-        if ((fundData.balance || 0) < amount) {
-          setError(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
-          setSubmitting(false);
-          return;
-        }
-      }
-
       const selected = splitParticipants.filter((p) => p.selected);
       if (selected.length === 0) { setError('Vui lòng chọn ít nhất 1 thành viên cùng thanh toán'); setSubmitting(false); return; }
 
@@ -530,39 +517,6 @@ const BillManagement = () => {
         custom_splits: customSplits,
       });
       const newBillId = res.bill?._id || res._id;
-
-      if (autoPayWithFund) {
-         try {
-           const typeLabel = formData.bill_type === 'other' ? formData.bill_type_other.trim() : getBillTypeMeta(formData.bill_type).label;
-           await fundService.withdrawFund(
-              formData.room_id,
-              amount,
-              `Chi trả hóa đơn: ${typeLabel} (Tháng ${formData.billing_month})`,
-              'Hóa đơn chung',
-              [],
-              newBillId
-            );
-            const newDetails = res.details || [];
-           
-           // If member requests fund, the withdrawal is pending, so we don't confirm details yet.
-           // If owner requests, it's completed and we confirm details.
-           if (isRoomOwner) {
-              for (const d of newDetails) {
-                if (d.status !== 'paid') {
-                  await billService.confirmBillPayment(newBillId, d._id);
-                }
-              }
-              await billService.updateBill(newBillId, { is_paid_by_fund: true });
-           }
-         } catch (e) {
-           console.error("Auto fund payment failed:", e);
-           const errorMessage = e.response?.data?.message || e.message || 'Lỗi không xác định khi trích quỹ chung';
-            showToast(
-              `Hóa đơn đã được tạo nhưng KHÔNG THỂ trích quỹ chung (lỗi: ${errorMessage}). Vui lòng tự thanh toán lại bằng quỹ chung sau.`,
-              { type: 'error', duration: 5000 }
-            );
-          }
-       }
 
       await fetchBills();
       showToast('Tạo hóa đơn thành công', { type: 'success' });
@@ -894,7 +848,7 @@ const BillManagement = () => {
                                     onClick={() => handlePayWithFund(selectedBill)}
                                     disabled={submitting}
                                   >
-                                     <FontAwesomeIcon icon={faWallet} /> {isRoomOwner ? 'Trả bằng Quỹ' : 'Yêu cầu trích Quỹ'}
+                                     <FontAwesomeIcon icon={faWallet} /> Sử dụng quỹ
                                   </button>
                                 </>
                              )}
@@ -1085,22 +1039,6 @@ const BillManagement = () => {
                 />
               </div>
 
-              {/* Tùy chọn Auto Pay with Fund */}
-              <div className="form-group" style={{ 
-                marginTop: '16px', background: '#fdfce8', padding: '12px', borderRadius: '10px', border: '1px solid #fef08a', display: 'flex', alignItems: 'center', gap: '8px'
-              }}>
-                <input 
-                  type="checkbox" 
-                  id="autoPayWithFund"
-                  checked={autoPayWithFund}
-                  onChange={(e) => setAutoPayWithFund(e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <label htmlFor="autoPayWithFund" style={{ margin: 0, fontSize: '14px', color: '#854d0e', cursor: 'pointer' }}>
-                  <FontAwesomeIcon icon={faWallet} style={{ marginRight: 6 }}/> 
-                  Trích quỹ chung để thanh toán luôn hóa đơn này
-                </label>
-              </div>
             </div>
 
             <div className="modal-footer">
