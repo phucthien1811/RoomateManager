@@ -5,7 +5,6 @@ import {
   faArrowUp,
   faCamera,
   faCheck,
-  faChartPie,
   faClockRotateLeft,
   faCoins,
   faExpand,
@@ -397,7 +396,17 @@ const ExpenseSharing = () => {
               {/* Stats */}
               <div className="fund-overview-grid">
                 <div className="overview-card">
-                  <span>Số dư quỹ</span>
+                  <div className="overview-card-head">
+                    <span>Số dư quỹ</span>
+                    <button
+                      type="button"
+                      className="fund-plus-btn"
+                      onClick={() => { setError(''); setShowDeposit(true); }}
+                      title="Nạp tiền vào quỹ"
+                    >
+                      +
+                    </button>
+                  </div>
                   <strong>{fmt(fundBalance)}</strong>
                   <small><FontAwesomeIcon icon={faWallet} /> Quỹ phòng</small>
                 </div>
@@ -537,26 +546,6 @@ const ExpenseSharing = () => {
           {/* ══════ TAB: CÁ NHÂN ══════ */}
           {mode === 'personal' && (
             <>
-              {/* Quick action buttons — banking style */}
-              <div className="qa-row">
-                <button className="qa-btn" onClick={() => { setError(''); setShowDeposit(true); }}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faArrowUp} /></span>
-                  <span className="qa-label">Nạp tiền</span>
-                </button>
-                <button className="qa-btn" onClick={() => { setError(''); setShowWithdraw(true); }}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faMoneyBillTransfer} /></span>
-                  <span className="qa-label">Rút tiền</span>
-                </button>
-                <button className="qa-btn" onClick={() => setShowHistory(true)}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faClockRotateLeft} /></span>
-                  <span className="qa-label">Lịch sử</span>
-                </button>
-                <button className="qa-btn" onClick={() => setMode('room')}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faChartPie} /></span>
-                  <span className="qa-label">Thống kê</span>
-                </button>
-              </div>
-
               {/* Personal stats */}
               <div className="fund-overview-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginTop: 16 }}>
                 <div className="overview-card">
@@ -611,7 +600,12 @@ const ExpenseSharing = () => {
 
                 {/* Giao dịch cá nhân gần nhất */}
                 <div className="fund-chart-card">
-                  <h2>Giao dịch gần nhất của tôi</h2>
+                  <div className="card-head-with-action">
+                    <h2>Giao dịch gần nhất của tôi</h2>
+                    <button type="button" className="btn-view-all-inline" onClick={() => setShowHistory(true)}>
+                      Xem tất cả
+                    </button>
+                  </div>
                   <HistoryTable
                     rows={personalHistoryRows.slice(0, 5)}
                     onThumb={setLightboxSrc}

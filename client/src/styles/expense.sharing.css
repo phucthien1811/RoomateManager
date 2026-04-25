@@ -71,6 +71,33 @@
   gap: 4px;
 }
 
+.overview-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fund-plus-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.fund-plus-btn:hover {
+  background: #dbeafe;
+}
+
 .overview-card span {
   font-size: 12px;
   color: var(--color-text-light);
@@ -131,6 +158,34 @@
   margin: 0 0 8px;
   font-size: 16px;
   color: var(--color-primary);
+}
+
+.card-head-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-head-with-action h2 {
+  margin: 0;
+}
+
+.btn-view-all-inline {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-view-all-inline:hover {
+  background: #dbeafe;
 }
 
 .category-list-header {
