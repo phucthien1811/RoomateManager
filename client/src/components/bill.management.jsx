@@ -5,7 +5,6 @@ import {
   faTrash,
   faTimes,
   faCheckCircle,
-  faCheck,
   faLightbulb,
   faDroplet,
   faWifi,
@@ -854,7 +853,7 @@ const BillManagement = () => {
                                     </td>
                                     <td style={{ color: '#2f6fec', fontWeight: 700 }}>{formatCurrency(detail.amount_due)}</td>
                                     <td>
-                                       {isPaid ? <span className="badge-paid"><FontAwesomeIcon icon={faCheck} /> Đã trả</span> : <span className="badge-view-only">Chưa trả</span>}
+                                       {isPaid ? <span className="badge-paid">Đã trả</span> : <span className="badge-view-only">Chưa trả</span>}
                                     </td>
                                     <td style={{ textAlign: 'right' }}>
                                       {!isPaid && canConfirm ? (
@@ -888,8 +887,8 @@ const BillManagement = () => {
                                    </button>
                                   
                                   <button 
-                                    className="btn-confirm-all" 
-                                    style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 3px 10px rgba(180, 83, 9, 0.3)' }} 
+                                    className="btn-confirm-all btn-confirm-fund"
+                                    style={{ flex: 1 }}
                                     onClick={() => handlePayWithFund(selectedBill)}
                                     disabled={submitting}
                                   >

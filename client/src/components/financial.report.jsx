@@ -199,14 +199,7 @@ const FinancialReport = () => {
       ? allRows
       : allRows.filter((r) => r.month === filterMonth);
 
-    const sortedAsc = [...filtered].sort((a, b) => a.date - b.date);
-    let balance = 0;
-    const withBalance = sortedAsc.map((row) => {
-      balance += row.type === 'income' ? row.amount : -row.amount;
-      return { ...row, balance };
-    });
-
-    return withBalance.reverse();
+    return [...filtered].sort((a, b) => b.date - a.date);
   }, [allRows, filterMonth]);
 
   /* Summary */
@@ -216,7 +209,7 @@ const FinancialReport = () => {
   /* Export Excel (.xlsx) — SheetJS, tiếng Việt hoàn hảo */
   const exportXLSX = () => {
     // Header row
-    const headerRow = ['STT', 'Ngày giờ', 'Khoản mục', 'Danh mục', 'Thu (VND)', 'Chi (VND)', 'Số dư (VND)', 'Ghi chú'];
+    const headerRow = ['STT', 'Ngày giờ', 'Khoản mục', 'Danh mục', 'Thu (VND)', 'Chi (VND)', 'Ghi chú'];
 
     // Data rows
     const dataRows = rows.map((r, idx) => [
@@ -226,14 +219,13 @@ const FinancialReport = () => {
       r.category,
       r.type === 'income'  ? r.amount : '',
       r.type === 'expense' ? r.amount : '',
-      r.balance,
       r.note || '',
     ]);
 
     // Footer tổng kỳ
     const footerRow = [
       '', `Cộng kỳ ${filterMonth}`, '', '',
-      totalIncome, totalExpense, '', '',
+      totalIncome, totalExpense, '',
     ];
 
     const wsData = [headerRow, ...dataRows, footerRow];
@@ -247,7 +239,6 @@ const FinancialReport = () => {
       { wch: 12 },  // Danh mục
       { wch: 16 },  // Thu
       { wch: 16 },  // Chi
-      { wch: 18 },  // Số dư
       { wch: 28 },  // Ghi chú
     ];
 
@@ -317,7 +308,6 @@ const FinancialReport = () => {
                     <th className="col-cat">Danh mục</th>
                     <th className="col-num">Thu (VND)</th>
                     <th className="col-num">Chi (VND)</th>
-                    <th className="col-num">Số dư (VND)</th>
                     <th className="col-note">Ghi chú</th>
                   </tr>
                 </thead>
@@ -347,9 +337,6 @@ const FinancialReport = () => {
                           ? <span className="c-expense fw">{fmt(row.amount)}</span>
                           : <span className="c-muted"><FontAwesomeIcon icon={faMinus} /></span>}
                       </td>
-                      <td className={`col-num tr fw ${row.balance >= 0 ? 'c-balance' : 'c-expense'}`}>
-                        {fmt(row.balance)}
-                      </td>
                       <td className="col-note c-muted">{row.note || '—'}</td>
                     </tr>
                   ))}
@@ -359,7 +346,6 @@ const FinancialReport = () => {
                     <td colSpan={4} className="tfoot-label">Cộng kỳ {filterMonth}</td>
                     <td className="col-num tr fw c-income">{fmt(totalIncome)}</td>
                     <td className="col-num tr fw c-expense">{fmt(totalExpense)}</td>
-                    <td className="col-num tr fw c-muted">—</td>
                     <td />
                   </tr>
                 </tfoot>

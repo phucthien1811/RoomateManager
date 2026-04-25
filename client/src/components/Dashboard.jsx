@@ -163,6 +163,14 @@ const getDutyMemberLabel = (duty) => {
   return duty.members.join(', ');
 };
 
+const getTimeRangeLabel = (startHour, endHour) => {
+  const start = Number(startHour);
+  const end = Number(endHour);
+  if (!Number.isFinite(start)) return '';
+  if (Number.isFinite(end)) return `${start}:00 - ${end}:00`;
+  return `${start}:00`;
+};
+
 const getBillTypeLabel = (bill) => {
   if (bill?.bill_type === 'other') {
     return String(bill?.bill_type_other || '').trim() || 'Khác';
@@ -454,11 +462,9 @@ const Dashboard = () => {
       .slice(0, 5);
 
     const upcomingChores = (() => {
-      const today = new Date();
-      const todayStr = toDateKeyLocal(today);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = toDateKeyLocal(tomorrow);
+      const now = new Date();
+      const nowKey = toDateKeyLocal(now);
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
       
       const allUpcoming = [
         ...data.chores
@@ -468,7 +474,9 @@ const Dashboard = () => {
             title: c.title,
             date: c.chore_date,
             type: 'chore',
-            member: getMemberName(c.assigned_to)
+            member: getMemberName(c.assigned_to),
+            startHour: c.start_hour,
+            endHour: c.end_hour,
           })),
         ...data.duties
           .map(d => ({
@@ -476,26 +484,48 @@ const Dashboard = () => {
             title: d.title,
             date: getDutyDate(d),
             type: 'duty',
-            member: getDutyMemberLabel(d)
+            member: getDutyMemberLabel(d),
+            startHour: d.start_hour,
+            endHour: d.end_hour,
           }))
-      ].filter((item) => isValidDateValue(item.date));
-      
-      return allUpcoming
-        .sort((a, b) => new Date(a.date) - new Date(b.date))
-        .map(item => {
-          const itemDateStr = item.date ? toDateKeyLocal(item.date) : '';
-          let dateLabel = new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-          if (itemDateStr === todayStr) dateLabel = 'Hôm nay';
-          else if (itemDateStr === tomorrowStr) dateLabel = 'Ngày mai';
-          
-          return {
-            ...item,
-            dateDisplay: dateLabel,
-            isToday: itemDateStr === todayStr,
-            isTomorrow: itemDateStr === tomorrowStr
-          };
+      ]
+        .filter((item) => isValidDateValue(item.date))
+        .map((item) => ({
+          ...item,
+          dateKey: toDateKeyLocal(item.date),
+          timeLabel: getTimeRangeLabel(item.startHour, item.endHour),
+        }))
+        .filter((item) => {
+          if (item.dateKey < nowKey) return false;
+          if (item.dateKey !== nowKey) return true;
+          const startHour = Number(item.startHour);
+          if (!Number.isFinite(startHour)) return true;
+          return startHour * 60 > nowMinutes;
         })
-        .slice(0, 6);
+        .sort((a, b) => {
+          const dateDiff = new Date(a.date) - new Date(b.date);
+          if (dateDiff !== 0) return dateDiff;
+          return (Number(a.startHour) || 0) - (Number(b.startHour) || 0);
+        });
+
+      const todayItems = allUpcoming.filter((item) => item.dateKey === nowKey);
+      const futureItems = allUpcoming.filter((item) => item.dateKey > nowKey);
+      const nextFutureDateKey = futureItems[0]?.dateKey || '';
+      const nextFutureItems = nextFutureDateKey
+        ? futureItems.filter((item) => item.dateKey === nextFutureDateKey)
+        : [];
+
+      return {
+        todayItems,
+        nextFutureItems,
+        nextFutureDateLabel: nextFutureItems[0]?.date
+          ? new Date(nextFutureItems[0].date).toLocaleDateString('vi-VN', {
+              weekday: 'long',
+              day: '2-digit',
+              month: '2-digit',
+            })
+          : '',
+      };
     })();
 
     const recentHistory = [
@@ -545,7 +575,9 @@ const Dashboard = () => {
       })(),
       selectedMonthLabel: formatMonthLabel(monthToUse),
       pendingPayments,
-      upcomingChores,
+      upcomingChores: upcomingChores.todayItems,
+      nextUpcomingChores: upcomingChores.nextFutureItems,
+      nextUpcomingDateLabel: upcomingChores.nextFutureDateLabel,
       recentHistory,
     };
   }, [data, selectedBillingMonth]);
@@ -989,48 +1021,36 @@ const Dashboard = () => {
                 <h2>Lịch trực sắp tới</h2>
               </div>
               <div className="duty-list">
-                {computed.upcomingChores.length === 0 ? (
+                {computed.upcomingChores.length === 0 && computed.nextUpcomingChores.length === 0 ? (
                   <div className="empty-inline">Hôm nay và sắp tới chưa có lịch trực</div>
                 ) : (
                   <>
-                    {/* Nhóm Hôm nay */}
-                    {computed.upcomingChores.some(c => c.isToday) && (
+                    {computed.upcomingChores.length > 0 && (
                       <div className="duty-group-header">Hôm nay</div>
                     )}
-                    {computed.upcomingChores.filter(c => c.isToday).map((item) => (
+                    {computed.upcomingChores.map((item) => (
                       <div key={item.id} className="duty-item today">
                         <div className="duty-info">
                           <strong>{item.title}</strong>
-                          <p>{item.member}</p>
+                          <p>{item.member}{item.timeLabel ? ` • ${item.timeLabel}` : ''}</p>
                         </div>
                         <div className="duty-type-tag">{item.type === 'duty' ? 'Trực nhật' : 'Việc nhà'}</div>
                       </div>
                     ))}
 
-                    {/* Nhóm Ngày mai */}
-                    {computed.upcomingChores.some(c => c.isTomorrow) && (
-                      <div className="duty-group-header">Ngày mai</div>
-                    )}
-                    {computed.upcomingChores.filter(c => c.isTomorrow).map((item) => (
-                      <div key={item.id} className="duty-item tomorrow">
-                        <div className="duty-info">
-                          <strong>{item.title}</strong>
-                          <p>{item.member}</p>
-                        </div>
-                        <div className="duty-type-tag">{item.type === 'duty' ? 'Trực nhật' : 'Việc nhà'}</div>
+                    {computed.nextUpcomingChores.length > 0 && (
+                      <div className="duty-group-header">
+                        {computed.nextUpcomingDateLabel ? `Sắp tới: ${computed.nextUpcomingDateLabel}` : 'Sắp tới'}
                       </div>
-                    ))}
-
-                    {/* Các ngày khác */}
-                    {computed.upcomingChores.filter(c => !c.isToday && !c.isTomorrow).length > 0 && (
-                      <div className="duty-group-header">Sắp tới</div>
                     )}
-                    {computed.upcomingChores.filter(c => !c.isToday && !c.isTomorrow).map((item) => (
+                    {computed.nextUpcomingChores.map((item) => (
                       <div key={item.id} className="duty-item">
-                        <div className="duty-date-tag">{item.dateDisplay}</div>
+                        <div className="duty-date-tag">
+                          {new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                        </div>
                         <div className="duty-info">
                           <strong>{item.title}</strong>
-                          <p>{item.member}</p>
+                          <p>{item.member}{item.timeLabel ? ` • ${item.timeLabel}` : ''}</p>
                         </div>
                       </div>
                     ))}

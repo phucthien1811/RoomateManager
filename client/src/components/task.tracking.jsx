@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faCheck,
   faChevronLeft,
   faChevronRight,
   faXmark,
@@ -182,7 +181,6 @@ const TaskTracking = () => {
     // Calculate progress display
     const total = task.total_assigned || 1;
     const completed = task.completed_count || 0;
-    const isAllDone = completed >= total;
 
     return (
       <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
@@ -195,8 +193,8 @@ const TaskTracking = () => {
         
         <div className="task-progress-bar">
            <div className="progress-text">
-             Tiến độ: {completed}/{total} {isAllDone ? '✓' : ''}
-           </div>
+             Tiến độ: {completed}/{total}
+            </div>
            <div className="progress-track">
              <div className="progress-fill" style={{ width: `${(completed / total) * 100}%` }}></div>
            </div>
@@ -215,12 +213,12 @@ const TaskTracking = () => {
         </div>
         
         {task.status === 'completed' ? (
-          <span className="status done"><FontAwesomeIcon icon={faCheck} /> Bạn đã hoàn thành</span>
+          <span className="status done">Bạn đã hoàn thành</span>
         ) : isFutureTask ? (
           <span className="status upcoming">Sắp tới</span>
         ) : (
           <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: task.source_type || 'duty', item: task })}>
-            <FontAwesomeIcon icon={faCheck} /> Hoàn thành phần của tôi
+            Hoàn thành phần của tôi
           </button>
         )}
       </article>

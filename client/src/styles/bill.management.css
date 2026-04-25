@@ -60,24 +60,23 @@
   padding: 12px 22px;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
+  background: #2f6fec;
   color: white;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 14px rgba(47, 111, 236, 0.28);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow: none;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
 
 .btn-create-bill:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(47, 111, 236, 0.36);
+  background: #1d4ed8;
 }
 
 .btn-create-bill:active:not(:disabled) {
-  transform: translateY(0);
+  background: #1e40af;
 }
 
 .btn-create-bill:disabled {
@@ -623,19 +622,18 @@
   padding: 5px 12px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #059669;
   color: white;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  box-shadow: none;
 }
 
 .btn-confirm-small:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  background: #047857;
 }
 
 .bill-summary-footer {
@@ -680,19 +678,26 @@
   padding: 10px 16px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: #059669;
   color: white;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+  transition: background-color 0.2s ease;
+  box-shadow: none;
   letter-spacing: 0.2px;
 }
 
 .btn-confirm-all:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  background: #047857;
+}
+
+.btn-confirm-fund {
+  background: #b45309;
+}
+
+.btn-confirm-fund:hover {
+  background: #92400e;
 }
 
 .confirm-note {
@@ -1146,15 +1151,14 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, #4e83ef, #2f6fec);
+  background: #2f6fec;
   color: white;
-  transition: all 0.25s ease;
-  box-shadow: 0 3px 10px rgba(47, 111, 236, 0.28);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow: none;
 }
 
 .btn-save:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(47, 111, 236, 0.36);
+  background: #1d4ed8;
 }
 
 .btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
