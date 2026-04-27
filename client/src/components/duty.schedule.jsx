@@ -14,16 +14,19 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const appTimezone = 'Asia/Ho_Chi_Minh';
-const defaultMembers = ['Duy Nguyễn', 'Iris Trần', 'An Phạm', 'Minh Trần'];
 const dayColumns = [
-  { shortLabel: 'CN', dutyDay: 'Chủ nhật', offset: -1 },
   { shortLabel: 'THỨ 2', dutyDay: 'Thứ 2', offset: 0 },
   { shortLabel: 'THỨ 3', dutyDay: 'Thứ 3', offset: 1 },
   { shortLabel: 'THỨ 4', dutyDay: 'Thứ 4', offset: 2 },
   { shortLabel: 'THỨ 5', dutyDay: 'Thứ 5', offset: 3 },
   { shortLabel: 'THỨ 6', dutyDay: 'Thứ 6', offset: 4 },
   { shortLabel: 'THỨ 7', dutyDay: 'Thứ 7', offset: 5 },
+  { shortLabel: 'CN', dutyDay: 'Chủ nhật', offset: 6 },
 ];
+const offsetByDutyDay = dayColumns.reduce((acc, item) => {
+  acc[item.dutyDay] = item.offset;
+  return acc;
+}, {});
 const timeSlots = Array.from({ length: 23 }, (_, index) => ({
   slot: index + 1,
   hour: index + 1,
@@ -36,6 +39,25 @@ const formatHourLabel = (hour) => {
 };
 
 const getDutyTimeRange = (startHour, endHour) => `${formatHourLabel(startHour)} - ${formatHourLabel(endHour)}`;
+const getDutyStatusMeta = (duty) => {
+  const status = duty?.completionStatus || 'pending';
+  const completed = Number(duty?.completionCompleted) || 0;
+  const total = Number(duty?.completionTotal) || 0;
+
+  if (status === 'completed') {
+    return { label: 'Hoàn thành', className: 'completed' };
+  }
+  if (status === 'partial') {
+    return { label: `Đang làm ${completed}/${total}`, className: 'partial' };
+  }
+  return { label: total > 0 ? `Chưa xong ${completed}/${total}` : 'Chưa hoàn thành', className: 'pending' };
+};
+
+const formatDutyDateLabel = (weekStart, dayLabel) => {
+  const offset = offsetByDutyDay[dayLabel] ?? 0;
+  const targetDate = getDayDateByOffset(weekStart, offset);
+  return dayjs(targetDate).tz(appTimezone).format('DD/MM/YYYY');
+};
 
 const startOfWeekMonday = (inputDate) => {
   const result = new Date(inputDate);
@@ -64,6 +86,8 @@ const getCellDateTime = (weekStart, offset, hour) => {
   return result;
 };
 
+const getNowDateTime = () => dayjs().tz(appTimezone).toDate();
+
 const notify = ({ type, title, message, meta }) => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(
@@ -84,7 +108,10 @@ const DutySchedule = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
   const [isFollowingToday, setIsFollowingToday] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
+  const [viewMode, setViewMode] = useState('week');
   const [loadingDuties, setLoadingDuties] = useState(false);
+  const [savingDuty, setSavingDuty] = useState(false);
+  const [roomMembers, setRoomMembers] = useState([]);
   const [roomCreatedAt, setRoomCreatedAt] = useState(() => {
     const cached = localStorage.getItem('currentRoomCreatedAt');
     const parsed = cached ? new Date(cached) : null;
@@ -107,14 +134,19 @@ const DutySchedule = () => {
     const loadRoomCreatedAt = async (roomId) => {
       setSelectedRoomId(roomId || '');
       if (!roomId) {
+        setRoomMembers([]);
         setRoomCreatedAt(new Date(0));
         return;
       }
 
       try {
-        const room = await roomService.getRoomById(roomId);
+        const [room, members] = await Promise.all([
+          roomService.getRoomById(roomId),
+          roomService.getRoomMembers(roomId),
+        ]);
         const rawCreatedAt = room?.createdAt || room?.created_at || room?.createdDate;
         const parsed = rawCreatedAt ? new Date(rawCreatedAt) : new Date(0);
+        setRoomMembers(Array.isArray(members) ? members : []);
         if (Number.isNaN(parsed.getTime())) {
           setRoomCreatedAt(new Date(0));
           return;
@@ -122,6 +154,7 @@ const DutySchedule = () => {
         setRoomCreatedAt(parsed);
         localStorage.setItem('currentRoomCreatedAt', parsed.toISOString());
       } catch (error) {
+        setRoomMembers([]);
         setRoomCreatedAt(new Date(0));
       }
     };
@@ -149,12 +182,16 @@ const DutySchedule = () => {
   const displayWeekStart = useMemo(() => startOfWeekMonday(new Date(selectedDate)), [selectedDate]);
   const todayKey = getTodayKey();
   const memberOptions = useMemo(() => {
-    const uniqueMembers = new Set(defaultMembers);
+    const uniqueMembers = new Set(
+      (roomMembers || [])
+        .map((member) => String(member?.name || '').trim())
+        .filter(Boolean)
+    );
     if (user?.name && String(user.name).trim()) {
       uniqueMembers.add(String(user.name).trim());
     }
     return Array.from(uniqueMembers);
-  }, [user?.name]);
+  }, [roomMembers, user?.name]);
   const displayWeekKey = useMemo(() => toDateKey(displayWeekStart), [displayWeekStart]);
   const earliestWeekStart = useMemo(() => startOfWeekMonday(roomCreatedAt), [roomCreatedAt]);
   const earliestWeekKey = useMemo(() => toDateKey(earliestWeekStart), [earliestWeekStart]);
@@ -162,6 +199,18 @@ const DutySchedule = () => {
     weekStart: displayWeekKey,
     duties: [],
   };
+  const sortedCurrentDuties = useMemo(() => {
+    const getDutyStartTime = (duty) => {
+      const offset = offsetByDutyDay[duty.day] ?? 0;
+      return getCellDateTime(displayWeekStart, offset, duty.startHour).getTime();
+    };
+
+    return [...currentSchedule.duties].sort((a, b) => {
+      const timeDiff = getDutyStartTime(b) - getDutyStartTime(a);
+      if (timeDiff !== 0) return timeDiff;
+      return b.endHour - a.endHour;
+    });
+  }, [currentSchedule.duties, displayWeekStart]);
 
   useEffect(() => {
     const fetchWeekDuties = async () => {
@@ -182,6 +231,9 @@ const DutySchedule = () => {
           members: Array.isArray(item.members) ? item.members : [],
           note: item.note || '',
           createdByName: item.created_by_name || '',
+          completionStatus: item.completion_status || 'pending',
+          completionCompleted: Number(item.completion_completed) || 0,
+          completionTotal: Number(item.completion_total) || 0,
         }));
 
         setSchedules((prev) => {
@@ -209,7 +261,7 @@ const DutySchedule = () => {
   );
 
   const handleOpenModal = (day, offset, hour, duty = null) => {
-    const now = new Date();
+    const now = getNowDateTime();
     const targetDateTime = getCellDateTime(displayWeekStart, offset, hour);
 
     if (!duty && (targetDateTime < roomCreatedAt || targetDateTime < now)) {
@@ -276,6 +328,7 @@ const DutySchedule = () => {
   };
 
   const handleSaveDuty = async () => {
+    if (savingDuty) return;
     if (!formData.title.trim()) {
       alert('Vui lòng nhập tiêu đề.');
       return;
@@ -289,7 +342,7 @@ const DutySchedule = () => {
       return;
     }
 
-    const now = new Date();
+    const now = getNowDateTime();
     const targetStartDateTime = getCellDateTime(displayWeekStart, editingOffset, formData.startHour);
     if (targetStartDateTime < roomCreatedAt || targetStartDateTime < now) {
       alert('Không thể tạo hoặc chỉnh sửa lịch ở mốc thời gian đã khóa.');
@@ -327,6 +380,7 @@ const DutySchedule = () => {
     };
 
     try {
+      setSavingDuty(true);
       let savedDuty;
       if (editingDutyId) {
         savedDuty = await dutyScheduleService.updateDuty(editingDutyId, payload);
@@ -343,6 +397,9 @@ const DutySchedule = () => {
         members: Array.isArray(savedDuty.members) ? savedDuty.members : [],
         note: savedDuty.note || '',
         createdByName: savedDuty.created_by_name || '',
+        completionStatus: savedDuty.completion_status || 'pending',
+        completionCompleted: Number(savedDuty.completion_completed) || 0,
+        completionTotal: Number(savedDuty.completion_total) || 0,
       };
 
       setSchedules((prev) => {
@@ -371,6 +428,8 @@ const DutySchedule = () => {
         message: error?.message || 'Không thể lưu lịch trực nhật',
         meta: editingDay,
       });
+    } finally {
+      setSavingDuty(false);
     }
   };
 
@@ -380,7 +439,7 @@ const DutySchedule = () => {
 
     const offset = dayColumns.find((dayColumn) => dayColumn.dutyDay === duty.day)?.offset ?? 0;
     const dutyStart = getCellDateTime(displayWeekStart, offset, duty.startHour);
-    if (dutyStart < new Date() || dutyStart < roomCreatedAt) {
+    if (dutyStart < getNowDateTime() || dutyStart < roomCreatedAt) {
       notify({
         type: 'warning',
         title: 'Không thể xóa',
@@ -445,6 +504,22 @@ const DutySchedule = () => {
         <div className="toolbar-week-range">
           {weekDates[0]?.toLocaleDateString('vi-VN')} - {weekDates[6]?.toLocaleDateString('vi-VN')}
         </div>
+        <div className="view-mode-toggle" role="group" aria-label="Chế độ hiển thị lịch trực nhật">
+          <button
+            type="button"
+            className={viewMode === 'week' ? 'active' : ''}
+            onClick={() => setViewMode('week')}
+          >
+            Lịch tuần
+          </button>
+          <button
+            type="button"
+            className={viewMode === 'list' ? 'active' : ''}
+            onClick={() => setViewMode('list')}
+          >
+            Danh sách
+          </button>
+        </div>
         <div className="toolbar-actions">
           <button
             type="button"
@@ -470,100 +545,155 @@ const DutySchedule = () => {
         </div>
       </div>
 
-      <div className="schedule-table-wrap">
-        <table className="duty-grid">
-          <colgroup>
-            <col className="timezone-col-fixed" />
-            {dayColumns.map((day) => (
-              <col key={`col-${day.dutyDay}`} className="day-col-fixed" />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="timezone-col">GMT+07</th>
-              {dayColumns.map((day, index) => (
-                <th key={day.dutyDay} className="calendar-head-cell">
-                  <span className="calendar-day-label">{day.shortLabel}</span>
-                  <span className={`calendar-day-number ${toDateKey(weekDates[index]) === todayKey ? 'selected' : ''}`}>
-                    {weekDates[index]?.getDate()}
-                  </span>
-                </th>
+      {viewMode === 'week' ? (
+        <div className="schedule-table-wrap">
+          <table className="duty-grid">
+            <colgroup>
+              <col className="timezone-col-fixed" />
+              {dayColumns.map((day) => (
+                <col key={`col-${day.dutyDay}`} className="day-col-fixed" />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((timeSlot) => (
-              <tr key={timeSlot.slot}>
-                <td className="time-label-cell">{formatHourLabel(timeSlot.hour)}</td>
-                {dayColumns.map((day) => {
-                  const dayDuties = currentSchedule.duties.filter((item) => item.day === day.dutyDay);
-                  const duty = dayDuties.find((item) => item.startHour === timeSlot.hour);
-                  const isCovered = dayDuties.some(
-                    (item) => timeSlot.hour > item.startHour && timeSlot.hour < item.endHour
-                  );
-                  const cellDateTime = getCellDateTime(displayWeekStart, day.offset, timeSlot.hour);
-                  const isLocked = cellDateTime < roomCreatedAt || cellDateTime < new Date();
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="timezone-col">GMT+07</th>
+                {dayColumns.map((day, index) => (
+                  <th key={day.dutyDay} className="calendar-head-cell">
+                    <span className="calendar-day-label">{day.shortLabel}</span>
+                    <span className={`calendar-day-number ${toDateKey(weekDates[index]) === todayKey ? 'selected' : ''}`}>
+                      {weekDates[index]?.getDate()}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {timeSlots.map((timeSlot) => (
+                <tr key={timeSlot.slot}>
+                  <td className="time-label-cell">{formatHourLabel(timeSlot.hour)}</td>
+                  {dayColumns.map((day) => {
+                    const dayDuties = currentSchedule.duties.filter((item) => item.day === day.dutyDay);
+                    const duty = dayDuties.find((item) => item.startHour === timeSlot.hour);
+                    const isCovered = dayDuties.some(
+                      (item) => timeSlot.hour > item.startHour && timeSlot.hour < item.endHour
+                    );
+                    const cellDateTime = getCellDateTime(displayWeekStart, day.offset, timeSlot.hour);
+                    const isLocked = cellDateTime < roomCreatedAt || cellDateTime < getNowDateTime();
 
-                  if (isCovered) return null;
+                    if (isCovered) return null;
 
-                  if (duty) {
+                    if (duty) {
+                      const statusMeta = getDutyStatusMeta(duty);
+                      return (
+                        <td
+                          key={`${day.dutyDay}-${timeSlot.slot}`}
+                          rowSpan={duty.endHour - duty.startHour}
+                          className={`duty-cell-filled ${isLocked ? 'locked' : ''}`}
+                          onClick={() => handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty)}
+                        >
+                          <div className="duty-card" title={duty.note || ''}>
+                            <strong>{duty.title}</strong>
+                            <p className="duty-time">{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
+                            <div className="duty-member-tags">
+                              {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
+                              {duty.members.map((member) => (
+                                <span key={member}>{member}</span>
+                              ))}
+                            </div>
+                            {duty.note && <p className="duty-note">{duty.note}</p>}
+                            <div className="duty-card-actions">
+                              {!isLocked && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty);
+                                    }}
+                                  >
+                                    <FontAwesomeIcon icon={faPenToSquare} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteDuty(duty.id);
+                                    }}
+                                  >
+                                    <FontAwesomeIcon icon={faTrash} />
+                                  </button>
+                                </>
+                              )}
+                              <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    }
+
                     return (
                       <td
                         key={`${day.dutyDay}-${timeSlot.slot}`}
-                        rowSpan={duty.endHour - duty.startHour}
-                        className={`duty-cell-filled ${isLocked ? 'locked' : ''}`}
-                        onClick={() => handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty)}
-                      >
-                        <div className="duty-card" title={duty.note || ''}>
-                          <strong>{duty.title}</strong>
-                          <p className="duty-time">{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
-                          <div className="duty-member-tags">
-                            {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
-                            {duty.members.map((member) => (
-                              <span key={member}>{member}</span>
-                            ))}
-                          </div>
-                          {duty.note && <p className="duty-note">{duty.note}</p>}
-                          <div className="duty-card-actions">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleOpenModal(day.dutyDay, day.offset, timeSlot.hour, duty);
-                              }}
-                              disabled={isLocked}
-                            >
-                              <FontAwesomeIcon icon={faPenToSquare} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleDeleteDuty(duty.id);
-                              }}
-                              disabled={isLocked}
-                            >
-                              <FontAwesomeIcon icon={faTrash} />
-                            </button>
-                          </div>
-                        </div>
-                      </td>
+                        className={`duty-cell-empty ${isLocked ? 'locked' : ''}`}
+                        onClick={() => handleOpenModal(day.dutyDay, day.offset, timeSlot.hour)}
+                      />
                     );
-                  }
-
-                  return (
-                    <td
-                      key={`${day.dutyDay}-${timeSlot.slot}`}
-                      className={`duty-cell-empty ${isLocked ? 'locked' : ''}`}
-                      onClick={() => handleOpenModal(day.dutyDay, day.offset, timeSlot.hour)}
-                    />
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="duty-list-wrap">
+          {sortedCurrentDuties.length === 0 ? (
+            <div className="duty-list-empty">Tuần này chưa có phân công trực nhật.</div>
+          ) : (
+            <div className="duty-list">
+              {sortedCurrentDuties.map((duty) => {
+                const offset = offsetByDutyDay[duty.day] ?? 0;
+                const dutyStart = getCellDateTime(displayWeekStart, offset, duty.startHour);
+                const isLocked = dutyStart < roomCreatedAt || dutyStart < getNowDateTime();
+                const statusMeta = getDutyStatusMeta(duty);
+                return (
+                  <div className="duty-list-item" key={duty.id}>
+                    <div className="duty-list-main">
+                      <h3>{duty.title}</h3>
+                      <p>
+                        {duty.day}, {formatDutyDateLabel(displayWeekStart, duty.day)}
+                      </p>
+                      <p>{getDutyTimeRange(duty.startHour, duty.endHour)}</p>
+                      <div className="duty-member-tags">
+                        {duty.createdByName && <span className="creator-tag">Tạo: {duty.createdByName}</span>}
+                        {duty.members.map((member) => (
+                          <span key={member}>{member}</span>
+                        ))}
+                      </div>
+                      {duty.note && <p className="duty-note">{duty.note}</p>}
+                    </div>
+                    <div className="duty-list-actions">
+                      {!isLocked && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModal(duty.day, offset, duty.startHour, duty)}
+                          >
+                            <FontAwesomeIcon icon={faPenToSquare} /> Sửa
+                          </button>
+                          <button type="button" onClick={() => handleDeleteDuty(duty.id)}>
+                            <FontAwesomeIcon icon={faTrash} /> Xóa
+                          </button>
+                        </>
+                      )}
+                      <span className={`duty-status-inline ${statusMeta.className}`}>{statusMeta.label}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay">
@@ -660,8 +790,8 @@ const DutySchedule = () => {
               <button className="btn-cancel" type="button" onClick={handleCloseModal}>
                 Hủy
               </button>
-              <button className="btn-save" type="button" onClick={handleSaveDuty}>
-                <FontAwesomeIcon icon={faCheck} /> Lưu phân công
+              <button className="btn-save" type="button" onClick={handleSaveDuty} disabled={savingDuty}>
+                <FontAwesomeIcon icon={faCheck} /> {savingDuty ? 'Đang lưu...' : 'Lưu phân công'}
               </button>
             </div>
           </div>

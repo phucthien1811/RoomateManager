@@ -364,6 +364,21 @@
   transform: scale(0.96);
 }
 
+.btn-action.leave {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.btn-action.leave:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+}
+
+.btn-action.leave:active {
+  transform: scale(0.96);
+}
+
 /* Card Body */
 .room-card-body {
   padding: 20px;

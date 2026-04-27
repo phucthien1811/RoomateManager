@@ -1,16 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faCheck,
   faChevronLeft,
   faChevronRight,
-  faClipboardCheck,
-  faImage,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
-import { useAuth } from '../context/AuthContext.jsx';
 import choreService from '../services/chore.service.js';
-import roomService from '../services/room.service.js';
 import PageHeader from './PageHeader.jsx';
 import '../styles/task.tracking.css';
 
@@ -30,10 +25,16 @@ const getWeekStart = (date = new Date()) => {
   return value;
 };
 
-const getEntityId = (value) => {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  return value._id || value.id || '';
+const toDateKeyLocal = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatDateOnly(date);
+};
+
+const formatDateVi = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('vi-VN');
 };
 
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
@@ -43,28 +44,26 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+const dayColumns = [
+  { shortLabel: 'THỨ 2', offset: 0 },
+  { shortLabel: 'THỨ 3', offset: 1 },
+  { shortLabel: 'THỨ 4', offset: 2 },
+  { shortLabel: 'THỨ 5', offset: 3 },
+  { shortLabel: 'THỨ 6', offset: 4 },
+  { shortLabel: 'THỨ 7', offset: 5 },
+  { shortLabel: 'CN', offset: 6 },
+];
+
 const TaskTracking = () => {
-  const { user } = useAuth();
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
   const [displayWeekStart, setDisplayWeekStart] = useState(() => getWeekStart(new Date()));
-  const [members, setMembers] = useState([]);
-  const [manualTasks, setManualTasks] = useState([]);
   const [dutyTasks, setDutyTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProofModal, setShowProofModal] = useState(false);
   const [proofTarget, setProofTarget] = useState(null);
   const [proofImages, setProofImages] = useState([]);
-  const [createForm, setCreateForm] = useState({
-    title: '',
-    choreDate: formatDateOnly(new Date()),
-    startHour: '',
-    endHour: '',
-    note: '',
-    memberIds: [],
-  });
 
   const displayWeekKey = useMemo(() => formatDateOnly(displayWeekStart), [displayWeekStart]);
 
@@ -79,16 +78,8 @@ const TaskTracking = () => {
     return () => window.removeEventListener('room-selected', syncRoom);
   }, []);
 
-  const memberNameById = useMemo(() => {
-    const map = new Map();
-    members.forEach((member) => map.set(getEntityId(member), member.name || member.email || 'Thành viên'));
-    return map;
-  }, [members]);
-
   const fetchData = async () => {
     if (!selectedRoomId) {
-      setMembers([]);
-      setManualTasks([]);
       setDutyTasks([]);
       return;
     }
@@ -96,13 +87,7 @@ const TaskTracking = () => {
     try {
       setLoading(true);
       setError('');
-      const [roomMembers, chores, dutyItems] = await Promise.all([
-        roomService.getRoomMembers(selectedRoomId),
-        choreService.getChoresByRoom(selectedRoomId),
-        choreService.getMyDutyTasks(selectedRoomId, displayWeekKey),
-      ]);
-      setMembers(Array.isArray(roomMembers) ? roomMembers : []);
-      setManualTasks(Array.isArray(chores) ? chores : []);
+      const dutyItems = await choreService.getMyDutyTasks(selectedRoomId, displayWeekKey);
       setDutyTasks(Array.isArray(dutyItems) ? dutyItems : []);
     } catch (err) {
       setError(err.message || 'Không thể tải dữ liệu công việc');
@@ -115,75 +100,41 @@ const TaskTracking = () => {
     fetchData();
   }, [selectedRoomId, displayWeekKey]);
 
-  const openCreateModal = () => {
-    setCreateForm({
-      title: '',
-      choreDate: formatDateOnly(new Date()),
-      startHour: '',
-      endHour: '',
-      note: '',
-      memberIds: [],
-    });
-    setError('');
-    setShowCreateModal(true);
-  };
+  const weekDates = useMemo(
+    () =>
+      dayColumns.map((day) => {
+        const value = new Date(displayWeekStart);
+        value.setDate(value.getDate() + day.offset);
+        return value;
+      }),
+    [displayWeekStart]
+  );
 
-  const closeCreateModal = () => {
-    if (saving) return;
-    setShowCreateModal(false);
-  };
+  const tasksByDateKey = useMemo(() => {
+    const map = new Map();
+    weekDates.forEach((date) => map.set(formatDateOnly(date), []));
 
-  const toggleMember = (memberId) => {
-    setCreateForm((prev) => ({
-      ...prev,
-      memberIds: prev.memberIds.includes(memberId)
-        ? prev.memberIds.filter((item) => item !== memberId)
-        : [...prev.memberIds, memberId],
-    }));
-  };
-
-  const handleCreateTask = async () => {
-    if (!selectedRoomId) {
-      setError('Bạn chưa chọn phòng');
-      return;
-    }
-    if (!createForm.title.trim()) {
-      setError('Vui lòng nhập tiêu đề công việc');
-      return;
-    }
-    if (!createForm.choreDate) {
-      setError('Vui lòng chọn ngày thực hiện');
-      return;
-    }
-    if (createForm.memberIds.length === 0) {
-      setError('Vui lòng tag ít nhất 1 thành viên');
-      return;
-    }
-    if ((createForm.startHour && !createForm.endHour) || (!createForm.startHour && createForm.endHour)) {
-      setError('Nếu dùng khung giờ thì cần nhập đủ giờ bắt đầu và kết thúc');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError('');
-      await choreService.createChore({
-        room_id: selectedRoomId,
-        title: createForm.title.trim(),
-        chore_date: createForm.choreDate,
-        note: createForm.note.trim(),
-        member_ids: createForm.memberIds,
-        start_hour: createForm.startHour ? Number(createForm.startHour) : null,
-        end_hour: createForm.endHour ? Number(createForm.endHour) : null,
+    [...dutyTasks]
+      .sort((a, b) => {
+        const dateDiff = new Date(a.chore_date) - new Date(b.chore_date);
+        if (dateDiff !== 0) return dateDiff;
+        return Number(a.start_hour || 0) - Number(b.start_hour || 0);
+      })
+      .forEach((task) => {
+        const key = toDateKeyLocal(task.chore_date);
+        if (map.has(key)) {
+          map.get(key).push(task);
+        }
       });
-      setShowCreateModal(false);
-      await fetchData();
-    } catch (err) {
-      setError(err.message || 'Không thể tạo công việc');
-    } finally {
-      setSaving(false);
-    }
-  };
+
+    return map;
+  }, [dutyTasks, weekDates]);
+
+  const todayKey = useMemo(() => formatDateOnly(new Date()), []);
+  const weekRangeLabel = useMemo(() => {
+    if (!weekDates[0] || !weekDates[6]) return '';
+    return `${formatDateVi(weekDates[0])} - ${formatDateVi(weekDates[6])}`;
+  }, [weekDates]);
 
   const openProofModal = (target) => {
     setProofTarget(target);
@@ -205,10 +156,6 @@ const TaskTracking = () => {
 
   const handleCompleteWithProof = async () => {
     if (!proofTarget) return;
-    if (proofImages.length === 0) {
-      setError('Vui lòng chọn ít nhất 1 ảnh minh chứng');
-      return;
-    }
 
     try {
       setSaving(true);
@@ -227,30 +174,57 @@ const TaskTracking = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Bạn có chắc muốn xóa công việc này?')) return;
-    try {
-      setSaving(true);
-      await choreService.deleteChore(taskId);
-      await fetchData();
-    } catch (err) {
-      setError(err.message || 'Không thể xóa công việc');
-    } finally {
-      setSaving(false);
-    }
+  const renderDutyTaskCard = (task) => {
+    const taskDateKey = toDateKeyLocal(task.chore_date);
+    const isFutureTask = task.status !== 'completed' && taskDateKey > todayKey;
+    
+    // Calculate progress display
+    const total = task.total_assigned || 1;
+    const completed = task.completed_count || 0;
+
+    return (
+      <article key={`${String(task.duty_id || task._id)}-${task.start_hour || ''}-${task.end_hour || ''}`} className={`task-card ${task.status}`}>
+        <div className="task-card-head">
+          <h3>{task.title}</h3>
+          <span className={`task-status-chip ${task.status === 'completed' ? 'completed' : isFutureTask ? 'upcoming' : 'pending'}`}>
+            {task.status === 'completed' ? 'Bạn đã xong' : isFutureTask ? 'Sắp tới' : 'Chưa xong'}
+          </span>
+        </div>
+        
+        <div className="task-progress-bar">
+           <div className="progress-text">
+             Tiến độ: {completed}/{total}
+            </div>
+           <div className="progress-track">
+             <div className="progress-fill" style={{ width: `${(completed / total) * 100}%` }}></div>
+           </div>
+        </div>
+
+        <p className="task-time">
+          {Number.isFinite(task.start_hour) && Number.isFinite(task.end_hour)
+            ? `${task.start_hour}:00 - ${task.end_hour}:00`
+            : 'Không đặt khung giờ'}
+        </p>
+        {task.note && <small>{task.note}</small>}
+        <div className="proof-list">
+          {(task.proof_images || []).map((image, index) => (
+            <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
+          ))}
+        </div>
+        
+        {task.status === 'completed' ? (
+          <span className="status done">Bạn đã hoàn thành</span>
+        ) : isFutureTask ? (
+          <span className="status upcoming">Sắp tới</span>
+        ) : (
+          <button type="button" className="task-complete-btn" onClick={() => openProofModal({ type: task.source_type || 'duty', item: task })}>
+            Hoàn thành phần của tôi
+          </button>
+        )}
+      </article>
+    );
   };
 
-  const isMine = (task) => {
-    const userId = String(user?.id || '');
-    const assignedMembers = Array.isArray(task.assigned_members) ? task.assigned_members : [];
-    return assignedMembers.some((item) => String(getEntityId(item)) === userId)
-      || String(getEntityId(task.assigned_to)) === userId;
-  };
-
-  const canDelete = (task) => {
-    const creatorId = String(getEntityId(task.created_by));
-    return creatorId && creatorId === String(user?.id || '');
-  };
 
   return (
     <div className="task-tracking-page">
@@ -260,7 +234,7 @@ const TaskTracking = () => {
         <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7)))}>
           <FontAwesomeIcon icon={faChevronLeft} /> Tuần trước
         </button>
-        <strong>Tuần {displayWeekKey}</strong>
+        <strong>{weekRangeLabel}</strong>
         <button type="button" onClick={() => setDisplayWeekStart((prev) => getWeekStart(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7)))}>
           Tuần sau <FontAwesomeIcon icon={faChevronRight} />
         </button>
@@ -272,45 +246,38 @@ const TaskTracking = () => {
       {selectedRoomId && (
         <>
           <section className="task-section">
-            <div className="section-title">
-              <FontAwesomeIcon icon={faClipboardCheck} /> Nhiệm vụ của tôi theo lịch trực
-            </div>
             {loading ? (
               <div className="empty-box">Đang tải...</div>
-            ) : dutyTasks.length === 0 ? (
-              <div className="empty-box">Tuần này bạn chưa được tag vào lịch trực nào.</div>
             ) : (
-              <div className="task-grid">
-                {dutyTasks.map((task) => (
-                  <article key={task.duty_id || task._id} className={`task-card ${task.status}`}>
-                    <h3>{task.title}</h3>
-                    <p>{new Date(task.chore_date).toLocaleDateString('vi-VN')} • {task.duty_day_label}</p>
-                    <p>{task.start_hour}:00 - {task.end_hour}:00</p>
-                    {task.note && <small>{task.note}</small>}
-                    <div className="proof-list">
-                      {(task.proof_images || []).map((image, index) => (
-                        <img key={`${task._id}-proof-${index}`} src={image} alt="proof" />
-                      ))}
+              <div className="task-week-grid">
+                {dayColumns.map((day, index) => {
+                  const date = weekDates[index];
+                  const dateKey = formatDateOnly(date);
+                  const dayTasks = tasksByDateKey.get(dateKey) || [];
+                  const isToday = dateKey === todayKey;
+
+                  return (
+                    <div key={dateKey} className="task-day-column">
+                      <div className="task-day-header">
+                        <span className="task-day-label">{day.shortLabel}</span>
+                        <span className={`task-day-number ${isToday ? 'selected' : ''}`}>{date.getDate()}</span>
+                      </div>
+                      <div className="task-day-content">
+                        {dayTasks.length === 0 ? (
+                          <div className="task-day-empty">Không có việc cần làm</div>
+                        ) : (
+                          dayTasks.map((task) => renderDutyTaskCard(task))
+                        )}
+                      </div>
                     </div>
-                    {task.status === 'completed' ? (
-                      <span className="status done"><FontAwesomeIcon icon={faCheck} /> Đã hoàn thành</span>
-                    ) : (
-                      <button type="button" className="btn-secondary" onClick={() => openProofModal({ type: 'duty', item: task })}>
-                        <FontAwesomeIcon icon={faImage} /> Hoàn thành + ảnh
-                      </button>
-                    )}
-                  </article>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
 
-
         </>
       )}
-
-
-
       {showProofModal && (
         <div className="modal-overlay" onClick={() => !saving && setShowProofModal(false)}>
           <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
@@ -320,8 +287,9 @@ const TaskTracking = () => {
             </div>
             <div className="modal-body">
               <p className="proof-title">{proofTarget?.item?.title}</p>
-              <label htmlFor="proof-images">Ảnh minh chứng *</label>
+              <label htmlFor="proof-images">Ảnh minh chứng (tuỳ chọn)</label>
               <input id="proof-images" type="file" accept="image/*" multiple onChange={handleSelectProofImages} />
+              <small className="proof-note">Bạn có thể nộp có ảnh hoặc không ảnh đều được.</small>
               <div className="proof-preview-grid">
                 {proofImages.map((image, index) => (
                   <img key={`preview-${index}`} src={image} alt="proof preview" />

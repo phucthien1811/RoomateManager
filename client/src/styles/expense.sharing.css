@@ -1,4 +1,4 @@
-﻿@import './colors.css';
+@import './colors.css';
 
 .expense-sharing {
   background: var(--color-bg);
@@ -71,6 +71,33 @@
   gap: 4px;
 }
 
+.overview-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fund-plus-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.fund-plus-btn:hover {
+  background: #dbeafe;
+}
+
 .overview-card span {
   font-size: 12px;
   color: var(--color-text-light);
@@ -131,6 +158,34 @@
   margin: 0 0 8px;
   font-size: 16px;
   color: var(--color-primary);
+}
+
+.card-head-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-head-with-action h2 {
+  margin: 0;
+}
+
+.btn-view-all-inline {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-view-all-inline:hover {
+  background: #dbeafe;
 }
 
 .category-list-header {
@@ -437,6 +492,17 @@
   font-size: 13px;
 }
 
+.expense-sharing input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.expense-sharing input[type="number"]::-webkit-outer-spin-button,
+.expense-sharing input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .modal-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);
@@ -500,10 +566,73 @@
   .fund-overview-grid {
     grid-template-columns: 1fr;
   }
+}
 
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+/* --- Fund Pending/Approval Styles --- */
+.btn-confirm-mini, .btn-reject-mini {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-confirm-mini {
+  background: #10b981;
+  color: #fff;
+}
+
+.btn-confirm-mini:hover:not(:disabled) {
+  background: #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-confirm-mini:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-reject-mini {
+  background: #ef4444;
+  color: #fff;
+}
+
+.btn-reject-mini:hover:not(:disabled) {
+  background: #dc2626;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-reject-mini:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.fund-balance-hint {
+  display: block;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: #f0f9ff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
 }
 
 /* â”€â”€ NEW: Stats section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -777,6 +906,28 @@
   font-size: 11px;
   color: var(--color-text-light);
   margin-top: 4px;
+}
+
+.expense-sharing .money-suggest-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.expense-sharing .money-suggest-btn {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.expense-sharing .money-suggest-btn:hover {
+  background: #dbeafe;
 }
 
 /* â”€â”€ Lightbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

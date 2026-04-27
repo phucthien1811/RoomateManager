@@ -5,7 +5,6 @@ import {
   faTrash,
   faTimes,
   faCheckCircle,
-  faCheck,
   faLightbulb,
   faDroplet,
   faWifi,
@@ -24,6 +23,7 @@ import {
   faWallet,
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import billService from '../services/bill.service.js';
 import roomService from '../services/room.service.js';
 import absenceService from '../services/absence.service.js';
@@ -36,7 +36,15 @@ const formatCurrency = (amount) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
 const formatDate = (date) =>
-  date ? new Date(date).toLocaleDateString('vi-VN') : '—';
+  date
+    ? new Date(date).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 
 const getInitials = (name = '') =>
   name.trim().split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase() || '?';
@@ -59,9 +67,98 @@ const BILL_TYPES = [
 
 const getBillTypeMeta = (key) => BILL_TYPES.find((t) => t.key === key) || BILL_TYPES[4];
 
+const getMoneySuggestions = (rawValue) => {
+  const numericText = String(rawValue || '').replace(/\D/g, '');
+  if (!numericText) return [];
+
+  const base = Number(numericText);
+  if (!Number.isFinite(base) || base <= 0) return [];
+
+  return [base * 1000, base * 10000, base * 100000]
+    .filter((value) => value >= 5000)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+};
+
+const fmtSuggestion = (value) => new Intl.NumberFormat('vi-VN').format(value);
+
+const normalizePercent = (value) => {
+  if (!Number.isFinite(value)) return null;
+  return Math.min(100, Math.max(0, Number(value.toFixed(2))));
+};
+
+const toMoneyByPercent = (totalAmount, percent) => {
+  const total = Number(totalAmount);
+  const pct = Number(percent);
+  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(pct)) return '';
+  return String(Math.max(0, Math.round((total * pct) / 100)));
+};
+
+const getAwayMemberIdsByBillDate = (reports = [], billDate) => {
+  const target = new Date(billDate);
+  if (Number.isNaN(target.getTime())) return [];
+
+  const dateOnly = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const awayIds = (Array.isArray(reports) ? reports : [])
+    .filter((r) => (r?.status || '') !== 'Từ chối')
+    .filter((r) => {
+      const start = new Date(r?.startDate);
+      const end = new Date(r?.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+      const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      return startOnly <= dateOnly && dateOnly <= endOnly;
+    })
+    .map((r) => String(r?.member?.user?._id || r?.member?.user || ''))
+    .filter(Boolean);
+
+  return [...new Set(awayIds)];
+};
+
+const getBillStatusMeta = (status) => {
+  if (status === 'completed') return { className: 'completed', label: 'Đã xong' };
+  if (status === 'partial') return { className: 'partial', label: 'Một phần' };
+  if (status === 'rejected') return { className: 'rejected', label: 'Bị từ chối' };
+  return { className: 'pending', label: 'Chưa trả' };
+};
+
+const buildSplitParticipants = (members = [], awayIds = [], totalAmount = 0) => {
+  const available = members.filter((m) => !awayIds.includes(String(m._id)));
+  const eq = available.length > 0 ? Math.floor((100 / available.length) * 100) / 100 : 0;
+
+  return members.map((m) => {
+    const isAway = awayIds.includes(String(m._id));
+    const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Thành viên');
+    if (isAway) {
+      return {
+        member_id: m._id,
+        name: displayName,
+        email: m.email || '',
+        selected: false,
+        split_percent: '',
+        split_amount: '',
+        isAway: true,
+      };
+    }
+
+    const idx = available.findIndex((a) => String(a._id) === String(m._id));
+    const isLast = idx === available.length - 1;
+    const pct = isLast ? Number((100 - eq * (available.length - 1)).toFixed(2)) : eq;
+    return {
+      member_id: m._id,
+      name: displayName,
+      email: m.email || '',
+      selected: true,
+      split_percent: String(pct),
+      split_amount: toMoneyByPercent(totalAmount, pct),
+      isAway: false,
+    };
+  });
+};
+
 /* ─── Component ──────────────────────── */
 const BillManagement = () => {
   const { user, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const [bills, setBills] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState('');
@@ -74,7 +171,10 @@ const BillManagement = () => {
   const [selectedBillId, setSelectedBillId] = useState(null);
   const [roomMembers, setRoomMembers] = useState([]);
   const [awayMemberIds, setAwayMemberIds] = useState([]);
+  const [absenceReports, setAbsenceReports] = useState([]);
   const [splitParticipants, setSplitParticipants] = useState([]);
+  const [manualSplitMemberIds, setManualSplitMemberIds] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
   // RM-8: Image upload state
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageModalBill, setImageModalBill] = useState(null);
@@ -92,6 +192,16 @@ const BillManagement = () => {
     billing_month: new Date().toISOString().slice(0, 7),
     description: '',
   });
+  const currentUserId = useMemo(() => {
+    const authUserId = user?.id || user?._id;
+    if (authUserId) return String(authUserId);
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      return String(storedUser?.id || storedUser?._id || '');
+    } catch {
+      return '';
+    }
+  }, [user]);
 
   /* — fetch on mount — */
   useEffect(() => { fetchRooms(); }, []);
@@ -112,7 +222,9 @@ const BillManagement = () => {
       setBills([]);
       setRoomMembers([]);
       setAwayMemberIds([]);
+      setAbsenceReports([]);
       setSplitParticipants([]);
+      setManualSplitMemberIds([]);
     }
   }, [selectedRoomId]);
 
@@ -147,37 +259,38 @@ const BillManagement = () => {
   };
 
   const fetchRoomParticipants = async (roomId) => {
+    setParticipantsLoading(true);
     try {
       const [members, reports] = await Promise.all([
         roomService.getRoomMembers(roomId),
         absenceService.getAbsenceReports(roomId),
       ]);
       const memberList = Array.isArray(members) ? members : [];
+      const reportList = Array.isArray(reports) ? reports : [];
       setRoomMembers(memberList);
+      setAbsenceReports(reportList);
 
-      const now = new Date();
-      const awayIds = (Array.isArray(reports) ? reports : [])
-        .filter((r) => {
-          if ((r.reason || '').toLowerCase() !== 'về quê') return false;
-          const s = new Date(r.startDate), e = new Date(r.endDate);
-          return !isNaN(s) && !isNaN(e) && s <= now && now <= e;
-        })
-        .map((r) => String(r.member?.user?._id || r.member?.user))
-        .filter(Boolean);
-      setAwayMemberIds([...new Set(awayIds)]);
+      const awayIds = getAwayMemberIdsByBillDate(
+        reportList,
+        formData.bill_date || new Date().toISOString().slice(0, 10)
+      );
+      setAwayMemberIds(awayIds);
     } catch {
       setRoomMembers([]);
       setAwayMemberIds([]);
+      setAbsenceReports([]);
       setSplitParticipants([]);
+      setManualSplitMemberIds([]);
+    } finally {
+      setParticipantsLoading(false);
     }
   };
-
-  const [autoPayWithFund, setAutoPayWithFund] = useState(false);
 
   const handleOpenModal = () => {
     if (!selectedRoomId) { setError('Vui lòng chọn phòng ở sidebar trước khi tạo hóa đơn'); return; }
     const now = new Date();
     const defaultDate = now.toISOString().slice(0, 10);
+    const defaultPayerId = roomMembers.find((m) => String(m._id) === currentUserId)?._id || roomMembers[0]?._id || currentUserId || '';
 
     setFormData({
       room_id: selectedRoomId,
@@ -185,32 +298,25 @@ const BillManagement = () => {
       bill_type_other: '',
       bill_date: defaultDate,
       total_amount: '',
-      payer_id: roomMembers[0]?._id || '',
+      payer_id: defaultPayerId,
       billing_month: defaultDate.slice(0, 7),
       description: '',
     });
 
-    const available = roomMembers.filter((m) => !awayMemberIds.includes(String(m._id)));
-    const eq = available.length > 0 ? Math.floor((100 / available.length) * 100) / 100 : 0;
-
-    setSplitParticipants(
-      roomMembers.map((m) => {
-        const isAway = awayMemberIds.includes(String(m._id));
-        const displayName = m.name || (m.email ? m.email.split('@')[0] : 'Thành viên');
-        if (isAway) return { member_id: m._id, name: displayName, email: m.email || '', selected: false, split_mode: 'percent', split_value: '', isAway: true };
-        const idx = available.findIndex((a) => String(a._id) === String(m._id));
-        const isLast = idx === available.length - 1;
-        const pct = isLast ? Number((100 - eq * (available.length - 1)).toFixed(2)) : eq;
-        return { member_id: m._id, name: displayName, email: m.email || '', selected: true, split_mode: 'percent', split_value: String(pct), isAway: false };
-      })
-    );
+    const defaultAwayIds = getAwayMemberIdsByBillDate(absenceReports, defaultDate);
+    setAwayMemberIds(defaultAwayIds);
+    setSplitParticipants(buildSplitParticipants(roomMembers, defaultAwayIds, Number(formData.total_amount) || 0));
+    setManualSplitMemberIds([]);
 
     setError('');
-    setAutoPayWithFund(false);
     setShowModal(true);
   };
 
-  const handleCloseModal = () => { setShowModal(false); setError(''); setAutoPayWithFund(false); };
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setError('');
+    setManualSplitMemberIds([]);
+  };
 
   /* RM-8 — Image upload handlers */
   const handleOpenImageModal = (bill) => {
@@ -262,7 +368,11 @@ const BillManagement = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'bill_date') {
+      const nextAwayIds = getAwayMemberIdsByBillDate(absenceReports, value);
       setFormData((prev) => ({ ...prev, bill_date: value, billing_month: value ? value.slice(0, 7) : prev.billing_month }));
+      setAwayMemberIds(nextAwayIds);
+      setSplitParticipants(buildSplitParticipants(roomMembers, nextAwayIds, Number(formData.total_amount) || 0));
+      setManualSplitMemberIds([]);
       return;
     }
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -270,34 +380,132 @@ const BillManagement = () => {
 
   const handleToggleParticipant = (memberId) => {
     setError('');
-    setSplitParticipants((prev) =>
-      prev.map((p) => {
+    setManualSplitMemberIds([]);
+    setSplitParticipants((prev) => {
+      const toggled = prev.map((p) => {
         if (p.member_id !== memberId) return p;
-        if (p.isAway) { setError(`${p.name} đang về quê`); return p; }
         return { ...p, selected: !p.selected };
-      })
-    );
+      });
+
+      const selectedRows = toggled.filter((p) => p.selected);
+      if (selectedRows.length === 0) return toggled;
+
+      const eq = Math.floor((100 / selectedRows.length) * 100) / 100;
+      return toggled.map((p) => {
+        if (!p.selected) return { ...p, split_percent: '', split_amount: '' };
+        const idx = selectedRows.findIndex((s) => s.member_id === p.member_id);
+        const isLast = idx === selectedRows.length - 1;
+        const pct = isLast ? Number((100 - eq * (selectedRows.length - 1)).toFixed(2)) : eq;
+        return {
+          ...p,
+          split_percent: String(pct),
+          split_amount: toMoneyByPercent(formData.total_amount, pct),
+        };
+      });
+    });
   };
 
   const handleSelectAllParticipants = () => {
     setError('');
+    setManualSplitMemberIds([]);
     setSplitParticipants((prev) => {
-      const selectable = prev.filter((p) => !p.isAway);
+      const selectable = prev;
       const eq = selectable.length > 0 ? Math.floor((100 / selectable.length) * 100) / 100 : 0;
       return prev.map((p) => {
-        if (p.isAway) return { ...p, selected: false };
         const idx = selectable.findIndex((s) => s.member_id === p.member_id);
         const isLast = idx === selectable.length - 1;
         const pct = isLast ? Number((100 - eq * (selectable.length - 1)).toFixed(2)) : eq;
-        return { ...p, selected: true, split_mode: 'percent', split_value: String(pct) };
+        return {
+          ...p,
+          selected: true,
+          split_percent: String(pct),
+          split_amount: toMoneyByPercent(formData.total_amount, pct),
+        };
       });
     });
   };
 
   const handleParticipantSplitChange = (memberId, field, value) => {
-    setSplitParticipants((prev) =>
-      prev.map((p) => (p.member_id === memberId ? { ...p, [field]: value } : p))
-    );
+    setSplitParticipants((prev) => {
+      const updated = prev.map((p) => (p.member_id === memberId ? { ...p, [field]: value } : p));
+
+      if (field === 'split_percent' || field === 'split_amount') {
+        const selectedRows = updated.filter((p) => p.selected);
+        const current = selectedRows.find((p) => String(p.member_id) === String(memberId));
+        const totalAmount = Number(formData.total_amount);
+        if (!current) return updated;
+
+        const entered = Number(value);
+        let currentPct = null;
+        if (field === 'split_percent') {
+          currentPct = normalizePercent(entered);
+        } else if (Number.isFinite(totalAmount) && totalAmount > 0) {
+          currentPct = normalizePercent((entered / totalAmount) * 100);
+        }
+
+        if (currentPct === null) {
+          if (field === 'split_amount') {
+            return updated.map((p) => (String(p.member_id) === String(memberId) ? { ...p, split_amount: value } : p));
+          }
+          return updated;
+        }
+
+        const selectedIdSet = new Set(selectedRows.map((p) => String(p.member_id)));
+        const manualSet = new Set(
+          [...manualSplitMemberIds.map(String), String(memberId)]
+            .filter((id) => selectedIdSet.has(id))
+        );
+
+        const getPct = (id) => {
+          const row = selectedRows.find((p) => String(p.member_id) === String(id));
+          const pct = normalizePercent(Number(row?.split_percent));
+          return pct ?? 0;
+        };
+
+        const otherManualIds = Array.from(manualSet).filter((id) => id !== String(memberId));
+        const otherManualSum = otherManualIds.reduce((sum, id) => sum + getPct(id), 0);
+        const safeCurrentPct = Math.min(currentPct, Math.max(0, Number((100 - otherManualSum).toFixed(2))));
+
+        const fixedValueMap = new Map(otherManualIds.map((id) => [id, getPct(id)]));
+        fixedValueMap.set(String(memberId), safeCurrentPct);
+
+        const autoRows = selectedRows.filter((p) => !manualSet.has(String(p.member_id)));
+        const fixedSum = Array.from(fixedValueMap.values()).reduce((sum, pct) => sum + pct, 0);
+        const remain = Math.max(0, Number((100 - fixedSum).toFixed(2)));
+
+        if (autoRows.length > 0) {
+          const each = Number((remain / autoRows.length).toFixed(2));
+          let assigned = 0;
+          autoRows.forEach((p, index) => {
+            const isLast = index === autoRows.length - 1;
+            const valueForRow = isLast
+              ? Number((remain - assigned).toFixed(2))
+              : each;
+            assigned = Number((assigned + valueForRow).toFixed(2));
+            fixedValueMap.set(String(p.member_id), valueForRow);
+          });
+        } else if (fixedValueMap.size > 0 && fixedSum !== 100) {
+          const adjustedCurrent = Math.max(0, Number((100 - otherManualSum).toFixed(2)));
+          fixedValueMap.set(String(memberId), adjustedCurrent);
+        }
+
+        setManualSplitMemberIds(Array.from(manualSet));
+
+        return updated.map((p) => {
+          const key = String(p.member_id);
+          if (!selectedIdSet.has(key)) return p;
+          if (!fixedValueMap.has(key)) return p;
+          const percent = fixedValueMap.get(key);
+          return {
+            ...p,
+            split_percent: String(percent),
+            split_amount: toMoneyByPercent(totalAmount, percent),
+          };
+        });
+      }
+
+      return updated;
+    });
   };
 
   const handleSaveBill = async () => {
@@ -312,35 +520,26 @@ const BillManagement = () => {
     }
     const amount = parseInt(formData.total_amount);
     if (isNaN(amount) || amount < 1000) { setError('Tổng tiền phải lớn hơn 1.000 VNĐ'); return; }
-    if (authLoading) { setError('Đang xác thực, vui lòng chờ...'); return; }
-    if (!user) { setError('Vui lòng đăng nhập lại'); return; }
-    const userId = user.id || user._id;
+    if (authLoading && !currentUserId) { setError('Đang xác thực, vui lòng chờ...'); return; }
+    if (participantsLoading) { setError('Đang tải danh sách thành viên, vui lòng chờ...'); return; }
+    const userId = currentUserId;
     if (!userId) { setError('Không thể xác định người dùng'); return; }
 
     setSubmitting(true);
     try {
       setError('');
-      if (autoPayWithFund) {
-        const fundData = await fundService.getFundDetail(formData.room_id);
-        if ((fundData.balance || 0) < amount) {
-          setError(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
-          setSubmitting(false);
-          return;
-        }
-      }
-
-      const selected = splitParticipants.filter((p) => p.selected && !p.isAway);
+      const selected = splitParticipants.filter((p) => p.selected);
       if (selected.length === 0) { setError('Vui lòng chọn ít nhất 1 thành viên cùng thanh toán'); setSubmitting(false); return; }
 
-      const hasCustom = selected.some((p) => String(p.split_value).trim() !== '');
+      const hasCustom = selected.some((p) => String(p.split_percent).trim() !== '');
       const customSplits = [];
       if (hasCustom) {
         for (const p of selected) {
-          const raw = String(p.split_value).trim();
+          const raw = String(p.split_percent).trim();
           if (!raw) { setError('Vui lòng nhập đầy đủ % hoặc số tiền cho mọi thành viên được chọn'); setSubmitting(false); return; }
           const parsed = Number(raw);
           if (!Number.isFinite(parsed) || parsed < 0) { setError('Giá trị chia hóa đơn không hợp lệ'); setSubmitting(false); return; }
-          customSplits.push({ member_id: p.member_id, mode: p.split_mode, value: parsed });
+          customSplits.push({ member_id: p.member_id, mode: 'percent', value: parsed });
         }
       }
 
@@ -356,36 +555,14 @@ const BillManagement = () => {
         member_ids: selected.map((p) => p.member_id),
         custom_splits: customSplits,
       });
-
-      if (autoPayWithFund) {
-         try {
-           const typeLabel = formData.bill_type === 'other' ? formData.bill_type_other.trim() : getBillTypeMeta(formData.bill_type).label;
-           await fundService.withdrawFund(
-             formData.room_id,
-             amount,
-             `Chi trả hóa đơn: ${typeLabel} (Tháng ${formData.billing_month})`,
-             'Hóa đơn chung'
-           );
-           
-           const newBillId = res.bill?._id || res._id;
-           const newDetails = res.details || [];
-           
-           for (const d of newDetails) {
-             if (d.status !== 'paid') {
-               await billService.confirmBillPayment(newBillId, d._id);
-             }
-           }
-         } catch (e) {
-           console.error("Auto fund payment failed:", e);
-           const errorMessage = e.response?.data?.message || e.message || 'Lỗi không xác định khi trích quỹ chung';
-           alert(`Hóa đơn đã được tạo nhưng KHÔNG THỂ trích quỹ chung (lỗi: ${errorMessage}). Vui lòng tự thanh toán lại bằng quỹ chung sau.`);
-         }
-      }
+      const newBillId = res.bill?._id || res._id;
 
       await fetchBills();
+      showToast('Tạo hóa đơn thành công', { type: 'success' });
       handleCloseModal();
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Lỗi khi lưu hóa đơn');
+      showToast(err.response?.data?.message || err.message || 'Lỗi khi lưu hóa đơn', { type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -396,8 +573,10 @@ const BillManagement = () => {
     try {
       await billService.deleteBill(id);
       await fetchBills();
+      showToast('Đã xóa hóa đơn thành công', { type: 'success' });
     } catch (err) {
       setError(err.message || 'Lỗi khi xóa hóa đơn');
+      showToast(err.message || 'Lỗi khi xóa hóa đơn', { type: 'error' });
     }
   };
 
@@ -406,8 +585,10 @@ const BillManagement = () => {
       if (!window.confirm('Xác nhận thành viên này đã đóng tiền?')) return;
       await billService.confirmBillPayment(billId, detailId);
       await fetchBills();
+      showToast('Đã xác nhận thanh toán cho thành viên', { type: 'success' });
     } catch (err) {
       setError(err.message || 'Lỗi khi xác nhận thanh toán');
+      showToast(err.message || 'Lỗi khi xác nhận thanh toán', { type: 'error' });
     }
   };
 
@@ -421,25 +602,32 @@ const BillManagement = () => {
         throw new Error(`Số dư quỹ chung (${formatCurrency(fundData.balance || 0)}) không đủ để thanh toán hóa đơn này!`);
       }
 
-      // 1. Rút tiền từ quỹ
-      await fundService.withdrawFund(
+      // 1. Gửi yêu cầu rút tiền từ quỹ (liên kết với bill)
+      const res = await fundService.withdrawFund(
         selectedRoomId,
         bill.total_amount,
         `Chi trả hóa đơn: ${bill.bill_type === 'other' ? bill.bill_type_other : getBillTypeMeta(bill.bill_type).label} (Tháng ${bill.billing_month})`,
-        'Hóa đơn chung'
+        'Hóa đơn chung',
+        [],
+        bill._id
       );
 
-      // 2. Xác nhận toàn bộ thành viên đã trả
-      const pending = bill.details.filter((d) => d.status !== 'paid');
-      for (const d of pending) {
-        await billService.confirmBillPayment(bill._id, d._id);
+      // 2. Nếu là chủ phòng (completed), xác nhận toàn bộ thành viên đã trả
+      if (isRoomOwner) {
+        const pending = bill.details.filter((d) => d.status !== 'paid');
+        for (const d of pending) {
+          await billService.confirmBillPayment(bill._id, d._id);
+        }
+        // 3. Đánh dấu bill là đã trả bằng quỹ
+        await billService.updateBill(bill._id, { is_paid_by_fund: true });
       }
 
       await fetchBills();
-      alert('Đã thanh toán hóa đơn bằng quỹ chung thành công!');
+      showToast(res.message || 'Giao dịch đã được ghi nhận!', { type: 'success' });
     } catch (err) {
       console.error(err);
       setError(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.');
+      showToast(err.message || 'Lỗi khi sử dụng quỹ chung để thanh toán.', { type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -447,7 +635,33 @@ const BillManagement = () => {
 
   /* ─── derived data ─── */
   const selectedRoomName = rooms.find((r) => r._id === selectedRoomId)?.name || 'Chưa chọn phòng';
-  const currentUserId = String(user?.id || user?._id || '');
+  const roomOwnerId = String(rooms.find(r => r._id === selectedRoomId)?.owner?._id || rooms.find(r => r._id === selectedRoomId)?.owner || '');
+  const isRoomOwner = Boolean(currentUserId && roomOwnerId && currentUserId === roomOwnerId);
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (splitParticipants.length > 0) return;
+    if (roomMembers.length === 0) return;
+
+    setSplitParticipants(buildSplitParticipants(roomMembers, awayMemberIds, Number(formData.total_amount) || 0));
+    setManualSplitMemberIds([]);
+    setFormData((prev) => ({
+      ...prev,
+      payer_id: prev.payer_id || roomMembers.find((m) => String(m._id) === currentUserId)?._id || roomMembers[0]?._id || currentUserId || '',
+    }));
+  }, [showModal, splitParticipants.length, roomMembers, awayMemberIds, currentUserId]);
+
+  useEffect(() => {
+    const totalAmount = Number(formData.total_amount);
+    setSplitParticipants((prev) =>
+      prev.map((p) => {
+        if (!p.selected) return p;
+        const pct = normalizePercent(Number(p.split_percent));
+        if (pct === null) return p;
+        return { ...p, split_amount: toMoneyByPercent(totalAmount, pct) };
+      })
+    );
+  }, [formData.total_amount]);
 
   const visibleBills = useMemo(() => {
     const filtered = bills.filter((bill) => {
@@ -522,6 +736,7 @@ const BillManagement = () => {
             <div className="split-left">
               {visibleBills.map((bill) => {
                 const typeMeta = getBillTypeMeta(bill.bill_type);
+                const statusMeta = getBillStatusMeta(bill.status);
                 return (
                   <div 
                     key={bill._id} 
@@ -535,8 +750,8 @@ const BillManagement = () => {
                       <div className="h-bill-info">
                         <h4>{bill.bill_type === 'other' ? (bill.bill_type_other || 'Hóa đơn khác') : `Tiền ${typeMeta.label}`}</h4>
                         <span>
-                          <span className={`status-dot ${bill.status === 'completed' ? 'completed' : bill.status === 'partial' ? 'partial' : 'pending'}`}></span>
-                          {formatDate(bill.bill_date || bill.created_at)}
+                          <span className={`status-dot ${statusMeta.className}`}></span>
+                          {formatDate(bill.created_at || bill.createdAt || bill.bill_date)}
                         </span>
                       </div>
                     </div>
@@ -571,6 +786,7 @@ const BillManagement = () => {
                     const typeMeta = getBillTypeMeta(selectedBill.bill_type);
                     const responsibleId = String(selectedBill.payer_id?._id || selectedBill.payer_id || selectedBill.created_by?._id || selectedBill.created_by || '');
                     const canConfirm = Boolean(currentUserId && responsibleId && currentUserId === responsibleId);
+                    const selectedBillStatusMeta = getBillStatusMeta(selectedBill.status);
                     return (
                       <>
                         <div className="detail-header">
@@ -581,14 +797,14 @@ const BillManagement = () => {
                                </div>
                                {selectedBill.bill_type === 'other' ? selectedBill.bill_type_other || 'Khác' : `Tiền ${typeMeta.label}`}
                             </h2>
-                            <span className={`bill-status-badge ${selectedBill.status === 'completed' ? 'completed' : selectedBill.status === 'partial' ? 'partial' : 'pending'}`}>
-                              {selectedBill.status === 'completed' ? 'Đã xong' : selectedBill.status === 'partial' ? 'Một phần' : 'Chưa trả'}
+                            <span className={`bill-status-badge ${selectedBillStatusMeta.className}`}>
+                              {selectedBillStatusMeta.label}
                             </span>
                           </div>
                           <div className="meta">
                             Kỳ sử dụng: <strong>Tháng {selectedBill.billing_month}</strong><br/>
-                            Ngày chốt hóa đơn: {formatDate(selectedBill.bill_date || selectedBill.created_at)}<br/>
-                            Người quản lý: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
+                            Ngày chốt hóa đơn: {formatDate(selectedBill.created_at || selectedBill.createdAt || selectedBill.bill_date)}<br/>
+                            Người tạo hóa đơn: <strong>{selectedBill.payer_id?.name || selectedBill.created_by?.name || '—'}</strong>
                           </div>
                         </div>
 
@@ -643,7 +859,7 @@ const BillManagement = () => {
                                     </td>
                                     <td style={{ color: '#2f6fec', fontWeight: 700 }}>{formatCurrency(detail.amount_due)}</td>
                                     <td>
-                                       {isPaid ? <span className="badge-paid"><FontAwesomeIcon icon={faCheck} /> Đã trả</span> : <span className="badge-view-only">Chưa trả</span>}
+                                       {isPaid ? <span className="badge-paid">Đã trả</span> : <span className="badge-view-only">Chưa trả</span>}
                                     </td>
                                     <td style={{ textAlign: 'right' }}>
                                       {!isPaid && canConfirm ? (
@@ -658,29 +874,34 @@ const BillManagement = () => {
                         </div>
 
                         <div className="detail-actions-bar">
-                           {canConfirm && selectedBill.status !== 'completed' && selectedBill.details?.some(d => d.status !== 'paid') && (
-                              <>
-                                <button className="btn-confirm-all" style={{ flex: 1 }} onClick={async () => {
-                                    if (!window.confirm('Xác nhận thanh toán toàn bộ từ tiền riêng?')) return;
-                                    try {
-                                       setSubmitting(true);
-                                       const pending = selectedBill.details.filter(d => d.status !== 'paid');
-                                       for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
-                                       await fetchBills();
-                                    } catch (e) { setError(e.message); } finally { setSubmitting(false); }
-                                }} disabled={submitting}>
-                                   <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
-                                </button>
-                                <button 
-                                  className="btn-confirm-all" 
-                                  style={{ flex: 1, background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 3px 10px rgba(180, 83, 9, 0.3)' }} 
-                                  onClick={() => handlePayWithFund(selectedBill)}
-                                  disabled={submitting}
-                                >
-                                   <FontAwesomeIcon icon={faWallet} /> Trả bằng Quỹ
-                                </button>
-                              </>
-                           )}
+                             {canConfirm && selectedBill.status !== 'completed' && selectedBill.details?.some(d => d.status !== 'paid') && (
+                                <>
+                                  <button className="btn-confirm-all" style={{ flex: 1 }} onClick={async () => {
+                                      if (!window.confirm('Xác nhận thanh toán toàn bộ từ tiền riêng?')) return;
+                                      try {
+                                         setSubmitting(true);
+                                         const pending = selectedBill.details.filter(d => d.status !== 'paid');
+                                         for (const d of pending) await billService.confirmBillPayment(selectedBill._id, d._id);
+                                         await fetchBills();
+                                         showToast('Đã xác nhận thanh toán toàn bộ thành viên', { type: 'success' });
+                                      } catch (e) {
+                                        setError(e.message);
+                                        showToast(e.message || 'Lỗi khi xác nhận thanh toán', { type: 'error' });
+                                      } finally { setSubmitting(false); }
+                                   }} disabled={submitting}>
+                                      <FontAwesomeIcon icon={faCheckCircle} /> Thu cá nhân
+                                   </button>
+                                  
+                                  <button 
+                                    className="btn-confirm-all btn-confirm-fund"
+                                    style={{ flex: 1 }}
+                                    onClick={() => handlePayWithFund(selectedBill)}
+                                    disabled={submitting}
+                                  >
+                                     <FontAwesomeIcon icon={faWallet} /> Sử dụng quỹ
+                                  </button>
+                                </>
+                             )}
                            <button className="btn-icon-secondary" onClick={() => handleOpenImageModal(selectedBill)}>
                              <FontAwesomeIcon icon={faCamera} /> {selectedBill.bill_images?.length > 0 ? 'Cập nhật ảnh' : 'Đính kèm ảnh'}
                            </button>
@@ -770,14 +991,28 @@ const BillManagement = () => {
                     placeholder="VD: 950000"
                     min="1000"
                   />
+                  {getMoneySuggestions(formData.total_amount).length > 0 && (
+                    <div className="money-suggest-list">
+                      {getMoneySuggestions(formData.total_amount).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className="money-suggest-btn"
+                          onClick={() => setFormData((prev) => ({ ...prev, total_amount: String(value) }))}
+                        >
+                          {fmtSuggestion(value)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <span className="hint-text">Tối thiểu 1.000 VNĐ</span>
                 </div>
               </div>
 
               <div className="form-group">
-                <label>Người quản lý / chịu trách nhiệm *</label>
+                <label>Người tạo hóa đơn *</label>
                 <select name="payer_id" value={formData.payer_id} onChange={handleInputChange}>
-                  <option value="">— Chọn người chịu trách nhiệm —</option>
+                  <option value="">— Chọn người tạo hóa đơn —</option>
                   {roomMembers.map((m) => (
                     <option key={m._id} value={m._id}>{m.name || (m.email ? m.email.split('@')[0] : 'Thành viên')}</option>
                   ))}
@@ -794,7 +1029,11 @@ const BillManagement = () => {
                   </button>
                 </div>
                 <div className="participant-list">
-                  {splitParticipants.length === 0 ? (
+                  {participantsLoading ? (
+                    <div style={{ padding: '12px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      Đang tải danh sách thành viên...
+                    </div>
+                  ) : splitParticipants.length === 0 ? (
                     <div style={{ padding: '12px', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                       Không có thành viên trong phòng.
                     </div>
@@ -811,25 +1050,33 @@ const BillManagement = () => {
                         >
                           <input type="checkbox" readOnly checked={p.selected} />
                           <span>{p.name}</span>
-                          {p.isAway && <small>Đang về quê</small>}
+                          {p.isAway && <small>Vắng mặt trong thời gian này</small>}
                         </button>
                         <div className="participant-split">
-                          <select
-                            value={p.split_mode}
-                            onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_mode', e.target.value)}
-                            disabled={!p.selected || p.isAway}
-                          >
-                            <option value="percent">%</option>
-                            <option value="amount">VNĐ</option>
-                          </select>
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder={p.split_mode === 'percent' ? 'VD: 25' : 'VD: 150000'}
-                            value={p.split_value}
-                            onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_value', e.target.value)}
-                            disabled={!p.selected || p.isAway}
-                          />
+                          <div className="split-input-group">
+                            <label>%</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              placeholder="VD: 25"
+                              value={p.split_percent || ''}
+                              onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_percent', e.target.value)}
+                              disabled={!p.selected}
+                            />
+                          </div>
+                          <div className="split-input-group">
+                            <label>VNĐ</label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="VD: 150000"
+                              value={p.split_amount || ''}
+                              onChange={(e) => handleParticipantSplitChange(p.member_id, 'split_amount', e.target.value)}
+                              disabled={!p.selected}
+                            />
+                          </div>
                         </div>
                       </div>
                     ))
@@ -850,22 +1097,6 @@ const BillManagement = () => {
                 />
               </div>
 
-              {/* Tùy chọn Auto Pay with Fund */}
-              <div className="form-group" style={{ 
-                marginTop: '16px', background: '#fdfce8', padding: '12px', borderRadius: '10px', border: '1px solid #fef08a', display: 'flex', alignItems: 'center', gap: '8px'
-              }}>
-                <input 
-                  type="checkbox" 
-                  id="autoPayWithFund"
-                  checked={autoPayWithFund}
-                  onChange={(e) => setAutoPayWithFund(e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                />
-                <label htmlFor="autoPayWithFund" style={{ margin: 0, fontSize: '14px', color: '#854d0e', cursor: 'pointer' }}>
-                  <FontAwesomeIcon icon={faWallet} style={{ marginRight: 6 }}/> 
-                  Trích quỹ chung để thanh toán luôn hóa đơn này
-                </label>
-              </div>
             </div>
 
             <div className="modal-footer">

@@ -23,6 +23,23 @@
 .sidebar-header {
   padding: 0 24px;
   margin-bottom: 24px;
+  position: relative;
+}
+
+.sidebar-mobile-close {
+  position: absolute;
+  top: -6px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-primary);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .sidebar-logo {
@@ -163,6 +180,49 @@
 
 .logout-icon {
   font-size: 14px;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: min(82vw, 300px);
+    z-index: 1300;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    border-right: 1px solid var(--color-border);
+    padding: 20px 0;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-close {
+    display: inline-flex;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 1200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 

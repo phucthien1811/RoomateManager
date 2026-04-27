@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Room = require('../models/room.model');
 const DutySchedule = require('../models/duty.schedule.model');
+const ChoreLog = require('../models/chore.log.model');
 const User = require('../models/user.model');
 const Notification = require('../models/notification.model');
 
@@ -14,8 +15,51 @@ const dayOffsetMap = {
   'Thứ 7': 5,
   'Chủ nhật': 6,
 };
+const VIETNAM_UTC_OFFSET_HOURS = 7;
 
-const normalizeName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const toWeekStartKey = (weekStartDate) => {
+  if (!weekStartDate) return '';
+  const d = new Date(weekStartDate);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+};
+
+const getDutyStartUtcMs = (weekStartKey, dayLabel, startHour) => {
+  if (!isValidDateOnly(weekStartKey)) return Number.NaN;
+  const [year, month, day] = weekStartKey.split('-').map(Number);
+  const offsetDays = dayOffsetMap[dayLabel] ?? 0;
+  const hour = Number(startHour);
+  return Date.UTC(year, month - 1, day + offsetDays, hour - VIETNAM_UTC_OFFSET_HOURS, 0, 0, 0);
+};
+
+const isDutyStartInPast = (weekStartKey, dayLabel, startHour) => {
+  const dutyStartMs = getDutyStartUtcMs(weekStartKey, dayLabel, startHour);
+  if (!Number.isFinite(dutyStartMs)) return true;
+  return dutyStartMs < Date.now();
+};
+
+const normalizeName = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const hasOverlappingDuty = async ({ roomId, weekStart, dayLabel, startHour, endHour, excludeDutyId = null }) => {
+  const query = {
+    room_id: roomId,
+    week_start: weekStart,
+    day_label: dayLabel,
+    start_hour: { $lt: Number(endHour) },
+    end_hour: { $gt: Number(startHour) },
+  };
+  if (excludeDutyId) {
+    query._id = { $ne: excludeDutyId };
+  }
+  const existed = await DutySchedule.exists(query);
+  return Boolean(existed);
+};
 
 const checkRoomAccess = async (roomId, userId) => {
   const room = await Room.findById(roomId).select('owner members');
@@ -30,7 +74,7 @@ const checkRoomAccess = async (roomId, userId) => {
   return { ok: true, room };
 };
 
-const mapDuty = (duty) => ({
+const mapDuty = (duty, completion = {}) => ({
   _id: duty._id,
   room_id: duty.room_id,
   week_start: duty.week_start,
@@ -44,6 +88,9 @@ const mapDuty = (duty) => ({
   created_by_name: duty.created_by?.name || '',
   created_at: duty.created_at,
   updated_at: duty.updated_at,
+  completion_status: completion.status || 'pending',
+  completion_completed: completion.completed || 0,
+  completion_total: completion.total || 0,
 });
 
 const resolveTaggedRecipients = async (room, members) => {
@@ -101,7 +148,68 @@ const listByRoomAndWeek = async (req, res) => {
       .sort({ day_label: 1, start_hour: 1 })
       .populate('created_by', 'name');
 
-    return res.json({ duties: duties.map(mapDuty) });
+    if (duties.length === 0) {
+      return res.json({ duties: [] });
+    }
+
+    const dutyIds = duties.map((duty) => duty._id);
+    const roomUserIds = [access.room.owner, ...(access.room.members || [])].map((item) => item.toString());
+    const users = await User.find({ _id: { $in: roomUserIds } }).select('name');
+
+    const idByName = new Map();
+    users.forEach((user) => {
+      const nameKey = normalizeName(user.name);
+      if (!idByName.has(nameKey)) {
+        idByName.set(nameKey, user._id.toString());
+      }
+    });
+
+    const taggedByDuty = new Map();
+    duties.forEach((duty) => {
+      const taggedUserIds = new Set();
+      (duty.members || []).forEach((memberName) => {
+        const userId = idByName.get(normalizeName(memberName));
+        if (userId) taggedUserIds.add(userId);
+      });
+      taggedByDuty.set(String(duty._id), taggedUserIds);
+    });
+
+    const completedLogs = await ChoreLog.find({
+      room_id: roomId,
+      source_type: 'duty',
+      duty_id: { $in: dutyIds },
+      status: 'completed',
+    }).select('duty_id assigned_to');
+
+    const completedByDuty = new Map();
+    completedLogs.forEach((log) => {
+      const dutyIdKey = String(log.duty_id);
+      if (!completedByDuty.has(dutyIdKey)) {
+        completedByDuty.set(dutyIdKey, new Set());
+      }
+      completedByDuty.get(dutyIdKey).add(String(log.assigned_to));
+    });
+
+    const dutiesWithCompletion = duties.map((duty) => {
+      const dutyIdKey = String(duty._id);
+      const taggedUserIds = taggedByDuty.get(dutyIdKey) || new Set();
+      const completedUserIds = completedByDuty.get(dutyIdKey) || new Set();
+
+      const total = taggedUserIds.size > 0 ? taggedUserIds.size : (duty.members || []).length;
+      const completed = total > 0
+        ? Array.from(completedUserIds).filter((userId) => taggedUserIds.size === 0 || taggedUserIds.has(userId)).length
+        : 0;
+
+      const status = total > 0 && completed >= total
+        ? 'completed'
+        : completed > 0
+          ? 'partial'
+          : 'pending';
+
+      return mapDuty(duty, { status, completed, total });
+    });
+
+    return res.json({ duties: dutiesWithCompletion });
   } catch (error) {
     return res.status(500).json({ message: 'Lỗi khi lấy lịch trực nhật', error: error.message });
   }
@@ -137,9 +245,24 @@ const createDuty = async (req, res) => {
       return res.status(access.status).json({ message: access.message });
     }
 
+    const weekStartDate = new Date(`${week_start}T00:00:00.000Z`);
+    if (isDutyStartInPast(week_start, day_label, Number(start_hour))) {
+      return res.status(400).json({ message: 'Không thể tạo lịch trực ở mốc thời gian đã qua' });
+    }
+    const hasOverlap = await hasOverlappingDuty({
+      roomId,
+      weekStart: weekStartDate,
+      dayLabel: day_label,
+      startHour: Number(start_hour),
+      endHour: Number(end_hour),
+    });
+    if (hasOverlap) {
+      return res.status(409).json({ message: 'Khung giờ bị trùng với lịch trực khác trong cùng ngày' });
+    }
+
     const duty = await DutySchedule.create({
       room_id: roomId,
-      week_start: new Date(`${week_start}T00:00:00.000Z`),
+      week_start: weekStartDate,
       day_label,
       title: String(title).trim(),
       start_hour: Number(start_hour),
@@ -204,9 +327,26 @@ const updateDuty = async (req, res) => {
       return res.status(404).json({ message: 'Lịch trực nhật không tồn tại' });
     }
 
+    const dutyWeekStartKey = toWeekStartKey(duty.week_start);
+    if (isDutyStartInPast(dutyWeekStartKey, duty.day_label, Number(start_hour))) {
+      return res.status(400).json({ message: 'Không thể chỉnh sửa lịch trực ở mốc thời gian đã qua' });
+    }
+
     const access = await checkRoomAccess(duty.room_id, userId);
     if (!access.ok) {
       return res.status(access.status).json({ message: access.message });
+    }
+
+    const hasOverlap = await hasOverlappingDuty({
+      roomId: duty.room_id,
+      weekStart: duty.week_start,
+      dayLabel: duty.day_label,
+      startHour: Number(start_hour),
+      endHour: Number(end_hour),
+      excludeDutyId: duty._id,
+    });
+    if (hasOverlap) {
+      return res.status(409).json({ message: 'Khung giờ bị trùng với lịch trực khác trong cùng ngày' });
     }
 
     duty.title = String(title).trim();
@@ -235,6 +375,11 @@ const deleteDuty = async (req, res) => {
     const duty = await DutySchedule.findById(dutyId);
     if (!duty) {
       return res.status(404).json({ message: 'Lịch trực nhật không tồn tại' });
+    }
+
+    const dutyWeekStartKey = toWeekStartKey(duty.week_start);
+    if (isDutyStartInPast(dutyWeekStartKey, duty.day_label, Number(duty.start_hour))) {
+      return res.status(400).json({ message: 'Không thể xóa lịch trực ở mốc thời gian đã qua' });
     }
 
     const access = await checkRoomAccess(duty.room_id, userId);

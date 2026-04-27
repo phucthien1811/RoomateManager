@@ -12,24 +12,28 @@ import {
   faCalendarAlt,
   faCalendarCheck,
   faBullhorn,
+  faTimes,
 } from '@fortawesome/free-solid-svg-icons';
 import roomService from '../services/room.service.js';
 import '../styles/sidebar.css';
 
-const Sidebar = ({ activeMenu, setActiveMenu }) => {
+const Sidebar = ({ activeMenu, setActiveMenu, isMobileOpen = false, onCloseMobile }) => {
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faChartLine },
     { id: 'newsfeed', label: 'Bảng Tin Nội Bộ', icon: faBullhorn },
-    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
     { id: 'bills', label: 'Hóa Đơn', icon: faFileAlt },
-    { id: 'members', label: 'Thành Viên', icon: faUsers },
-    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    { id: 'duties', label: 'Lịch Trực Nhật', icon: faCalendarCheck },
     { id: 'tasks', label: 'Công Việc', icon: faTasks },
+    
+    
+    { id: 'absence', label: 'Vắng Mặt', icon: faCalendarAlt },
+    
     { id: 'expenses', label: 'Quỹ Tiền', icon: faPiggyBank },
     { id: 'rooms', label: 'Phòng', icon: faDoorOpen },
+    { id: 'members', label: 'Thành Viên', icon: faUsers },
     { id: 'reports', label: 'Báo Cáo Tài Chính', icon: faChartBar },
   ];
 
@@ -67,8 +71,11 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header">
+        <button type="button" className="sidebar-mobile-close" onClick={onCloseMobile}>
+          <FontAwesomeIcon icon={faTimes} />
+        </button>
         <div className="sidebar-logo">
           <span className="logo-text-three">THREE</span>
           <span className="logo-text-am">AM</span>
@@ -98,7 +105,10 @@ const Sidebar = ({ activeMenu, setActiveMenu }) => {
             <button
               key={item.id}
               className={`menu-item ${activeMenu === item.id ? 'active' : ''}`}
-              onClick={() => setActiveMenu(item.id)}
+              onClick={() => {
+                setActiveMenu(item.id);
+                onCloseMobile?.();
+              }}
             >
               <FontAwesomeIcon icon={item.icon} className="menu-icon" />
               <span className="menu-label">{item.label}</span>

@@ -16,7 +16,13 @@ const dayOffsetMap = {
   "Chủ nhật": 6,
 };
 
-const normalizeName = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+const normalizeName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const getWeekStart = (date = new Date()) => {
   const result = new Date(date);
@@ -94,6 +100,7 @@ const mapChore = (item) => ({
   assigned_to: item.assigned_to || null,
   assigned_members: item.assigned_members || [],
   created_by: item.created_by || null,
+  manual_group_id: item.manual_group_id || null,
   created_at: item.created_at,
   updated_at: item.updated_at,
 });
@@ -105,7 +112,31 @@ const getChoresByRoom = async ({ roomId, userId }) => {
     .populate("assigned_members", "name email")
     .populate("created_by", "name email")
     .sort({ chore_date: 1, created_at: -1 });
-  return chores.map(mapChore);
+
+  // Group by manual_group_id or ID if no group
+  const grouped = new Map();
+  chores.forEach(c => {
+    const key = c.manual_group_id || String(c._id);
+    if (!grouped.has(key)) {
+      grouped.set(key, { 
+        ...mapChore(c), 
+        total_assigned: c.assigned_members?.length || 1,
+        completed_count: 0,
+        member_statuses: []
+      });
+    }
+    const group = grouped.get(key);
+    group.member_statuses.push({
+      user_id: String(c.assigned_to?._id || c.assigned_to),
+      name: c.assigned_to?.name || "Thành viên",
+      status: c.status
+    });
+    if (c.status === CHORE_STATUS.COMPLETED) {
+      group.completed_count += 1;
+    }
+  });
+
+  return Array.from(grouped.values());
 };
 
 const createChore = async ({ roomId, userId, title, choreDate, note, memberIds, startHour, endHour }) => {
@@ -140,10 +171,11 @@ const createChore = async ({ roomId, userId, title, choreDate, note, memberIds, 
     throw new Error("Khung giờ công việc không hợp lệ");
   }
 
-  const chore = await ChoreLog.create({
+  const groupId = new mongoose.Types.ObjectId().toString();
+  const choreDocs = uniqueMemberIds.map(memberId => ({
     room_id: toObjectId(roomId),
-    assigned_to: toObjectId(uniqueMemberIds[0]),
-    assigned_members: uniqueMemberIds.map((memberId) => toObjectId(memberId)),
+    assigned_to: toObjectId(memberId),
+    assigned_members: uniqueMemberIds.map((id) => toObjectId(id)),
     created_by: toObjectId(userId),
     chore_date: new Date(`${choreDate}T00:00:00.000Z`),
     title: trimmedTitle,
@@ -152,13 +184,15 @@ const createChore = async ({ roomId, userId, title, choreDate, note, memberIds, 
     end_hour: parsedEndHour,
     status: CHORE_STATUS.PENDING,
     source_type: "manual",
-  });
+    manual_group_id: groupId
+  }));
 
-  await chore.populate("assigned_members", "name");
+  const chores = await ChoreLog.insertMany(choreDocs);
+  const mainChore = await ChoreLog.findById(chores[0]._id).populate("assigned_members", "name");
   const dateLabel = new Date(`${choreDate}T00:00:00.000Z`).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
   const timeLabel = parsedStartHour !== null && parsedEndHour !== null ? ` (${parsedStartHour}:00-${parsedEndHour}:00)` : "";
 
-  const assigneeNotifications = (chore.assigned_members || [])
+  const assigneeNotifications = (mainChore.assigned_members || [])
     .map((member) => String(member._id))
     .filter((memberId) => memberId !== String(userId))
     .map((recipient) => ({
@@ -237,48 +271,45 @@ const getMyDutyTasks = async ({ roomId, userId, weekStart }) => {
   const myDuties = duties.filter((duty) => (duty.members || []).some((memberName) => normalizeName(memberName) === currentUserName));
   const dutyIds = myDuties.map((duty) => duty._id);
 
-  const completedLogs = await ChoreLog.find({
+  const allLogs = await ChoreLog.find({
     room_id: roomId,
     source_type: "duty",
-    duty_id: { $in: dutyIds },
-    assigned_to: userId,
+    duty_id: { $in: duties.map(d => d._id) },
   });
-  const logByDutyId = new Map(completedLogs.map((log) => [String(log.duty_id), log]));
+
+  const logsByDutyId = new Map();
+  allLogs.forEach(log => {
+    const dId = String(log.duty_id);
+    if (!logsByDutyId.has(dId)) logsByDutyId.set(dId, []);
+    logsByDutyId.get(dId).push(log);
+  });
 
   return myDuties.map((duty) => {
-    const completedLog = logByDutyId.get(String(duty._id));
+    const dutyLogs = logsByDutyId.get(String(duty._id)) || [];
+    const myLog = dutyLogs.find(l => String(l.assigned_to) === String(userId));
     const choreDate = resolveDutyDate(duty.week_start, duty.day_label);
 
-    if (!completedLog) {
-      return {
-        _id: `duty-${duty._id}`,
-        room_id: duty.room_id,
-        source_type: "duty",
-        duty_id: duty._id,
-        title: duty.title,
-        note: duty.note || "",
-        chore_date: choreDate,
-        week_start: duty.week_start,
-        duty_day_label: duty.day_label,
-        start_hour: duty.start_hour,
-        end_hour: duty.end_hour,
-        status: CHORE_STATUS.PENDING,
-        completed_at: null,
-        proof_images: [],
-        members: duty.members || [],
-      };
-    }
-
-    return {
-      ...mapChore(completedLog),
-      members: duty.members || [],
+    const baseTask = {
+      _id: myLog ? myLog._id : `duty-${String(duty._id)}`,
+      room_id: duty.room_id,
+      source_type: "duty",
+      duty_id: String(duty._id),
+      title: duty.title,
+      note: myLog?.note || duty.note || "",
+      chore_date: choreDate,
+      week_start: duty.week_start,
       duty_day_label: duty.day_label,
       start_hour: duty.start_hour,
       end_hour: duty.end_hour,
-      title: duty.title,
-      note: completedLog.note || duty.note || "",
-      chore_date: choreDate,
+      status: myLog ? myLog.status : CHORE_STATUS.PENDING,
+      completed_at: myLog?.completed_at || null,
+      proof_images: myLog?.proof_images || [],
+      members: duty.members || [],
+      total_assigned: duty.members?.length || 1,
+      completed_count: dutyLogs.filter(l => l.status === CHORE_STATUS.COMPLETED).length,
     };
+
+    return baseTask;
   });
 };
 
@@ -286,9 +317,6 @@ const completeDutyTask = async ({ roomId, dutyId, userId, proofImages }) => {
   const room = await ensureRoomAccess(roomId, userId);
   if (!mongoose.isValidObjectId(dutyId)) {
     throw new Error("dutyId không hợp lệ");
-  }
-  if (!Array.isArray(proofImages) || proofImages.length === 0) {
-    throw new Error("Vui lòng tải lên ít nhất 1 ảnh minh chứng");
   }
 
   const duty = await DutySchedule.findById(dutyId);
@@ -332,7 +360,8 @@ const completeDutyTask = async ({ roomId, dutyId, userId, proofImages }) => {
 
   completedLog.status = CHORE_STATUS.COMPLETED;
   completedLog.completed_at = new Date();
-  completedLog.proof_images = proofImages.map((item) => String(item)).filter(Boolean).slice(0, 5);
+  const proofList = Array.isArray(proofImages) ? proofImages : [];
+  completedLog.proof_images = proofList.map((item) => String(item)).filter(Boolean).slice(0, 5);
   await completedLog.save();
 
   const saved = await ChoreLog.findById(completedLog._id)

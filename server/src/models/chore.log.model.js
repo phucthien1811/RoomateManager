@@ -65,6 +65,11 @@ const choreLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    manual_group_id: {
+      type: String,
+      default: null,
+      index: true,
+    },
     duty_day_label: {
       type: String,
       trim: true,

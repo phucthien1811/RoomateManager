@@ -108,6 +108,18 @@ const roomService = {
       throw error.response?.data || error;
     }
   },
+
+  /**
+   * Rời khỏi phòng hiện tại (dành cho thành viên)
+   */
+  leaveRoom: async (roomId) => {
+    try {
+      const response = await api.put(`/members/${roomId}/leave`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
 };
 
 export default roomService;

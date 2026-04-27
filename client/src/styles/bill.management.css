@@ -60,24 +60,23 @@
   padding: 12px 22px;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, #4e83ef 0%, #2f6fec 100%);
+  background: #2f6fec;
   color: white;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 14px rgba(47, 111, 236, 0.28);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow: none;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
 
 .btn-create-bill:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(47, 111, 236, 0.36);
+  background: #1d4ed8;
 }
 
 .btn-create-bill:active:not(:disabled) {
-  transform: translateY(0);
+  background: #1e40af;
 }
 
 .btn-create-bill:disabled {
@@ -355,6 +354,12 @@
   border: 1px solid #bbf7d0;
 }
 
+.bill-status-badge.rejected {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
 /* â”€â”€ CARD BODY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .bill-card-body {
   padding: 0 20px 18px;
@@ -617,19 +622,18 @@
   padding: 5px 12px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #059669;
   color: white;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  box-shadow: none;
 }
 
 .btn-confirm-small:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  background: #047857;
 }
 
 .bill-summary-footer {
@@ -674,19 +678,26 @@
   padding: 10px 16px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: #059669;
   color: white;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+  transition: background-color 0.2s ease;
+  box-shadow: none;
   letter-spacing: 0.2px;
 }
 
 .btn-confirm-all:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  background: #047857;
+}
+
+.btn-confirm-fund {
+  background: #b45309;
+}
+
+.btn-confirm-fund:hover {
+  background: #92400e;
 }
 
 .confirm-note {
@@ -876,6 +887,17 @@
   cursor: not-allowed;
 }
 
+.bill-management input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.bill-management input[type="number"]::-webkit-outer-spin-button,
+.bill-management input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-group select {
   cursor: pointer;
   appearance: none;
@@ -902,6 +924,28 @@
   font-size: 12px;
   color: var(--color-text-light);
   margin-top: 6px;
+}
+
+.money-suggest-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.money-suggest-btn {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.money-suggest-btn:hover {
+  background: #dbeafe;
 }
 
 /* Bill type selector cards */
@@ -1048,22 +1092,28 @@
 }
 
 .participant-split {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-width: 230px;
 }
 
-.participant-split select {
-  width: 68px;
-  padding: 6px 8px;
-  font-size: 13px;
-  border-radius: 8px;
-  border: 1.5px solid var(--color-border);
-  text-align: center;
+.split-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.split-input-group label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .participant-split input {
-  width: 90px;
+  width: 100%;
   padding: 6px 9px;
   font-size: 13px;
   border-radius: 8px;
@@ -1107,15 +1157,14 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, #4e83ef, #2f6fec);
+  background: #2f6fec;
   color: white;
-  transition: all 0.25s ease;
-  box-shadow: 0 3px 10px rgba(47, 111, 236, 0.28);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow: none;
 }
 
 .btn-save:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(47, 111, 236, 0.36);
+  background: #1d4ed8;
 }
 
 .btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -1139,8 +1188,7 @@
 
   .modal-container { border-radius: 14px; }
 
-  .participant-split { flex-direction: column; gap: 4px; width: 100%; }
-  .participant-split select,
+  .participant-split { grid-template-columns: 1fr; width: 100%; min-width: 0; }
   .participant-split input { width: 100%; }
   .participant-row { flex-wrap: wrap; }
 }
@@ -1396,6 +1444,7 @@
 .status-dot.completed { background: #10b981; }
 .status-dot.pending { background: #f59e0b; }
 .status-dot.partial { background: #3b82f6; }
+.status-dot.rejected { background: #ef4444; }
 .h-bill-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .h-bill-right .amount { font-size: 16px; font-weight: 800; color: var(--color-primary); display: block; }
 .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 400px; color: var(--color-text-light); font-size: 15px; text-align: center; }

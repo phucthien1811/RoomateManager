@@ -5,7 +5,6 @@ import {
   faArrowUp,
   faCamera,
   faCheck,
-  faChartPie,
   faClockRotateLeft,
   faCoins,
   faExpand,
@@ -41,7 +40,15 @@ const fmt = (n = 0) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(n) || 0);
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  d
+    ? new Date(d).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 
 const getMemberName = (u) => {
   if (u?.full_name) return u.full_name;
@@ -52,6 +59,20 @@ const getMemberName = (u) => {
 
 const getInitials = (name = '') =>
   name.trim().split(' ').slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
+
+const getMoneySuggestions = (rawValue) => {
+  const numericText = String(rawValue || '').replace(/\D/g, '');
+  if (!numericText) return [];
+
+  const base = Number(numericText);
+  if (!Number.isFinite(base) || base <= 0) return [];
+
+  return [base * 1000, base * 10000, base * 100000]
+    .filter((value) => value >= 5000)
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+};
+
+const fmtSuggestion = (value) => new Intl.NumberFormat('vi-VN').format(value);
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -115,7 +136,11 @@ const ExpenseSharing = () => {
         billService.getBillsByRoom(selectedRoomId),
       ]);
       setFundBalance(Number(detail.balance) || 0);
-      setTransactions(Array.isArray(detail.transactions) ? detail.transactions : []);
+      // Deduplicate transactions by _id
+      const uniqueTransactions = Array.isArray(detail.transactions)
+        ? Array.from(new Map(detail.transactions.map(t => [t._id, t])).values())
+        : [];
+      setTransactions(uniqueTransactions);
       setBills(Array.isArray(billList) ? billList : []);
     } catch (err) {
       setError(err?.message || 'Không thể tải dữ liệu quỹ');
@@ -127,40 +152,62 @@ const ExpenseSharing = () => {
 
   /* ── Computed: room tab ── */
   const roomStats = useMemo(() => {
-    // Tiền quỹ (cộng dồn toàn thời gian)
-    const totalDeposit  = transactions.filter(t => t.type === 'deposit') .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const totalWithdraw = transactions.filter(t => t.type === 'withdraw').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const totalDeposit = transactions
+      .filter(t => t.type === 'deposit')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-    // Hóa đơn trong THÁNG NÀY (hiện tại)
-    const currentMonthStr = (() => {
-      const d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    })();
-    const thisMonthBills = bills.filter(b => b.billing_month === currentMonthStr);
-    const totalBillAmountMonth = thisMonthBills.reduce((s, b) => s + (Number(b.total_amount) || 0), 0);
+    const totalWithdraw = transactions
+      .filter(t => t.type === 'withdraw' && t.status !== 'pending' && t.status !== 'rejected')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-    /* Pie: chi theo loại hóa đơn trong THÁNG NÀY */
-    const byType = {};
-    thisMonthBills.forEach(bill => {
+    const contribMap = {};
+    transactions
+      .filter(t => t.type === 'deposit')
+      .forEach(t => {
+        const name = getMemberName(t.performed_by);
+        contribMap[name] = (contribMap[name] || 0) + (Number(t.amount) || 0);
+      });
+    const memberContribs = Object.entries(contribMap)
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthBills = bills.filter((bill) => {
+      if (bill.billing_month) return bill.billing_month === currentMonthKey;
+      const d = new Date(bill.bill_date || bill.created_at || bill.createdAt);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+
+    const billTypeSums = {};
+    thisMonthBills.forEach((bill) => {
       const label = bill.bill_type === 'other'
         ? (bill.bill_type_other || 'Khác')
         : (BILL_TYPE_LABEL[bill.bill_type] || 'Khác');
-      byType[label] = (byType[label] || 0) + (Number(bill.total_amount) || 0);
+      billTypeSums[label] = (billTypeSums[label] || 0) + (Number(bill.total_amount) || 0);
     });
-    const roomPieData = Object.entries(byType)
+    const roomPieData = Object.entries(billTypeSums)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    const memberMap = new Map();
-    transactions.filter(t => t.type === 'deposit').forEach(t => {
-      const u = t.performed_by || {};
-      const key = u._id || u.email || 'unknown';
-      memberMap.set(key, { name: getMemberName(u), amount: (memberMap.get(key)?.amount || 0) + (Number(t.amount) || 0) });
-    });
-    const memberContribs = Array.from(memberMap.values()).sort((a, b) => b.amount - a.amount);
-    
-    return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length };
+    const totalBillAmountMonth = thisMonthBills.reduce((s, bill) => s + (Number(bill.total_amount) || 0), 0);
+    const pendingTransactions = Array.from(
+      new Map(
+        transactions
+          .filter(t => t.type === 'withdraw' && t.status === 'pending')
+          .map(t => [t._id, t])
+      ).values()
+    );
+
+    return { totalDeposit, totalWithdraw, memberContribs, roomPieData, totalBillAmountMonth, thisMonthBillsCount: thisMonthBills.length, pendingTransactions };
   }, [transactions, bills]);
+
+  const isRoomOwner = useMemo(() => {
+    const room = rooms.find(r => r._id === selectedRoomId);
+    if (!room) return false;
+    const ownerId = String(room.owner?._id || room.owner || '');
+    return currentUserId && ownerId && currentUserId === ownerId;
+  }, [rooms, selectedRoomId, currentUserId]);
 
   /* ── Computed: personal tab ── */
   const personalStats = useMemo(() => {
@@ -197,10 +244,11 @@ const ExpenseSharing = () => {
       note: tx.description || '',
       proofImages: tx.proof_images || [],
       userId: String(tx.performed_by?._id || tx.performed_by || ''),
+      status: tx.status,
     }));
     bills.forEach(bill => rows.push({
       id: 'bill-' + bill._id,
-      date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+      date: new Date(bill.created_at || bill.createdAt || bill.bill_date),
       type: 'bill',
       label: bill.bill_type === 'other'
         ? (bill.bill_type_other || 'Hóa đơn khác')
@@ -245,7 +293,7 @@ const ExpenseSharing = () => {
       if (d) {
         rows.push({
           id: 'my-bill-' + bill._id,
-          date: new Date(bill.bill_date || bill.created_at || bill.createdAt),
+          date: new Date(bill.created_at || bill.createdAt || bill.bill_date),
           type: 'bill',
           label: bill.bill_type === 'other'
             ? (bill.bill_type_other || 'Hóa đơn khác (phần của tôi)')
@@ -288,11 +336,34 @@ const ExpenseSharing = () => {
     if (!amount || amount < 1000) { setError('Số tiền tối thiểu 1.000 VNĐ'); return; }
     try {
       setSubmitting(true); setError('');
-      await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ', withdrawForm.proofImages);
+      const res = await fundService.withdrawFund(selectedRoomId, amount, withdrawForm.description || 'Rút quỹ', 'Rút quỹ', withdrawForm.proofImages);
+      alert(res.message || 'Giao dịch đã được ghi nhận!');
       await fetchAll();
       setShowWithdraw(false);
       setWithdrawForm({ amount: '', description: '', proofImages: [] });
     } catch (err) { setError(err?.message || 'Không thể rút quỹ'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleApproveTx = async (txId) => {
+    if (!window.confirm('Xác nhận phê duyệt yêu cầu rút tiền này?')) return;
+    try {
+      setSubmitting(true);
+      await fundService.approveFundWithdraw(txId);
+      await fetchAll();
+      alert('Đã phê duyệt giao dịch thành công!');
+    } catch (err) { alert(err.message || 'Lỗi khi phê duyệt'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleRejectTx = async (txId) => {
+    if (!window.confirm('Xác nhận từ chối yêu cầu rút quỹ này?')) return;
+    try {
+      setSubmitting(true);
+      await fundService.rejectFundWithdraw(txId);
+      await fetchAll();
+      alert('Đã từ chối giao dịch.');
+    } catch (err) { alert(err.message || 'Lỗi khi từ chối'); }
     finally { setSubmitting(false); }
   };
 
@@ -325,7 +396,17 @@ const ExpenseSharing = () => {
               {/* Stats */}
               <div className="fund-overview-grid">
                 <div className="overview-card">
-                  <span>Số dư quỹ</span>
+                  <div className="overview-card-head">
+                    <span>Số dư quỹ</span>
+                    <button
+                      type="button"
+                      className="fund-plus-btn"
+                      onClick={() => { setError(''); setShowDeposit(true); }}
+                      title="Nạp tiền vào quỹ"
+                    >
+                      +
+                    </button>
+                  </div>
                   <strong>{fmt(fundBalance)}</strong>
                   <small><FontAwesomeIcon icon={faWallet} /> Quỹ phòng</small>
                 </div>
@@ -345,6 +426,46 @@ const ExpenseSharing = () => {
                   <small><FontAwesomeIcon icon={faFileInvoiceDollar} /> {roomStats.thisMonthBillsCount} hóa đơn phát sinh</small>
                 </div>
               </div>
+
+              {/* Pending Transactions for Owner */}
+              {isRoomOwner && roomStats.pendingTransactions?.length > 0 && (
+                <div className="fund-chart-card full" style={{ marginBottom: 20, border: '1px solid #fde68a', background: '#fffbeb' }}>
+                  <h2 style={{ color: '#92400e' }}><FontAwesomeIcon icon={faClockRotateLeft} /> Yêu cầu rút quỹ đang chờ duyệt</h2>
+                  <div className="transaction-table-wrap">
+                    <table className="transaction-table">
+                      <thead>
+                        <tr>
+                          <th>Ngày giờ</th>
+                          <th>Người yêu cầu</th>
+                          <th>Nội dung</th>
+                          <th>Số tiền</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roomStats.pendingTransactions.map(tx => (
+                          <tr key={tx._id}>
+                            <td className="td-date">{fmtDate(tx.created_at || tx.createdAt)}</td>
+                            <td>{getMemberName(tx.performed_by)}</td>
+                            <td>{tx.description}</td>
+                            <td className="td-num"><span className="tx-amount out">{fmt(Math.abs(Number(tx.amount) || 0))}</span></td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn-confirm-mini" onClick={() => handleApproveTx(tx._id)} disabled={submitting}>
+                                  <FontAwesomeIcon icon={faCheck} /> Duyệt
+                                </button>
+                                <button className="btn-reject-mini" onClick={() => handleRejectTx(tx._id)} disabled={submitting}>
+                                  <FontAwesomeIcon icon={faTimes} /> Từ chối
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Biểu đồ + Đóng góp thành viên — 2 cột */}
               <div className="fund-middle-grid">
@@ -425,26 +546,6 @@ const ExpenseSharing = () => {
           {/* ══════ TAB: CÁ NHÂN ══════ */}
           {mode === 'personal' && (
             <>
-              {/* Quick action buttons — banking style */}
-              <div className="qa-row">
-                <button className="qa-btn" onClick={() => { setError(''); setShowDeposit(true); }}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faArrowUp} /></span>
-                  <span className="qa-label">Nạp tiền</span>
-                </button>
-                <button className="qa-btn" onClick={() => { setError(''); setShowWithdraw(true); }}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faMoneyBillTransfer} /></span>
-                  <span className="qa-label">Rút tiền</span>
-                </button>
-                <button className="qa-btn" onClick={() => setShowHistory(true)}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faClockRotateLeft} /></span>
-                  <span className="qa-label">Lịch sử</span>
-                </button>
-                <button className="qa-btn" onClick={() => setMode('room')}>
-                  <span className="qa-icon"><FontAwesomeIcon icon={faChartPie} /></span>
-                  <span className="qa-label">Thống kê</span>
-                </button>
-              </div>
-
               {/* Personal stats */}
               <div className="fund-overview-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginTop: 16 }}>
                 <div className="overview-card">
@@ -499,7 +600,12 @@ const ExpenseSharing = () => {
 
                 {/* Giao dịch cá nhân gần nhất */}
                 <div className="fund-chart-card">
-                  <h2>Giao dịch gần nhất của tôi</h2>
+                  <div className="card-head-with-action">
+                    <h2>Giao dịch gần nhất của tôi</h2>
+                    <button type="button" className="btn-view-all-inline" onClick={() => setShowHistory(true)}>
+                      Xem tất cả
+                    </button>
+                  </div>
                   <HistoryTable
                     rows={personalHistoryRows.slice(0, 5)}
                     onThumb={setLightboxSrc}
@@ -531,6 +637,20 @@ const ExpenseSharing = () => {
                 <input type="number" min="1000" placeholder="500000"
                   value={depositForm.amount}
                   onChange={e => setDepositForm(p => ({ ...p, amount: e.target.value }))} />
+                {getMoneySuggestions(depositForm.amount).length > 0 && (
+                  <div className="money-suggest-list">
+                    {getMoneySuggestions(depositForm.amount).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="money-suggest-btn"
+                        onClick={() => setDepositForm((p) => ({ ...p, amount: String(value) }))}
+                      >
+                        {fmtSuggestion(value)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Ghi chú</label>
@@ -594,6 +714,20 @@ const ExpenseSharing = () => {
                 <input type="number" min="1000" placeholder="200000"
                   value={withdrawForm.amount}
                   onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))} />
+                {getMoneySuggestions(withdrawForm.amount).length > 0 && (
+                  <div className="money-suggest-list">
+                    {getMoneySuggestions(withdrawForm.amount).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="money-suggest-btn"
+                        onClick={() => setWithdrawForm((p) => ({ ...p, amount: String(value) }))}
+                      >
+                        {fmtSuggestion(value)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Lý do rút *</label>
@@ -686,7 +820,7 @@ const HistoryTable = ({ rows, onThumb, compact }) => {
       <table className="transaction-table">
         <thead>
           <tr>
-            <th>Ngày</th>
+            <th>Ngày giờ</th>
             <th>Nội dung</th>
             {!compact && <><th>Nạp</th><th>Trừ</th></>}
             <th>Ảnh</th>
@@ -697,7 +831,11 @@ const HistoryTable = ({ rows, onThumb, compact }) => {
             <tr key={row.id + idx}>
               <td className="td-date">{fmtDate(row.date)}</td>
               <td>
-                <div className="tx-main-label">{row.label}</div>
+                <div className="tx-main-label">
+                  {row.label}
+                  {row.status === 'pending' && <span className="badge-pending" style={{ marginLeft: 8, fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fcd34d' }}>Chờ duyệt</span>}
+                  {row.status === 'rejected' && <span className="badge-rejected" style={{ marginLeft: 8, fontSize: '10px', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca' }}>Từ chối</span>}
+                </div>
                 {row.note && <div className="tx-note">{row.note}</div>}
               </td>
               {!compact && (
@@ -709,7 +847,7 @@ const HistoryTable = ({ rows, onThumb, compact }) => {
                   </td>
                   <td className="td-num">
                     {row.type !== 'deposit'
-                      ? <span className="tx-amount out">−{new Intl.NumberFormat('vi-VN').format(row.amount)}</span>
+                      ? <span className="tx-amount out">−{new Intl.NumberFormat('vi-VN').format(Math.abs(Number(row.amount) || 0))}</span>
                       : <span className="tx-dash">—</span>}
                   </td>
                 </>

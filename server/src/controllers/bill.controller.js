@@ -1,4 +1,21 @@
 const billService = require("../services/bill.service");
+const Notification = require("../models/notification.model");
+
+const BILL_TYPE_LABEL = {
+  electricity: "tiền điện",
+  water: "tiền nước",
+  internet: "internet",
+  rent: "tiền thuê",
+  other: "hóa đơn khác",
+};
+
+const getBillTitle = (bill) => {
+  if (!bill) return "hóa đơn";
+  if (bill.bill_type === "other") {
+    return (bill.bill_type_other || "").trim() || BILL_TYPE_LABEL.other;
+  }
+  return BILL_TYPE_LABEL[bill.bill_type] || "hóa đơn";
+};
 
 // Format response chung cho tất cả API
 const sendResponse = (res, status, success, message, data = null) => {
@@ -97,6 +114,23 @@ const createBill = async (req, res) => {
       createdBy
     );
 
+    if (!bill.is_paid_by_fund && Array.isArray(details) && details.length > 0) {
+      const billName = getBillTitle(bill);
+      const roomMeta = `ROOM ${room_id} • BILL ${bill._id}`;
+      const notifyDocs = details
+        .filter((detail) => detail?.member_id && Number(detail?.amount_due) > 0)
+        .map((detail) => ({
+          recipient: detail.member_id,
+          type: "warning",
+          title: "Bạn cần thanh toán hóa đơn",
+          message: `Bạn cần thanh toán ${Number(detail.amount_due).toLocaleString("vi-VN")} VND cho ${billName}.`,
+          meta: roomMeta,
+        }));
+      if (notifyDocs.length > 0) {
+        await Notification.insertMany(notifyDocs);
+      }
+    }
+
     return sendResponse(res, 201, true, "Tạo hóa đơn và chia tiền thành công", {
       bill,
       details,
@@ -109,6 +143,30 @@ const createBill = async (req, res) => {
   } catch (error) {
     // Lỗi trùng hóa đơn cùng loại trong tháng
     if (error.code === 11000) {
+      const keyPattern = error.keyPattern || {};
+      const legacyPatternHit =
+        keyPattern.room_id &&
+        keyPattern.bill_type &&
+        keyPattern.billing_month &&
+        !keyPattern.bill_type_other;
+
+      if (legacyPatternHit && req.body?.bill_type === "other") {
+        return sendResponse(
+          res,
+          409,
+          false,
+          "Database đang dùng unique index cũ (không tách bill_type_other). Hãy restart backend để sync index mới hoặc chạy script drop index cũ."
+        );
+      }
+
+      if (req.body?.bill_type === "other") {
+        return sendResponse(
+          res,
+          409,
+          false,
+          "Hóa đơn loại Khác với nội dung này trong tháng đã tồn tại"
+        );
+      }
       return sendResponse(res, 409, false, "Hóa đơn cùng loại cho phòng này trong tháng đã tồn tại");
     }
     console.error("[BillController] createBill error:", error.message);
@@ -127,6 +185,17 @@ const confirmPayment = async (req, res) => {
 
     const confirmedBy = req.user?._id || req.body.confirmed_by;
     const { detail, bill } = await billService.confirmPayment(detailId, confirmedBy);
+
+    if (detail?.member_id) {
+      const billName = getBillTitle(bill);
+      await Notification.create({
+        recipient: detail.member_id,
+        type: "success",
+        title: "Bạn đã thanh toán hóa đơn",
+        message: `Bạn đã thanh toán ${Number(detail.amount_due || detail.actual_amount || 0).toLocaleString("vi-VN")} VND cho ${billName}.`,
+        meta: `BILL ${bill?._id || detail?.bill_id}`,
+      });
+    }
 
     return sendResponse(res, 200, true, "Xác nhận thanh toán thành công", {
       detail,
@@ -207,10 +276,60 @@ const getBillHistory = async (req, res) => {
   }
 };
 
+// DELETE /api/bills/:billId — Xóa hóa đơn
+const deleteBill = async (req, res) => {
+  try {
+    const { billId } = req.params;
+    if (!billId || !/^[a-fA-F0-9]{24}$/.test(billId)) {
+      return sendResponse(res, 400, false, "billId không hợp lệ");
+    }
+
+    const requesterId = req.user?._id;
+    if (!requesterId) {
+      return sendResponse(res, 401, false, "Chưa xác thực");
+    }
+
+    const result = await billService.deleteBill(billId, requesterId);
+    return sendResponse(res, 200, true, "Xóa hóa đơn thành công", result);
+  } catch (error) {
+    if (error.message.includes("không có quyền")) {
+      return sendResponse(res, 403, false, error.message);
+    }
+    if (error.message.includes("Không tìm thấy")) {
+      return sendResponse(res, 404, false, error.message);
+    }
+    console.error("[BillController] deleteBill error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi xóa hóa đơn");
+  }
+};
+
+// PATCH /api/bills/:billId — Cập nhật thông tin hóa đơn
+const updateBill = async (req, res) => {
+  try {
+    const { billId } = req.params;
+    const updateData = req.body;
+
+    if (!billId || !/^[a-fA-F0-9]{24}$/.test(billId)) {
+      return sendResponse(res, 400, false, "billId không hợp lệ");
+    }
+
+    const bill = await billService.updateBill(billId, updateData);
+    return sendResponse(res, 200, true, "Cập nhật hóa đơn thành công", bill);
+  } catch (error) {
+    if (error.message.includes("Không tìm thấy")) {
+      return sendResponse(res, 404, false, error.message);
+    }
+    console.error("[BillController] updateBill error:", error.message);
+    return sendResponse(res, 500, false, "Lỗi server khi cập nhật hóa đơn");
+  }
+};
+
 module.exports = {
   createBill,
   confirmPayment,
   getBillDetail,
   getBillHistory,
   uploadBillImages,
+  deleteBill,
+  updateBill,
 };

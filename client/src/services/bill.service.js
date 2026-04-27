@@ -32,7 +32,7 @@ const billService = {
    */
   updateBill: async (billId, billData) => {
     try {
-      const response = await api.put(`/bills/${billId}`, billData);
+      const response = await api.patch(`/bills/${billId}`, billData);
       return response.data.data || response.data;
     } catch (error) {
       throw error.response?.data || error;

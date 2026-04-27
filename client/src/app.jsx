@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBars, faBell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from './context/AuthContext.jsx';
 import { useNotifications } from './context/NotificationContext.jsx';
+import { useToast } from './context/ToastContext.jsx';
 import Login from './pages/login.jsx';
 import Register from './pages/register.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -15,6 +16,7 @@ import TaskTracking from './components/task.tracking.jsx';
 import ExpenseSharing from './components/expense.sharing.jsx';
 import NotificationBoard from './components/notification.board.jsx';
 import FinancialReport from './components/financial.report.jsx';
+import billService from './services/bill.service.js';
 
 import AbsenceReport from './components/absence.report.jsx';
 import DutySchedule from './components/duty.schedule.jsx';
@@ -25,20 +27,98 @@ import './styles/app.css';
 const AppLayout = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
   const { unreadCount, refreshNotifications } = useNotifications();
+  const { showToast } = useToast();
+  const loginReminderShownRef = useRef('');
+  const navigate = useNavigate();
 
   const currentUser = user || {
     name: 'Guest User',
     email: 'guest@gmail.com',
   };
+  useEffect(() => {
+    const handleChangeMenu = (e) => {
+      if (e.detail?.menu) {
+        setActiveMenu(e.detail.menu);
+        setMobileSidebarOpen(false);
+        window.scrollTo(0, 0);
+      }
+    };
 
+    window.addEventListener('change-menu', handleChangeMenu);
+    return () => window.removeEventListener('change-menu', handleChangeMenu);
+  }, []);
+
+  useEffect(() => {
+    const handleToggleSidebar = () => {
+      setMobileSidebarOpen((prev) => !prev);
+    };
+    const handleResize = () => {
+      if (window.innerWidth > 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('toggle-mobile-sidebar', handleToggleSidebar);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('toggle-mobile-sidebar', handleToggleSidebar);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentRoomId = localStorage.getItem('currentRoomId') || '';
+    const currentUserId = String(user?.id || user?._id || '');
+    if (!currentRoomId || !currentUserId) return;
+
+    const reminderKey = `${currentUserId}-${currentRoomId}`;
+    if (loginReminderShownRef.current === reminderKey) return;
+    loginReminderShownRef.current = reminderKey;
+
+    const run = async () => {
+      try {
+        const bills = await billService.getBillsByRoom(currentRoomId);
+        const unpaidMine = (Array.isArray(bills) ? bills : []).filter((bill) => {
+          const details = Array.isArray(bill?.details) ? bill.details : [];
+          return details.some((detail) => {
+            const memberId = String(detail?.member_id?._id || detail?.member_id || '');
+            return memberId === currentUserId && detail?.status !== 'paid';
+          });
+        });
+
+        unpaidMine.slice(0, 3).forEach((bill) => {
+          const details = Array.isArray(bill?.details) ? bill.details : [];
+          const myDetail = details.find((detail) => String(detail?.member_id?._id || detail?.member_id || '') === currentUserId);
+          const billName = bill?.bill_type === 'other'
+            ? (bill?.bill_type_other || 'hóa đơn khác')
+            : ({
+                electricity: 'tiền điện',
+                water: 'tiền nước',
+                internet: 'internet',
+                rent: 'tiền thuê',
+              }[bill?.bill_type] || 'hóa đơn');
+          showToast(
+            `Bạn cần thanh toán ${new Intl.NumberFormat('vi-VN').format(Number(myDetail?.amount_due || 0))} VND cho ${billName}.`,
+            { type: 'warning', title: 'Nhắc thanh toán', duration: 4500 }
+          );
+        });
+      } catch {
+        // ignore bill reminder fetch errors
+      }
+
+    };
+
+    run();
+  }, [user, showToast]);
 
 
 
   const handleLogout = () => {
     logout();
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   const renderContent = () => {
@@ -71,9 +151,26 @@ const AppLayout = () => {
 
   return (
     <div className="app">
-      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+      <div
+        className={`sidebar-backdrop ${mobileSidebarOpen ? 'show' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+      <Sidebar
+        activeMenu={activeMenu}
+        setActiveMenu={setActiveMenu}
+        isMobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
       <div className="app-main">
         <header className="global-header">
+          <button
+            className="global-menu-btn"
+            onClick={() => setMobileSidebarOpen((prev) => !prev)}
+            type="button"
+            title="Mở menu"
+          >
+            <FontAwesomeIcon icon={faBars} />
+          </button>
 
           <div className="global-header-right">
             <div className="global-user">
@@ -110,11 +207,7 @@ const AppLayout = () => {
 };
 
 function App() {
-  const { checkAuth, isAuthenticated, loading } = useAuth();
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -128,8 +221,8 @@ function App() {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/" replace /> : <Register />} />
 
       {/* Protected Routes */}
       {isAuthenticated ? (

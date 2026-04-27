@@ -11,13 +11,15 @@ import {
   faChartPie,
   faUser,
   faUsers,
+  faPlus,
+  faUserSlash,
+  faPiggyBank,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -30,7 +32,10 @@ import billService from '../services/bill.service.js';
 import choreService from '../services/chore.service.js';
 import absenceService from '../services/absence.service.js';
 import api from '../services/api.js';
+import dutyScheduleService from '../services/duty.schedule.service.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
+import dayjs from 'dayjs';
 import '../styles/dashboard.css';
 
 const PIE_COLORS = ['#f6b74f', '#54c7a1', '#74b7ff', '#f7d26a', '#9ad8ff', '#c9ced6'];
@@ -39,12 +44,48 @@ const BILL_TYPE_LABELS = {
   water: 'Nước',
   rent: 'Tiền thuê',
   internet: 'Internet',
+  other: 'Khác',
+};
+const DUTY_DAY_OFFSETS = {
+  'Thứ 2': 0,
+  'Thứ 3': 1,
+  'Thứ 4': 2,
+  'Thứ 5': 3,
+  'Thứ 6': 4,
+  'Thứ 7': 5,
+  'Chủ nhật': 6,
 };
 
 const formatCurrency = (amount = 0) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
     Number(amount) || 0
   );
+
+const THOUSAND = 1000;
+const MILLION = 1000000;
+const BILLION = 1000000000;
+const getYAxisUnit = (maxValue = 0) => {
+  const safe = Number(maxValue) || 0;
+  if (safe >= BILLION) return { suffix: 'B', divisor: BILLION };
+  if (safe >= MILLION) return { suffix: 'M', divisor: MILLION };
+  if (safe >= THOUSAND) return { suffix: 'K', divisor: THOUSAND };
+  return { suffix: '', divisor: 1 };
+};
+const roundUpToUnit = (value = 0, divisor = 1) => {
+  const safe = Number(value) || 0;
+  if (safe <= 0) return divisor;
+  return Math.ceil(safe / divisor) * divisor;
+};
+const formatYAxisTick = (value = 0, unit = { suffix: '', divisor: 1 }) => {
+  const scaled = Number(value) / unit.divisor;
+  const text = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1).replace(/\.0$/, '');
+  return `${text}${unit.suffix}`;
+};
+const formatCompactMoney = (value = 0) => {
+  const safe = Number(value) || 0;
+  const unit = getYAxisUnit(Math.abs(safe));
+  return formatYAxisTick(safe, unit);
+};
 
 const getMemberName = (member) => member?.full_name || member?.name || member?.email || 'Thành viên';
 const getEntityId = (value) => {
@@ -54,19 +95,94 @@ const getEntityId = (value) => {
 };
 
 const getCurrentMonthKey = () => {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${now.getFullYear()}-${month}`;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getTodayFullDate = () => {
+  const d = new Date();
+  const days = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  return `${days[d.getDay()]}, ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 };
 
 const formatMonthLabel = (monthKey) => {
   if (!monthKey) return '';
   const [year, month] = monthKey.split('-');
-  return `Tháng ${month}/${year}`;
+  return `Tháng ${parseInt(month, 10)} năm ${year}`;
+};
+
+const toDateKeyLocal = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const parseDateKey = (dateKey) => {
+  const [year, month, day] = String(dateKey || '').split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const startOfWeekMonday = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + offset);
+  return toDateKeyLocal(d);
+};
+
+const getNextWeekStartKey = (weekStartKey) => {
+  const weekStartDate = parseDateKey(weekStartKey);
+  if (!weekStartDate) return weekStartKey;
+  weekStartDate.setDate(weekStartDate.getDate() + 7);
+  return toDateKeyLocal(weekStartDate);
+};
+
+const isValidDateValue = (value) => {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+const isInMonthKey = (value, monthKey) => {
+  if (!monthKey || !isValidDateValue(value)) return false;
+  return toDateKeyLocal(value).slice(0, 7) === monthKey;
+};
+
+const getDutyDate = (duty) => {
+  if (duty?.date) return duty.date;
+
+  if (!duty?.week_start || !duty?.day_label) return null;
+  const base = new Date(duty.week_start);
+  if (Number.isNaN(base.getTime())) return null;
+
+  const offset = DUTY_DAY_OFFSETS[duty.day_label] ?? 0;
+  base.setUTCDate(base.getUTCDate() + offset);
+  return base.toISOString();
+};
+
+const getDutyMemberLabel = (duty) => {
+  if (!Array.isArray(duty?.members) || duty.members.length === 0) return 'Thành viên';
+  return duty.members.join(', ');
+};
+
+const getTimeRangeLabel = (startHour, endHour) => {
+  const start = Number(startHour);
+  const end = Number(endHour);
+  if (!Number.isFinite(start)) return '';
+  if (Number.isFinite(end)) return `${start}:00 - ${end}:00`;
+  return `${start}:00`;
+};
+
+const getBillTypeLabel = (bill) => {
+  if (bill?.bill_type === 'other') {
+    return String(bill?.bill_type_other || '').trim() || 'Khác';
+  }
+  return BILL_TYPE_LABELS[bill?.bill_type] || bill?.bill_type || 'Khác';
 };
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(localStorage.getItem('currentRoomId') || '');
   const [dashboardMode, setDashboardMode] = useState('room');
@@ -83,6 +199,8 @@ const Dashboard = () => {
     absences: [],
     transactions: [],
     fundBalance: 0,
+    duties: [],
+    myTasks: [],
   });
 
   useEffect(() => {
@@ -130,17 +248,28 @@ const Dashboard = () => {
         setLoading(true);
         setError('');
 
-        const [room, members, billHistory, chores, absences, fundResponse] = await Promise.all([
+        const currentWeekStart = startOfWeekMonday(new Date());
+        const nextWeekStart = getNextWeekStartKey(currentWeekStart);
+
+        const [room, members, billHistory, chores, absences, fundResponse, dutyWeeks, myTasksData] = await Promise.all([
           roomService.getRoomById(selectedRoomId),
           roomService.getRoomMembers(selectedRoomId),
           billService.getBillHistory(selectedRoomId),
           choreService.getChoresByRoom(selectedRoomId),
           absenceService.getAbsenceReports(selectedRoomId),
           api.get(`/fund?room_id=${selectedRoomId}`),
+          Promise.all([
+            dutyScheduleService.getWeekDuties(selectedRoomId, currentWeekStart),
+            dutyScheduleService.getWeekDuties(selectedRoomId, nextWeekStart),
+          ]),
+          choreService.getMyDutyTasks(selectedRoomId, currentWeekStart),
         ]);
 
         const billsData = Array.isArray(billHistory) ? billHistory : billHistory?.bills || [];
         const fundData = fundResponse?.data?.data || {};
+        const duties = Array.isArray(dutyWeeks)
+          ? dutyWeeks.flat().filter((item) => item && item._id)
+          : [];
 
         setData({
           room,
@@ -150,6 +279,8 @@ const Dashboard = () => {
           absences: Array.isArray(absences) ? absences : [],
           transactions: Array.isArray(fundData.transactions) ? fundData.transactions : [],
           fundBalance: Number(fundData.balance) || 0,
+          duties: Array.isArray(duties) ? duties : [],
+          myTasks: Array.isArray(myTasksData) ? myTasksData : [],
         });
 
         const billMonths = [...new Set(billsData.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse();
@@ -168,10 +299,59 @@ const Dashboard = () => {
     fetchRoomDashboard();
   }, [selectedRoomId]);
 
+  // Toast reminder for pending tasks today
+  useEffect(() => {
+    if (loading || !data.myTasks.length) return;
+
+    const hasReminded = sessionStorage.getItem('duty_reminded_today');
+    if (hasReminded) return;
+
+    const now = dayjs();
+    const todayStr = now.format('YYYY-MM-DD');
+    const currentHour = now.hour();
+
+    const tasksToRemind = data.myTasks.filter((task) => {
+      // Rule: Chưa hoàn thành, trong ngày hôm nay, và chưa tới giờ bắt đầu
+      const taskDate = dayjs(task.chore_date).format('YYYY-MM-DD');
+      const startHour = Number(task.start_hour);
+      
+      return (
+        task.status !== 'completed' &&
+        taskDate === todayStr &&
+        currentHour < startHour
+      );
+    });
+
+    if (tasksToRemind.length > 0) {
+      tasksToRemind.forEach((task, index) => {
+        setTimeout(() => {
+          showToast(`Bạn có việc: ${task.title} vào lúc ${task.start_hour}:00 hôm nay.`, {
+            type: 'info',
+            title: 'Nhắc nhở công việc',
+            duration: 6000,
+          });
+        }, index * 1000); // Stagger toasts
+      });
+      sessionStorage.setItem('duty_reminded_today', 'true');
+    }
+  }, [loading, data.myTasks, showToast]);
+
   const computed = useMemo(() => {
     const monthToUse = selectedBillingMonth || getCurrentMonthKey();
     const monthlyBills = data.bills.filter((bill) => bill.billing_month === monthToUse);
     const monthlyExpense = monthlyBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
+
+    const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
+    
+    // Tìm việc tiếp theo (có thể là Chore hoặc Duty)
+    const allReminders = [
+      ...pendingChores.map(c => ({ title: c.title, date: c.chore_date, member: getMemberName(c.assigned_to) })),
+      ...data.duties.map(d => ({ title: d.title, date: getDutyDate(d), member: getDutyMemberLabel(d) }))
+    ]
+      .filter((item) => isValidDateValue(item.date))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const nextPendingTask = allReminders[0];
 
     const pendingAmount = monthlyBills.reduce((sum, bill) => {
       const details = Array.isArray(bill.details) ? bill.details : [];
@@ -185,17 +365,16 @@ const Dashboard = () => {
       );
     }, 0);
 
-    const pendingChores = data.chores.filter((chore) => chore.status !== 'completed');
     const pendingAbsences = data.absences.filter((report) => report.status === 'pending');
 
     const expenseByTypeMap = monthlyBills.reduce((acc, bill) => {
-      const key = bill.bill_type || 'Khác';
+      const key = getBillTypeLabel(bill);
       acc[key] = (acc[key] || 0) + (Number(bill.total_amount) || 0);
       return acc;
     }, {});
 
     const expensePieData = Object.entries(expenseByTypeMap).map(([name, value]) => ({
-      name: BILL_TYPE_LABELS[name] || name,
+      name,
       value,
     }));
 
@@ -205,14 +384,22 @@ const Dashboard = () => {
       acc[month] = (acc[month] || 0) + (Number(bill.total_amount) || 0);
       return acc;
     }, {});
-    const expenseTrendData = Object.entries(monthlyExpenseMap)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-6)
-      .map(([month, value]) => ({
-        month,
-        label: formatMonthLabel(month),
-        chiTieu: value,
-      }));
+    
+    // Tạo danh sách 6 tháng liên tiếp kết thúc tại tháng đang chọn
+    const expenseTrendData = (() => {
+      const trend = [];
+      const [selYear, selMonth] = monthToUse.split('-').map(Number);
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(selYear, selMonth - 1 - i, 1);
+        const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        trend.push({
+          month: mKey,
+          label: formatMonthLabel(mKey).replace(' năm ', '/'),
+          chiTieu: monthlyExpenseMap[mKey] || 0,
+        });
+      }
+      return trend;
+    })();
 
     const memberExpenseMap = {};
     const memberIncomeMap = {};
@@ -234,11 +421,74 @@ const Dashboard = () => {
       });
     });
 
-    const memberFinanceData = Object.keys({ ...memberExpenseMap, ...memberIncomeMap }).map((name) => ({
-      name,
-      chi: memberExpenseMap[name] || 0,
-      thu: memberIncomeMap[name] || 0,
-    }));
+    // --- So sánh với tháng trước ---
+    const previousMonthKey = (() => {
+      const [year, month] = monthToUse.split('-').map(Number);
+      const d = new Date(year, month - 2, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    })();
+    const previousMonthBills = data.bills.filter((bill) => bill.billing_month === previousMonthKey);
+    const previousMonthExpense = previousMonthBills.reduce((sum, bill) => sum + (Number(bill.total_amount) || 0), 0);
+
+    const expenseDiff = monthlyExpense - previousMonthExpense;
+    const expenseDiffPercent = previousMonthExpense > 0 ? (expenseDiff / previousMonthExpense) * 100 : 0;
+
+    // --- Thống kê thành viên ---
+    const monthlyTransactions = data.transactions.filter((transaction) => (
+      transaction?.status === 'completed' && isInMonthKey(transaction.created_at || transaction.createdAt, monthToUse)
+    ));
+
+    const withdrawByBillId = data.transactions.reduce((map, transaction) => {
+      if (transaction?.type !== 'withdraw') return map;
+      const relatedBillId = String(transaction?.related_bill || '');
+      if (!relatedBillId) return map;
+
+      const existing = map.get(relatedBillId);
+      if (!existing || (existing.status !== 'completed' && transaction.status === 'completed')) {
+        map.set(relatedBillId, transaction);
+      }
+      return map;
+    }, new Map());
+
+    const nonFundBills = monthlyBills.filter((bill) => {
+      const relatedWithdraw = withdrawByBillId.get(String(bill?._id || ''));
+      if (bill.is_paid_by_fund) return false;
+      if (relatedWithdraw?.status === 'completed') return false;
+      // Có yêu cầu trích quỹ đang chờ duyệt: chưa tính vào thu cho tới khi xác nhận
+      if (relatedWithdraw?.status === 'pending') return false;
+      return true;
+    });
+
+    const memberFinanceData = data.members.map((member) => {
+      const memberId = String(member._id || member.id || '');
+      const name = getMemberName(member);
+      const avatar = member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+      
+      // Chi: lấy phần hóa đơn của từng user (API bill details)
+      const chi = monthlyBills.reduce((sum, bill) => {
+        const detail = bill.details?.find((d) => String(getEntityId(d.member_id)) === memberId);
+        return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
+      }, 0);
+
+      // Thu: nạp quỹ + phần hóa đơn KHÔNG trích quỹ
+      const depositToFund = monthlyTransactions
+        .filter((transaction) => (
+          transaction.type === 'deposit'
+          && String(getEntityId(transaction.performed_by)) === memberId
+        ))
+        .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+      const nonFundBillIncome = nonFundBills.reduce((sum, bill) => {
+        const detail = bill.details?.find(
+          (d) => String(getEntityId(d.member_id)) === memberId && d.status === 'paid'
+        );
+        return sum + (Number(detail?.actual_amount) || Number(detail?.amount_due) || 0);
+      }, 0);
+
+      const thu = depositToFund + nonFundBillIncome;
+
+      return { name, avatar, chi, thu };
+    });
 
     const pendingPayments = monthlyBills
       .flatMap((bill) => {
@@ -247,17 +497,79 @@ const Dashboard = () => {
           .filter((detail) => detail.status === 'pending')
           .map((detail) => ({
             id: `${bill._id}-${detail._id}`,
-            title: `${getMemberName(detail.member_id)} chưa đóng ${bill.bill_type}`,
+            title: `${getMemberName(detail.member_id)} chưa đóng ${getBillTypeLabel(bill)}`,
             amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
             date: formatMonthLabel(bill.billing_month),
           }));
       })
       .slice(0, 5);
 
-    const upcomingChores = pendingChores
-      .slice()
-      .sort((a, b) => new Date(a.chore_date) - new Date(b.chore_date))
-      .slice(0, 5);
+    const upcomingChores = (() => {
+      const now = new Date();
+      const nowKey = toDateKeyLocal(now);
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      const allUpcoming = [
+        ...data.chores
+          .filter(c => c.status !== 'completed')
+          .map(c => ({
+            id: c._id,
+            title: c.title,
+            date: c.chore_date,
+            type: 'chore',
+            member: getMemberName(c.assigned_to),
+            startHour: c.start_hour,
+            endHour: c.end_hour,
+          })),
+        ...data.duties
+          .map(d => ({
+            id: d._id,
+            title: d.title,
+            date: getDutyDate(d),
+            type: 'duty',
+            member: getDutyMemberLabel(d),
+            startHour: d.start_hour,
+            endHour: d.end_hour,
+          }))
+      ]
+        .filter((item) => isValidDateValue(item.date))
+        .map((item) => ({
+          ...item,
+          dateKey: toDateKeyLocal(item.date),
+          timeLabel: getTimeRangeLabel(item.startHour, item.endHour),
+        }))
+        .filter((item) => {
+          if (item.dateKey < nowKey) return false;
+          if (item.dateKey !== nowKey) return true;
+          const startHour = Number(item.startHour);
+          if (!Number.isFinite(startHour)) return true;
+          return startHour * 60 > nowMinutes;
+        })
+        .sort((a, b) => {
+          const dateDiff = new Date(a.date) - new Date(b.date);
+          if (dateDiff !== 0) return dateDiff;
+          return (Number(a.startHour) || 0) - (Number(b.startHour) || 0);
+        });
+
+      const todayItems = allUpcoming.filter((item) => item.dateKey === nowKey);
+      const futureItems = allUpcoming.filter((item) => item.dateKey > nowKey);
+      const nextFutureDateKey = futureItems[0]?.dateKey || '';
+      const nextFutureItems = nextFutureDateKey
+        ? futureItems.filter((item) => item.dateKey === nextFutureDateKey)
+        : [];
+
+      return {
+        todayItems,
+        nextFutureItems,
+        nextFutureDateLabel: nextFutureItems[0]?.date
+          ? new Date(nextFutureItems[0].date).toLocaleDateString('vi-VN', {
+              weekday: 'long',
+              day: '2-digit',
+              month: '2-digit',
+            })
+          : '',
+      };
+    })();
 
     const recentHistory = [
       ...data.transactions.map((transaction) => ({
@@ -268,7 +580,7 @@ const Dashboard = () => {
       })),
       ...data.bills.map((bill) => ({
         id: `bill-${bill._id}`,
-        label: `Tạo hóa đơn ${bill.bill_type}`,
+        label: `Tạo hóa đơn ${getBillTypeLabel(bill)}`,
         amount: Number(bill.total_amount) || 0,
         createdAt: bill.created_at,
       })),
@@ -282,17 +594,48 @@ const Dashboard = () => {
       monthlyExpense,
       pendingAmount,
       pendingChoreCount: pendingChores.length,
+      nextPendingTask,
       pendingAbsenceCount: pendingAbsences.length,
       expensePieData,
       expenseTrendData,
       memberFinanceData,
-      availableMonths: [...new Set(data.bills.map((bill) => bill.billing_month).filter(Boolean))].sort().reverse(),
+      expenseDiff,
+      expenseDiffPercent,
+      availableMonths: (() => {
+        // Lấy danh sách tháng từ dữ liệu thật
+        const realMonths = data.bills.map((bill) => bill.billing_month).filter(Boolean);
+        
+        // Tạo danh sách 12 tháng gần nhất (tính từ tháng hiện tại)
+        const recentMonths = [];
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+        
+        // Gộp hai danh sách, loại bỏ trùng lặp và sắp xếp mới nhất lên đầu
+        return [...new Set([...realMonths, ...recentMonths])].sort().reverse();
+      })(),
       selectedMonthLabel: formatMonthLabel(monthToUse),
       pendingPayments,
-      upcomingChores,
+      upcomingChores: upcomingChores.todayItems,
+      nextUpcomingChores: upcomingChores.nextFutureItems,
+      nextUpcomingDateLabel: upcomingChores.nextFutureDateLabel,
       recentHistory,
     };
   }, [data, selectedBillingMonth]);
+
+  const memberChartScale = useMemo(() => {
+    const maxValue = computed.memberFinanceData.reduce(
+      (max, item) => Math.max(max, Number(item[memberChartMode]) || 0),
+      0
+    );
+    const unit = getYAxisUnit(maxValue);
+    return {
+      unit,
+      yAxisMax: roundUpToUnit(maxValue, unit.divisor),
+    };
+  }, [computed.memberFinanceData, memberChartMode]);
 
   const personalComputed = useMemo(() => {
     const userId = user?.id;
@@ -303,12 +646,12 @@ const Dashboard = () => {
       const details = Array.isArray(bill.details) ? bill.details : [];
       return details
         .filter((detail) => getEntityId(detail.member_id) === userId && detail.status === 'pending')
-        .map((detail) => ({
-          id: `${bill._id}-${detail._id}`,
-          billType: bill.bill_type,
-          amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
-          month: bill.billing_month,
-        }));
+          .map((detail) => ({
+            id: `${bill._id}-${detail._id}`,
+            billType: getBillTypeLabel(bill),
+            amount: Number(detail.actual_amount) || Number(detail.amount_due) || 0,
+            month: bill.billing_month,
+          }));
     });
 
     const myPaidPayments = monthlyBills.flatMap((bill) => {
@@ -317,6 +660,33 @@ const Dashboard = () => {
         .filter((detail) => getEntityId(detail.member_id) === userId && detail.status === 'paid')
         .map((detail) => Number(detail.actual_amount) || Number(detail.amount_due) || 0);
     });
+
+    const personalExpenseByTypeMap = monthlyBills.reduce((acc, bill) => {
+      const details = Array.isArray(bill.details) ? bill.details : [];
+      const myDetail = details.find((detail) => getEntityId(detail.member_id) === userId);
+      if (!myDetail) return acc;
+
+      const key = getBillTypeLabel(bill);
+      const amount = Number(myDetail.actual_amount) || Number(myDetail.amount_due) || 0;
+      acc[key] = (acc[key] || 0) + amount;
+      return acc;
+    }, {});
+
+    const myMonthlyFundDeposit = data.transactions
+      .filter((transaction) => (
+        transaction.type === 'deposit'
+        && getEntityId(transaction.performed_by) === userId
+        && isInMonthKey(transaction.created_at, monthToUse)
+      ))
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+    const myMonthlyFundWithdraw = data.transactions
+      .filter((transaction) => (
+        transaction.type === 'withdraw'
+        && getEntityId(transaction.performed_by) === userId
+        && isInMonthKey(transaction.created_at, monthToUse)
+      ))
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
 
     const myUpcomingChores = data.chores
       .filter((chore) => getEntityId(chore.assigned_to) === userId && chore.status !== 'completed')
@@ -345,6 +715,13 @@ const Dashboard = () => {
       paymentPieData: [
         { name: 'Đã thanh toán', value: myPaidPayments.reduce((sum, amount) => sum + amount, 0) },
         { name: 'Còn phải đóng', value: myPendingPayments.reduce((sum, item) => sum + item.amount, 0) },
+      ].filter((item) => item.value > 0),
+      personalExpensePieData: Object.entries(personalExpenseByTypeMap)
+        .map(([name, value]) => ({ name, value }))
+        .filter((item) => item.value > 0),
+      monthlyIncomeExpensePieData: [
+        { name: 'Thu', value: myMonthlyFundWithdraw + myMonthlyFundDeposit },
+        { name: 'Chi', value: Object.values(personalExpenseByTypeMap).reduce((sum, amount) => sum + (Number(amount) || 0), 0) },
       ].filter((item) => item.value > 0),
       choreBarData: [
         { name: 'Đã hoàn thành', value: myCompletedChores.length },
@@ -406,6 +783,15 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="header-actions">
+          <div className="quick-actions">
+            <button 
+              className="quick-action-btn absence" 
+              onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'absence' } }))}
+              title="Khái báo vắng mặt"
+            >
+              <FontAwesomeIcon icon={faUserSlash} /> Báo vắng
+            </button>
+          </div>
           <div className="dashboard-mode-switch">
             <button
               className={dashboardMode === 'room' ? 'active' : ''}
@@ -429,18 +815,48 @@ const Dashboard = () => {
         <>
           <div className="stats-grid">
             <div className="stat-card">
-              <span className="stat-label">Số dư quỹ phòng</span>
+              <div className="stat-card-head">
+                <span className="stat-label">Số dư quỹ phòng</span>
+                <button
+                  type="button"
+                  className="stat-action-btn"
+                  onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'expenses' } }))}
+                  title="Đóng quỹ phòng"
+                >
+                  <FontAwesomeIcon icon={faPiggyBank} /> Đóng quỹ
+                </button>
+              </div>
               <strong className="stat-value">{formatCurrency(computed.fundBalance)}</strong>
               <span className="stat-meta">
                 <FontAwesomeIcon icon={faCoins} /> Quỹ hiện tại
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Chi tiêu tháng này</span>
+              <div className="stat-card-head">
+                <span className="stat-label">Chi tiêu tháng này</span>
+                <button
+                  type="button"
+                  className="stat-action-btn"
+                  onClick={() => window.dispatchEvent(new CustomEvent('change-menu', { detail: { menu: 'bills' } }))}
+                  title="Tạo hóa đơn mới"
+                >
+                  <FontAwesomeIcon icon={faPlus} /> Hóa đơn
+                </button>
+              </div>
               <strong className="stat-value">{formatCurrency(computed.monthlyExpense)}</strong>
-              <span className="stat-meta">
-                <FontAwesomeIcon icon={faMoneyBillWave} /> Theo hóa đơn tháng hiện tại
-              </span>
+              <div className="stat-insight">
+                {computed.expenseDiffPercent !== 0 ? (
+                  <>
+                    <span className={`diff-badge ${computed.expenseDiffPercent > 0 ? 'up' : 'down'}`}>
+                      {computed.expenseDiffPercent > 0 ? '+' : ''}
+                      {computed.expenseDiffPercent.toFixed(1)}%
+                    </span>
+                    <span className="insight-text">so với tháng trước</span>
+                  </>
+                ) : (
+                  <span className="insight-text">Tháng đầu tiên</span>
+                )}
+              </div>
             </div>
             <div className="stat-card">
               <span className="stat-label">Khoản còn phải thu</span>
@@ -450,11 +866,20 @@ const Dashboard = () => {
               </span>
             </div>
             <div className="stat-card">
-              <span className="stat-label">Việc nhà chưa hoàn thành</span>
-              <strong className="stat-value">{computed.pendingChoreCount}</strong>
-              <span className="stat-meta">
-                <FontAwesomeIcon icon={faCalendarCheck} /> {computed.memberCount} thành viên trong phòng
-              </span>
+              <span className="stat-label">Việc cần làm</span>
+              <strong className="stat-value">{computed.pendingChoreCount || data.duties.length}</strong>
+              <div className="stat-insight chore-insight">
+                {computed.nextPendingTask ? (
+                  <>
+                    <span className="chore-reminder-label">Tiếp theo:</span>
+                    <span className="chore-reminder-task" title={`${computed.nextPendingTask.title} - ${computed.nextPendingTask.member}`}>
+                      {computed.nextPendingTask.title}
+                    </span>
+                  </>
+                ) : (
+                  <span className="insight-text">Đã hoàn thành hết!</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -463,7 +888,11 @@ const Dashboard = () => {
               <div className="section-header expense-header">
                 <div>
                   <h2>Tình hình thu chi</h2>
-                  <p className="expense-subtitle">{computed.selectedMonthLabel || 'Tháng hiện tại'}</p>
+                  <p className="expense-subtitle">
+                    <span className="today-badge">Hôm nay</span> {getTodayFullDate()} 
+                    <span className="divider">•</span> 
+                    <strong>{computed.selectedMonthLabel}</strong>
+                  </p>
                 </div>
                 <div className="expense-header-controls">
                   <select
@@ -515,6 +944,7 @@ const Dashboard = () => {
                               nameKey="name"
                               innerRadius={70}
                               outerRadius={112}
+                              minAngle={2}
                               paddingAngle={3}
                             >
                               {computed.expensePieData.map((entry, index) => (
@@ -546,7 +976,7 @@ const Dashboard = () => {
                         <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
                         <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Bar dataKey="chiTieu" fill="#74b7ff" radius={[10, 10, 0, 0]} />
+                        <Bar dataKey="chiTieu" fill="#74b7ff" radius={[10, 10, 0, 0]} minPointSize={3} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -576,15 +1006,49 @@ const Dashboard = () => {
                     <div className="empty-inline">Chưa có dữ liệu theo thành viên</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(value) => `${Math.round(value / 1000000)}tr`} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <BarChart data={computed.memberFinanceData} margin={{ top: 10, right: 10, left: 0, bottom: 35 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis 
+                          dataKey="avatar" 
+                          axisLine={false}
+                          tickLine={false}
+                          interval={0}
+                          tick={({ x, y, payload }) => (
+                            <g transform={`translate(${x},${y + 12})`}>
+                              <defs>
+                                <clipPath id={`clip-${payload.index}`}>
+                                  <circle cx="0" cy="0" r="14" />
+                                </clipPath>
+                              </defs>
+                              <circle cx="0" cy="0" r="15" fill="#fff" stroke="#e5e7eb" strokeWidth="1" />
+                              <image
+                                x="-14"
+                                y="-14"
+                                width="28"
+                                height="28"
+                                xlinkHref={payload.value}
+                                clipPath={`url(#clip-${payload.index})`}
+                                preserveAspectRatio="xMidYMid slice"
+                              />
+                            </g>
+                          )}
+                        />
+                        <YAxis
+                          domain={[0, memberChartScale.yAxisMax]}
+                          tickFormatter={(value) => formatYAxisTick(value, memberChartScale.unit)}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip 
+                          cursor={{ fill: '#f3f4f6', opacity: 0.4 }}
+                          labelFormatter={(_, payload) => `Thành viên: ${payload?.[0]?.payload?.name || '—'}`}
+                          formatter={(value) => [formatCompactMoney(value), memberChartMode === 'chi' ? 'Chi' : 'Thu']} 
+                        />
                         <Bar
                           dataKey={memberChartMode}
                           fill={memberChartMode === 'chi' ? '#74b7ff' : '#54c7a1'}
                           radius={[8, 8, 0, 0]}
+                          minPointSize={3}
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -595,6 +1059,49 @@ const Dashboard = () => {
           </div>
 
           <div className="dashboard-content">
+            <div className="section">
+              <div className="section-header">
+                <h2>Lịch trực sắp tới</h2>
+              </div>
+              <div className="duty-list">
+                {computed.upcomingChores.length === 0 && computed.nextUpcomingChores.length === 0 ? (
+                  <div className="empty-inline">Hôm nay và sắp tới chưa có lịch trực</div>
+                ) : (
+                  <>
+                    {computed.upcomingChores.length > 0 && (
+                      <div className="duty-group-header">Hôm nay</div>
+                    )}
+                    {computed.upcomingChores.map((item) => (
+                      <div key={item.id} className="duty-item today">
+                        <div className="duty-info">
+                          <strong>{item.title}</strong>
+                          <p>{item.member}{item.timeLabel ? ` • ${item.timeLabel}` : ''}</p>
+                        </div>
+                        <div className="duty-type-tag">{item.type === 'duty' ? 'Trực nhật' : 'Việc nhà'}</div>
+                      </div>
+                    ))}
+
+                    {computed.nextUpcomingChores.length > 0 && (
+                      <div className="duty-group-header">
+                        {computed.nextUpcomingDateLabel ? `Sắp tới: ${computed.nextUpcomingDateLabel}` : 'Sắp tới'}
+                      </div>
+                    )}
+                    {computed.nextUpcomingChores.map((item) => (
+                      <div key={item.id} className="duty-item">
+                        <div className="duty-date-tag">
+                          {new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                        </div>
+                        <div className="duty-info">
+                          <strong>{item.title}</strong>
+                          <p>{item.member}{item.timeLabel ? ` • ${item.timeLabel}` : ''}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+
             <div className="section">
               <div className="section-header">
                 <h2>Lịch sử gần đây</h2>
@@ -616,26 +1123,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="section">
-              <div className="section-header">
-                <h2>Thành viên phòng</h2>
-              </div>
-              <div className="members-list">
-                {data.members.length === 0 ? (
-                  <div className="empty-inline">Chưa có thành viên</div>
-                ) : (
-                  data.members.map((member) => (
-                    <div key={member._id} className="member-item">
-                      <div className="member-avatar">{getMemberName(member).slice(0, 2).toUpperCase()}</div>
-                      <div>
-                        <strong>{getMemberName(member)}</strong>
-                        <p>{member.email || 'Không có email'}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
         </>
       ) : (
@@ -672,43 +1159,119 @@ const Dashboard = () => {
           </div>
 
           <div className="dashboard-charts">
+            <div className="section expense-overview-section">
+              <div className="section-header expense-header">
+                <div>
+                  <h2>Tổng quan chi tiêu cá nhân</h2>
+                  <p className="expense-subtitle">
+                    <span className="today-badge">Tháng đang xem</span> <strong>{computed.selectedMonthLabel}</strong>
+                  </p>
+                </div>
+                <div className="expense-header-controls">
+                  <select
+                    className="expense-month-selector"
+                    value={selectedBillingMonth}
+                    onChange={(e) => setSelectedBillingMonth(e.target.value)}
+                  >
+                    {computed.availableMonths.length === 0 ? (
+                      <option value={getCurrentMonthKey()}>{formatMonthLabel(getCurrentMonthKey())}</option>
+                    ) : (
+                      computed.availableMonths.map((month) => (
+                        <option key={month} value={month}>
+                          {formatMonthLabel(month)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-content">
             <div className="section">
               <div className="section-header">
-                <h2>Tiến độ thanh toán cá nhân (Pie)</h2>
+                <h2>Chi tiêu cá nhân theo tháng</h2>
               </div>
               <div className="chart-wrap">
-                {personalComputed.paymentPieData.length === 0 ? (
-                  <div className="empty-inline">Bạn chưa có dữ liệu thanh toán tháng này</div>
+                {personalComputed.personalExpensePieData.length === 0 ? (
+                  <div className="empty-inline">Bạn chưa có dữ liệu chi tiêu cá nhân trong tháng này</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie data={personalComputed.paymentPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={92}>
-                        {personalComputed.paymentPieData.map((entry, index) => (
-                          <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="expense-distribution-layout">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={personalComputed.personalExpensePieData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={70}
+                          outerRadius={112}
+                          minAngle={2}
+                          paddingAngle={3}
+                        >
+                          {personalComputed.personalExpensePieData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="expense-legend-list">
+                      {personalComputed.personalExpensePieData.map((item, index) => (
+                        <div key={`${item.name}-${index}`} className="expense-legend-item">
+                          <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p>{formatCurrency(item.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
 
             <div className="section">
               <div className="section-header">
-                <h2>Trực nhật của bạn (Bar)</h2>
+                <h2>Thu / Chi theo tháng</h2>
               </div>
               <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={personalComputed.choreBarData} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {personalComputed.monthlyIncomeExpensePieData.length === 0 ? (
+                  <div className="empty-inline">Bạn chưa có dữ liệu thu/chi trong tháng này</div>
+                ) : (
+                  <div className="expense-distribution-layout">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <PieChart>
+                        <Pie
+                          data={personalComputed.monthlyIncomeExpensePieData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={70}
+                          outerRadius={112}
+                          minAngle={2}
+                          paddingAngle={3}
+                        >
+                          {personalComputed.monthlyIncomeExpensePieData.map((entry, index) => (
+                            <Cell key={`${entry.name}-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="expense-legend-list">
+                      {personalComputed.monthlyIncomeExpensePieData.map((item, index) => (
+                        <div key={`${item.name}-${index}`} className="expense-legend-item">
+                          <span className="dot" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          <div>
+                            <strong>{item.name}</strong>
+                            <p>{formatCurrency(item.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

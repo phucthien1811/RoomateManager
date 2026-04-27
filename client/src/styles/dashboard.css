@@ -36,9 +36,51 @@
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.quick-action-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  color: #374151;
+  background: #fff;
+}
+
+.quick-action-btn.fund {
+  border-color: #86efac;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.quick-action-btn.bill {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.quick-action-btn.absence {
+  border-color: #fcd34d;
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.quick-action-btn:hover {
+  background: #f9fafb;
 }
 
 .dashboard-mode-switch {
@@ -82,12 +124,39 @@
   gap: 8px;
 }
 
+.stat-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .stat-label {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   color: #6b7280;
+}
+
+.stat-action-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.stat-action-btn:hover {
+  background: #f9fafb;
 }
 
 .stat-value {
@@ -102,6 +171,35 @@
   align-items: center;
   color: #6b7280;
   font-size: 13px;
+}
+
+.stat-insight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.diff-badge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diff-badge.up {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.diff-badge.down {
+  background: #f0fdf4;
+  color: #22c55e;
+}
+
+.insight-text {
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .dashboard-charts {
@@ -170,8 +268,27 @@
 
 .expense-subtitle {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.today-badge {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.divider {
+  color: #d1d5db;
+  font-weight: 300;
 }
 
 .expense-header-controls {
@@ -380,6 +497,104 @@
   padding: 8px 0;
 }
 
+.duty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.duty-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: #fdfdfd;
+  border: 1px solid #f0f0f5;
+  border-radius: 12px;
+}
+
+.duty-date-tag {
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 65px;
+  text-align: center;
+}
+
+.duty-date-tag.today {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.duty-info strong {
+  display: block;
+  font-size: 14px;
+  color: #111827;
+}
+
+.duty-info p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.duty-group-header {
+  font-size: 11px;
+  font-weight: 800;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 10px 0 4px;
+}
+
+.duty-item.today {
+  border-left: 4px solid #f43f5e;
+  background: #fffafa;
+}
+
+.duty-item.tomorrow {
+  border-left: 4px solid #3b82f6;
+  background: #f8fbff;
+}
+
+.duty-type-tag {
+  margin-left: auto;
+  font-size: 10px;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #6b7280;
+}
+
+.chore-insight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  background: #f9fafb;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.chore-reminder-label {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.chore-reminder-task {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 1100px) {
   .dashboard-charts,
   .dashboard-content {
@@ -406,6 +621,10 @@
 
   .dashboard-header h1 {
     font-size: 26px;
+  }
+
+  .stat-card-head {
+    flex-wrap: wrap;
   }
 }
 
